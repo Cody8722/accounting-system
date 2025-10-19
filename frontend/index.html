@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💰 個人記帳本</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 設定後端 URL（根據部署環境調整）
+        window.BACKEND_URL = 'http://localhost:5001';
+    </script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+        }
+
+        /* 登入對話框樣式 */
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        #login-modal.hidden { display: none; }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="p-0">
+    <!-- 登入對話框 -->
+    <div id="login-modal">
+        <div class="modal-content">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-3">🔐</div>
+                <h2 class="text-2xl font-bold text-gray-800">管理員登入</h2>
+                <p class="text-gray-500 mt-2">請輸入管理員密碼以存取記帳本</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-1">管理員密碼</label>
+                    <input type="password" id="admin-password"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                           placeholder="請輸入 ADMIN_SECRET"
+                           required>
+                </div>
+                <div id="login-error" class="text-red-500 text-sm text-center hidden"></div>
+                <button type="submit"
+                        class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 font-semibold transition">
+                    登入
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 主內容 -->
+    <div class="container mx-auto p-4 sm:p-8" id="main-content" style="display: none;">
+        <!-- 標題 -->
+        <div class="text-center mb-8 fade-in">
+            <h1 class="text-4xl font-bold text-white mb-2">💰 個人記帳本</h1>
+            <p class="text-purple-100">輕鬆管理您的收支，掌握財務狀況</p>
+        </div>
+
+        <div class="max-w-7xl mx-auto space-y-6">
+            <!-- 統計卡片 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 fade-in">
+                <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg shadow-lg border-l-4 border-green-500">
+                    <p class="text-sm text-green-600 mb-1">💰 本月收入</p>
+                    <p id="total-income" class="text-3xl font-bold text-green-700">$0</p>
+                </div>
+                <div class="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-lg shadow-lg border-l-4 border-red-500">
+                    <p class="text-sm text-red-600 mb-1">💸 本月支出</p>
+                    <p id="total-expense" class="text-3xl font-bold text-red-700">$0</p>
+                </div>
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg shadow-lg border-l-4 border-blue-500">
+                    <p class="text-sm text-blue-600 mb-1">📊 結餘</p>
+                    <p id="balance" class="text-3xl font-bold text-blue-700">$0</p>
+                </div>
+            </div>
+
+            <!-- 新增記帳與預算 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-in">
+                <!-- 新增記帳表單 -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <span class="text-2xl mr-2">➕</span>
+                        新增記帳
+                    </h2>
+                    <form id="accounting-form" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">類型</label>
+                                <select id="record-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" required>
+                                    <option value="expense">支出</option>
+                                    <option value="income">收入</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">金額</label>
+                                <input type="number" id="record-amount" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="0" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">分類</label>
+                                <select id="record-category" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" required>
+                                    <option value="早餐">早餐</option>
+                                    <option value="午餐">午餐</option>
+                                    <option value="晚餐">晚餐</option>
+                                    <option value="點心">點心</option>
+                                    <option value="飲料">飲料</option>
+                                    <option value="收入">收入</option>
+                                    <option value="其他">其他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                                <input type="date" id="record-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">描述 (選填)</label>
+                            <input type="text" id="record-description" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="例如：便利商店">
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" id="is-recurring" class="h-4 w-4 text-purple-600 rounded">
+                                <span class="text-sm text-gray-700">重複記帳</span>
+                            </label>
+                            <select id="recurring-type" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100" disabled>
+                                <option value="daily">每日</option>
+                                <option value="weekly">每週</option>
+                                <option value="monthly">每月</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 font-semibold transition shadow-md">
+                            新增記帳
+                        </button>
+                        <div id="accounting-message" class="text-center text-sm font-medium hidden"></div>
+                    </form>
+                </div>
+
+                <!-- 預算設定 -->
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <span class="text-2xl mr-2">🎯</span>
+                        本月預算
+                    </h2>
+                    <div id="budget-form" class="space-y-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">早餐</label>
+                            <input type="number" data-category="早餐" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">午餐</label>
+                            <input type="number" data-category="午餐" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">晚餐</label>
+                            <input type="number" data-category="晚餐" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">點心</label>
+                            <input type="number" data-category="點心" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">飲料</label>
+                            <input type="number" data-category="飲料" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">其他</label>
+                            <input type="number" data-category="其他" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                        </div>
+                        <button id="save-budget-btn" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 font-semibold text-sm transition shadow-md">
+                            儲存預算
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 篩選器 -->
+            <div class="bg-white p-4 rounded-lg shadow-lg fade-in">
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">開始日期</label>
+                        <input type="date" id="filter-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">結束日期</label>
+                        <input type="date" id="filter-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div class="flex-1 min-w-[120px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">類型</label>
+                        <select id="filter-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                            <option value="">全部</option>
+                            <option value="income">收入</option>
+                            <option value="expense">支出</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[120px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">分類</label>
+                        <select id="filter-category" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                            <option value="">全部</option>
+                            <option value="早餐">早餐</option>
+                            <option value="午餐">午餐</option>
+                            <option value="晚餐">晚餐</option>
+                            <option value="點心">點心</option>
+                            <option value="飲料">飲料</option>
+                            <option value="收入">收入</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <button id="load-records-btn" class="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 font-semibold transition shadow-md">
+                        查詢
+                    </button>
+                </div>
+            </div>
+
+            <!-- 記帳記錄列表 -->
+            <div class="bg-white p-6 rounded-lg shadow-lg fade-in">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <span class="text-2xl mr-2">📝</span>
+                    記帳記錄
+                </h2>
+                <div id="records-list" class="space-y-2">
+                    <p class="text-center text-gray-500 py-8">點擊「查詢」載入記錄</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const backendUrl = window.BACKEND_URL || 'http://localhost:5001';
+
+        // --- 密碼管理 ---
+        function getAdminSecret() {
+            return sessionStorage.getItem('adminSecret') || '';
+        }
+
+        function setAdminSecret(secret) {
+            sessionStorage.setItem('adminSecret', secret);
+        }
+
+        // --- 登入功能 ---
+        const loginModal = document.getElementById('login-modal');
+        const loginForm = document.getElementById('login-form');
+        const adminPasswordInput = document.getElementById('admin-password');
+        const loginError = document.getElementById('login-error');
+        const mainContent = document.getElementById('main-content');
+
+        async function verifyPassword(password) {
+            try {
+                const response = await fetch(`${backendUrl}/status`, {
+                    headers: { 'X-Admin-Secret': password }
+                });
+                return response.ok;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = adminPasswordInput.value.trim();
+
+            if (!password) {
+                loginError.textContent = '請輸入密碼';
+                loginError.classList.remove('hidden');
+                return;
+            }
+
+            loginError.textContent = '驗證中...';
+            loginError.classList.remove('hidden');
+            loginError.classList.remove('text-red-500');
+            loginError.classList.add('text-gray-500');
+
+            const isValid = await verifyPassword(password);
+
+            if (isValid) {
+                setAdminSecret(password);
+                loginModal.classList.add('hidden');
+                mainContent.style.display = 'block';
+
+                // 初始化記帳功能
+                setTodayAsDefault();
+                loadBudget();
+            } else {
+                loginError.textContent = '❌ 密碼錯誤，請重試';
+                loginError.classList.remove('text-gray-500');
+                loginError.classList.add('text-red-500');
+                adminPasswordInput.value = '';
+            }
+        });
+
+        // --- 記帳功能 ---
+        const accountingForm = document.getElementById('accounting-form');
+        const recordType = document.getElementById('record-type');
+        const recordAmount = document.getElementById('record-amount');
+        const recordCategory = document.getElementById('record-category');
+        const recordDate = document.getElementById('record-date');
+        const recordDescription = document.getElementById('record-description');
+        const isRecurring = document.getElementById('is-recurring');
+        const recurringType = document.getElementById('recurring-type');
+        const accountingMessage = document.getElementById('accounting-message');
+        const loadRecordsBtn = document.getElementById('load-records-btn');
+        const saveBudgetBtn = document.getElementById('save-budget-btn');
+        const recordsList = document.getElementById('records-list');
+        const totalIncomeEl = document.getElementById('total-income');
+        const totalExpenseEl = document.getElementById('total-expense');
+        const balanceEl = document.getElementById('balance');
+
+        // 設定今天的日期為預設值
+        function setTodayAsDefault() {
+            const today = new Date().toISOString().split('T')[0];
+            recordDate.value = today;
+            document.getElementById('filter-start-date').value = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+            document.getElementById('filter-end-date').value = today;
+        }
+
+        // 啟用/停用重複記帳類型
+        isRecurring.addEventListener('change', () => {
+            recurringType.disabled = !isRecurring.checked;
+        });
+
+        // 根據類型更新分類選項
+        recordType.addEventListener('change', () => {
+            if (recordType.value === 'income') {
+                recordCategory.value = '收入';
+            } else {
+                if (recordCategory.value === '收入') {
+                    recordCategory.value = '早餐';
+                }
+            }
+        });
+
+        // 新增記帳記錄
+        accountingForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const secret = getAdminSecret();
+
+            const recordData = {
+                type: recordType.value,
+                amount: parseFloat(recordAmount.value),
+                category: recordCategory.value,
+                date: recordDate.value,
+                description: recordDescription.value,
+                is_recurring: isRecurring.checked,
+                recurring_type: isRecurring.checked ? recurringType.value : null
+            };
+
+            try {
+                const response = await fetch(`${backendUrl}/admin/api/accounting/records`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': secret
+                    },
+                    body: JSON.stringify(recordData)
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || '新增失敗');
+
+                accountingMessage.textContent = '✅ 記帳記錄已新增';
+                accountingMessage.className = 'text-center text-sm font-medium text-green-600';
+                accountingMessage.classList.remove('hidden');
+
+                // 清空表單
+                recordAmount.value = '';
+                recordDescription.value = '';
+                isRecurring.checked = false;
+                recurringType.disabled = true;
+                setTodayAsDefault();
+
+                // 重新載入記錄和統計
+                loadAccountingRecords();
+                updateAccountingStats();
+
+                setTimeout(() => {
+                    accountingMessage.classList.add('hidden');
+                }, 3000);
+            } catch (error) {
+                accountingMessage.textContent = `❌ ${error.message}`;
+                accountingMessage.className = 'text-center text-sm font-medium text-red-600';
+                accountingMessage.classList.remove('hidden');
+            }
+        });
+
+        // 載入記帳記錄
+        async function loadAccountingRecords() {
+            const secret = getAdminSecret();
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+            const filterType = document.getElementById('filter-type').value;
+            const filterCategory = document.getElementById('filter-category').value;
+
+            let url = `${backendUrl}/admin/api/accounting/records?`;
+            if (startDate) url += `start_date=${startDate}&`;
+            if (endDate) url += `end_date=${endDate}&`;
+            if (filterType) url += `type=${filterType}&`;
+            if (filterCategory) url += `category=${filterCategory}&`;
+
+            recordsList.innerHTML = '<p class="text-center text-gray-500 py-8">⏳ 載入中...</p>';
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'X-Admin-Secret': secret }
+                });
+
+                const records = await response.json();
+                if (!response.ok) throw new Error(records.error || '載入失敗');
+
+                if (records.length === 0) {
+                    recordsList.innerHTML = '<p class="text-center text-gray-500 py-8">目前沒有記錄</p>';
+                    return;
+                }
+
+                recordsList.innerHTML = records.map(record => {
+                    const typeClass = record.type === 'income' ? 'text-green-600' : 'text-red-600';
+                    const typeIcon = record.type === 'income' ? '💰' : '💸';
+                    const recurringBadge = record.is_recurring ? `<span class="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded ml-2">🔄 ${record.recurring_type === 'daily' ? '每日' : record.recurring_type === 'weekly' ? '每週' : '每月'}</span>` : '';
+
+                    return `
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">${typeIcon}</span>
+                                    <div>
+                                        <p class="font-medium ${typeClass}">$${record.amount.toFixed(2)}</p>
+                                        <p class="text-sm text-gray-600">${record.category}${record.description ? ' - ' + record.description : ''}</p>
+                                        <p class="text-xs text-gray-500">${record.date}${recurringBadge}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="deleteAccountingRecord('${record._id.$oid}')" class="text-red-500 hover:text-red-700 px-3 py-1 rounded-md hover:bg-red-50 text-sm font-medium">
+                                刪除
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                recordsList.innerHTML = `<p class="text-center text-red-500 py-8">❌ ${error.message}</p>`;
+            }
+        }
+
+        // 更新統計資料
+        async function updateAccountingStats() {
+            const secret = getAdminSecret();
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+
+            let url = `${backendUrl}/admin/api/accounting/stats?`;
+            if (startDate) url += `start_date=${startDate}&`;
+            if (endDate) url += `end_date=${endDate}`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'X-Admin-Secret': secret }
+                });
+
+                const stats = await response.json();
+                if (!response.ok) throw new Error(stats.error || '載入失敗');
+
+                totalIncomeEl.textContent = `$${stats.total_income.toFixed(2)}`;
+                totalExpenseEl.textContent = `$${stats.total_expense.toFixed(2)}`;
+                balanceEl.textContent = `$${stats.balance.toFixed(2)}`;
+                balanceEl.className = `text-3xl font-bold ${stats.balance >= 0 ? 'text-blue-700' : 'text-red-700'}`;
+            } catch (error) {
+                console.error('更新統計失敗:', error);
+            }
+        }
+
+        // 刪除記帳記錄
+        window.deleteAccountingRecord = async function(recordId) {
+            if (!confirm('確定要刪除這筆記錄嗎？')) return;
+
+            const secret = getAdminSecret();
+
+            try {
+                const response = await fetch(`${backendUrl}/admin/api/accounting/records/${recordId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Admin-Secret': secret }
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || '刪除失敗');
+
+                // 重新載入記錄和統計
+                loadAccountingRecords();
+                updateAccountingStats();
+            } catch (error) {
+                alert(`❌ 刪除失敗: ${error.message}`);
+            }
+        };
+
+        // 載入預算設定
+        async function loadBudget() {
+            const secret = getAdminSecret();
+
+            try {
+                const response = await fetch(`${backendUrl}/admin/api/accounting/budget`, {
+                    headers: { 'X-Admin-Secret': secret }
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || '載入失敗');
+
+                if (result.budget) {
+                    document.querySelectorAll('.budget-input').forEach(input => {
+                        const category = input.dataset.category;
+                        if (result.budget[category] !== undefined) {
+                            input.value = result.budget[category];
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('載入預算失敗:', error);
+            }
+        }
+
+        // 儲存預算設定
+        saveBudgetBtn.addEventListener('click', async () => {
+            const secret = getAdminSecret();
+            const budget = {};
+
+            document.querySelectorAll('.budget-input').forEach(input => {
+                const category = input.dataset.category;
+                const amount = parseFloat(input.value) || 0;
+                budget[category] = amount;
+            });
+
+            saveBudgetBtn.disabled = true;
+            saveBudgetBtn.textContent = '儲存中...';
+
+            try {
+                const response = await fetch(`${backendUrl}/admin/api/accounting/budget`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': secret
+                    },
+                    body: JSON.stringify({ budget })
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || '儲存失敗');
+
+                saveBudgetBtn.textContent = '✅ 已儲存';
+                setTimeout(() => {
+                    saveBudgetBtn.textContent = '儲存預算';
+                    saveBudgetBtn.disabled = false;
+                }, 2000);
+            } catch (error) {
+                alert(`❌ 儲存預算失敗: ${error.message}`);
+                saveBudgetBtn.textContent = '儲存預算';
+                saveBudgetBtn.disabled = false;
+            }
+        });
+
+        // 查詢按鈕事件
+        loadRecordsBtn.addEventListener('click', () => {
+            loadAccountingRecords();
+            updateAccountingStats();
+        });
+
+        // --- 初始載入 ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const savedSecret = getAdminSecret();
+            if (savedSecret) {
+                const isValid = await verifyPassword(savedSecret);
+                if (isValid) {
+                    loginModal.classList.add('hidden');
+                    mainContent.style.display = 'block';
+                    setTodayAsDefault();
+                    loadBudget();
+                } else {
+                    sessionStorage.removeItem('adminSecret');
+                    loginModal.classList.remove('hidden');
+                }
+            } else {
+                loginModal.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
