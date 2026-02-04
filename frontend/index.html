@@ -16,9 +16,15 @@
             }
 
             // Zeabur 生產環境
-            // 假設前端: xxx-frontend.zeabur.app
-            // 後端: xxx-backend.zeabur.app
+            // 前端: accounting-system.zeabur.app
+            // 後端: accounting-system-ghth.zeabur.app
+            if (hostname === 'accounting-system.zeabur.app') {
+                return 'https://accounting-system-ghth.zeabur.app';
+            }
+
+            // 通用 Zeabur 環境（備用）
             if (hostname.includes('zeabur.app')) {
+                // 嘗試將 frontend 替換成 backend
                 const backendHostname = hostname.replace('frontend', 'backend');
                 return `https://${backendHostname}`;
             }
