@@ -4,16 +4,29 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pymongo import MongoClient
 from bson import json_util, ObjectId
+from bson.errors import InvalidId
 import json
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+import logging
+import re
 
 # 載入環境變數
 load_dotenv()
 
+# 設定 logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
-CORS(app)
+
+# CORS 設定 - 限制來源
+FRONTEND_URLS = os.getenv('FRONTEND_URLS', 'http://localhost:8080,https://accounting-system.zeabur.app').split(',')
+CORS(app, origins=FRONTEND_URLS)
 
 # 速率限制
 limiter = Limiter(
@@ -42,12 +55,63 @@ if MONGO_URI:
         accounting_records_collection = accounting_db['records']
         accounting_budget_collection = accounting_db['budget']
 
-        print("✅ 已連接到記帳資料庫")
+        logger.info("✅ 已連接到記帳資料庫")
     except Exception as e:
-        print(f"❌ MongoDB 連線失敗: {e}")
+        logger.error(f"❌ MongoDB 連線失敗: {e}")
         client = None
 else:
-    print("⚠️ 未設定 MONGO_URI，資料庫功能無法使用")
+    logger.warning("⚠️ 未設定 MONGO_URI，資料庫功能無法使用")
+
+# ==================== 輸入驗證函數 ====================
+
+def validate_objectid(oid_string):
+    """驗證 ObjectId 格式"""
+    try:
+        ObjectId(oid_string)
+        return True
+    except (InvalidId, TypeError):
+        return False
+
+def validate_amount(amount):
+    """驗證金額（必須 > 0 且非 NaN）"""
+    try:
+        amount_float = float(amount)
+        if amount_float <= 0 or amount_float != amount_float:  # NaN check
+            return False, "金額必須大於 0"
+        if amount_float > 9999999.99:  # 最大金額限制
+            return False, "金額不得超過 9,999,999.99"
+        return True, amount_float
+    except (ValueError, TypeError):
+        return False, "金額格式錯誤"
+
+def validate_date(date_string):
+    """驗證日期格式（YYYY-MM-DD）"""
+    if not date_string or not isinstance(date_string, str):
+        return False, "日期格式錯誤"
+
+    pattern = r'^\d{4}-\d{2}-\d{2}$'
+    if not re.match(pattern, date_string):
+        return False, "日期格式必須為 YYYY-MM-DD"
+
+    try:
+        datetime.strptime(date_string, '%Y-%m-%d')
+        return True, date_string
+    except ValueError:
+        return False, "無效的日期"
+
+def validate_recurring_type(recurring_type):
+    """驗證重複類型"""
+    valid_types = ['daily', 'weekly', 'monthly']
+    if recurring_type and recurring_type not in valid_types:
+        return False, f"重複類型必須為: {', '.join(valid_types)}"
+    return True, recurring_type
+
+def validate_record_type(record_type):
+    """驗證記錄類型"""
+    valid_types = ['income', 'expense']
+    if record_type not in valid_types:
+        return False, f"記錄類型必須為: {', '.join(valid_types)}"
+    return True, record_type
 
 # ==================== 記帳 API ====================
 
@@ -72,9 +136,17 @@ def get_accounting_records():
         # 建立查詢條件
         query = {}
         if start_date and end_date:
-            query['date'] = {'$gte': start_date, '$lte': end_date}
+            # 驗證日期格式
+            valid_start, _ = validate_date(start_date)
+            valid_end, _ = validate_date(end_date)
+            if valid_start and valid_end:
+                query['date'] = {'$gte': start_date, '$lte': end_date}
+
         if record_type:
-            query['type'] = record_type
+            valid, _ = validate_record_type(record_type)
+            if valid:
+                query['type'] = record_type
+
         if category:
             query['category'] = category
 
@@ -82,7 +154,8 @@ def get_accounting_records():
         records = accounting_records_collection.find(query).sort('date', -1).limit(500)
         return json.loads(json_util.dumps(list(records))), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"查詢記帳記錄失敗: {e}")
+        return jsonify({"error": "查詢記錄失敗"}), 500
 
 @app.route('/admin/api/accounting/records', methods=['POST'])
 @limiter.limit("50 per minute")
@@ -106,25 +179,50 @@ def add_accounting_record():
             if field not in data:
                 return jsonify({"error": f"缺少必要欄位: {field}"}), 400
 
+        # 驗證記錄類型
+        valid, msg = validate_record_type(data['type'])
+        if not valid:
+            return jsonify({"error": msg}), 400
+
+        # 驗證金額
+        valid, result = validate_amount(data['amount'])
+        if not valid:
+            return jsonify({"error": result}), 400
+        amount = result
+
+        # 驗證日期
+        valid, result = validate_date(data['date'])
+        if not valid:
+            return jsonify({"error": result}), 400
+
+        # 驗證重複類型
+        recurring_type = data.get('recurring_type')
+        if data.get('is_recurring', False) and recurring_type:
+            valid, msg = validate_recurring_type(recurring_type)
+            if not valid:
+                return jsonify({"error": msg}), 400
+
         # 建立記錄
         record = {
             'type': data['type'],
-            'amount': float(data['amount']),
+            'amount': amount,
             'category': data['category'],
             'date': data['date'],
             'description': data.get('description', ''),
             'is_recurring': data.get('is_recurring', False),
-            'recurring_type': data.get('recurring_type'),
+            'recurring_type': recurring_type,
             'created_at': datetime.now()
         }
 
         result = accounting_records_collection.insert_one(record)
+        logger.info(f"新增記帳記錄: {result.inserted_id}")
         return jsonify({
             "message": "記帳記錄已新增",
             "id": str(result.inserted_id)
         }), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"新增記帳記錄失敗: {e}")
+        return jsonify({"error": "新增記錄失敗"}), 500
 
 @app.route('/admin/api/accounting/records/<record_id>', methods=['PUT'])
 @limiter.limit("50 per minute")
@@ -137,25 +235,52 @@ def update_accounting_record(record_id):
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
+    # 驗證 ObjectId
+    if not validate_objectid(record_id):
+        return jsonify({"error": "無效的記錄 ID"}), 400
+
     try:
         data = request.get_json()
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
         update_data = {}
+
+        # 驗證類型
         if 'type' in data:
+            valid, msg = validate_record_type(data['type'])
+            if not valid:
+                return jsonify({"error": msg}), 400
             update_data['type'] = data['type']
+
+        # 驗證金額
         if 'amount' in data:
-            update_data['amount'] = float(data['amount'])
+            valid, result = validate_amount(data['amount'])
+            if not valid:
+                return jsonify({"error": result}), 400
+            update_data['amount'] = result
+
         if 'category' in data:
             update_data['category'] = data['category']
+
+        # 驗證日期
         if 'date' in data:
+            valid, result = validate_date(data['date'])
+            if not valid:
+                return jsonify({"error": result}), 400
             update_data['date'] = data['date']
+
         if 'description' in data:
             update_data['description'] = data['description']
+
         if 'is_recurring' in data:
             update_data['is_recurring'] = data['is_recurring']
+
+        # 驗證重複類型
         if 'recurring_type' in data:
+            valid, msg = validate_recurring_type(data['recurring_type'])
+            if not valid:
+                return jsonify({"error": msg}), 400
             update_data['recurring_type'] = data['recurring_type']
 
         update_data['updated_at'] = datetime.now()
@@ -168,9 +293,11 @@ def update_accounting_record(record_id):
         if result.matched_count == 0:
             return jsonify({"error": "找不到該記錄"}), 404
 
+        logger.info(f"更新記帳記錄: {record_id}")
         return jsonify({"message": "記帳記錄已更新"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"更新記帳記錄失敗: {e}")
+        return jsonify({"error": "更新記錄失敗"}), 500
 
 @app.route('/admin/api/accounting/records/<record_id>', methods=['DELETE'])
 @limiter.limit("50 per minute")
@@ -183,15 +310,21 @@ def delete_accounting_record(record_id):
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
+    # 驗證 ObjectId
+    if not validate_objectid(record_id):
+        return jsonify({"error": "無效的記錄 ID"}), 400
+
     try:
         result = accounting_records_collection.delete_one({'_id': ObjectId(record_id)})
 
         if result.deleted_count == 0:
             return jsonify({"error": "找不到該記錄"}), 404
 
+        logger.info(f"刪除記帳記錄: {record_id}")
         return jsonify({"message": "記帳記錄已刪除"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"刪除記帳記錄失敗: {e}")
+        return jsonify({"error": "刪除記錄失敗"}), 500
 
 @app.route('/admin/api/accounting/stats', methods=['GET'])
 @limiter.limit("100 per minute")
@@ -211,7 +344,11 @@ def get_accounting_stats():
 
         query = {}
         if start_date and end_date:
-            query['date'] = {'$gte': start_date, '$lte': end_date}
+            # 驗證日期格式
+            valid_start, _ = validate_date(start_date)
+            valid_end, _ = validate_date(end_date)
+            if valid_start and valid_end:
+                query['date'] = {'$gte': start_date, '$lte': end_date}
 
         # 計算總收入和總支出
         income_pipeline = [
@@ -244,7 +381,8 @@ def get_accounting_stats():
             'category_stats': category_stats
         }), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"取得統計資料失敗: {e}")
+        return jsonify({"error": "取得統計資料失敗"}), 500
 
 @app.route('/admin/api/accounting/budget', methods=['GET'])
 @limiter.limit("100 per minute")
@@ -267,7 +405,8 @@ def get_accounting_budget():
             'budget': budget_doc.get('budget', {}) if budget_doc else {}
         }), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"取得預算失敗: {e}")
+        return jsonify({"error": "取得預算失敗"}), 500
 
 @app.route('/admin/api/accounting/budget', methods=['POST'])
 @limiter.limit("50 per minute")
@@ -299,13 +438,16 @@ def set_accounting_budget():
             upsert=True
         )
 
+        logger.info(f"儲存預算設定: {current_month}")
         return jsonify({"message": "預算已儲存"}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"儲存預算失敗: {e}")
+        return jsonify({"error": "儲存預算失敗"}), 500
 
 # ==================== 系統狀態 ====================
 
 @app.route('/status', methods=['GET'])
+@limiter.limit("10 per minute")  # 加入速率限制
 def status():
     """系統狀態檢查（需要驗證）"""
     # 驗證管理員密碼
@@ -323,4 +465,6 @@ def status():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5001))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # 從環境變數讀取 debug 模式，預設為 False
+    debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
