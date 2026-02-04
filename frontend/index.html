@@ -6,8 +6,29 @@
     <title>💰 個人記帳本</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // 設定後端 URL（根據部署環境調整）
-        window.BACKEND_URL = 'http://localhost:5001';
+        // 自動偵測後端 URL
+        function detectBackendUrl() {
+            const hostname = window.location.hostname;
+
+            // 本地開發環境
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:5001';
+            }
+
+            // Zeabur 生產環境
+            // 假設前端: xxx-frontend.zeabur.app
+            // 後端: xxx-backend.zeabur.app
+            if (hostname.includes('zeabur.app')) {
+                const backendHostname = hostname.replace('frontend', 'backend');
+                return `https://${backendHostname}`;
+            }
+
+            // 預設值
+            return 'http://localhost:5001';
+        }
+
+        window.BACKEND_URL = detectBackendUrl();
+        console.log('🔗 使用後端 URL:', window.BACKEND_URL);
     </script>
     <style>
         body {

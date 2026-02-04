@@ -307,7 +307,12 @@ def set_accounting_budget():
 
 @app.route('/status', methods=['GET'])
 def status():
-    """系統狀態檢查"""
+    """系統狀態檢查（需要驗證）"""
+    # 驗證管理員密碼
+    secret = request.headers.get('X-Admin-Secret')
+    if not secret or secret != ADMIN_SECRET:
+        return jsonify({"error": "未授權"}), 403
+
     db_connected = client is not None
 
     return jsonify({
