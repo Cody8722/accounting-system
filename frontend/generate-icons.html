@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>生成 App 圖示</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #667eea; }
+        .canvas-container {
+            margin: 20px;
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .info {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 600px;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>💰 記帳本 App 圖示生成器</h1>
+    
+    <div class="info">
+        <h3>📋 使用說明：</h3>
+        <ol>
+            <li>點擊下載按鈕下載兩個圖示</li>
+            <li>將下載的檔案上傳到 Zeabur 前端服務的根目錄</li>
+            <li>或者使用 Git 提交（如果有權限）</li>
+            <li>重新整理網站，應該就會彈出安裝提示</li>
+        </ol>
+    </div>
+
+    <div class="canvas-container">
+        <h3>192x192 圖示</h3>
+        <canvas id="canvas192" width="192" height="192"></canvas>
+        <br>
+        <button onclick="download(192)">⬇️ 下載 icon-192.png</button>
+    </div>
+
+    <div class="canvas-container">
+        <h3>512x512 圖示</h3>
+        <canvas id="canvas512" width="512" height="512"></canvas>
+        <br>
+        <button onclick="download(512)">⬇️ 下載 icon-512.png</button>
+    </div>
+
+    <button onclick="downloadBoth()" style="background: #10b981; font-size: 18px;">
+        📦 一次下載兩個圖示
+    </button>
+
+    <script>
+        function drawIcon(canvas) {
+            const size = canvas.width;
+            const ctx = canvas.getContext('2d');
+
+            // 清除畫布
+            ctx.clearRect(0, 0, size, size);
+
+            // 背景漸層 (#667eea -> #764ba2)
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // 白色圓形背景
+            const circleRadius = size * 0.32;
+            const centerX = size / 2;
+            const centerY = size / 2;
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, circleRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 外圈
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = size * 0.025;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, circleRadius + size * 0.05, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // $ 符號
+            ctx.fillStyle = '#667eea';
+            ctx.font = `bold ${size * 0.45}px Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('$', centerX, centerY + size * 0.02);
+
+            // 添加小裝飾
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(centerX - circleRadius * 0.5, centerY - circleRadius * 0.5, size * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 繪製兩個圖示
+        drawIcon(document.getElementById('canvas192'));
+        drawIcon(document.getElementById('canvas512'));
+
+        function download(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon-${size}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // 顯示提示
+                alert(`✅ icon-${size}.png 已下載！`);
+            }, 'image/png');
+        }
+
+        function downloadBoth() {
+            download(192);
+            setTimeout(() => download(512), 500);
+        }
+    </script>
+</body>
+</html>
