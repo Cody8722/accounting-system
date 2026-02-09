@@ -1,4 +1,4 @@
-const CACHE_NAME = 'accounting-system-v1';
+const CACHE_NAME = 'accounting-system-v2';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 
 // 需要快取的靜態資源
@@ -44,6 +44,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // 特別處理：/status 端點永不快取（登入驗證用）
+  if (request.url.includes('/status')) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // 只處理 GET 請求
   if (request.method === 'GET') {
