@@ -99,12 +99,12 @@ def validate_date(date_string):
     except ValueError:
         return False, "無效的日期"
 
-def validate_recurring_type(recurring_type):
-    """驗證重複類型"""
-    valid_types = ['daily', 'weekly', 'monthly']
-    if recurring_type and recurring_type not in valid_types:
-        return False, f"重複類型必須為: {', '.join(valid_types)}"
-    return True, recurring_type
+def validate_expense_type(expense_type):
+    """驗證支出類型"""
+    valid_types = ['fixed', 'variable', 'onetime']
+    if expense_type and expense_type not in valid_types:
+        return False, f"支出類型必須為: {', '.join(valid_types)}"
+    return True, expense_type
 
 def validate_record_type(record_type):
     """驗證記錄類型"""
@@ -195,10 +195,10 @@ def add_accounting_record():
         if not valid:
             return jsonify({"error": result}), 400
 
-        # 驗證重複類型
-        recurring_type = data.get('recurring_type')
-        if data.get('is_recurring', False) and recurring_type:
-            valid, msg = validate_recurring_type(recurring_type)
+        # 驗證支出類型（新格式）或重複類型（舊格式，向後相容）
+        expense_type = data.get('expense_type')
+        if expense_type:
+            valid, msg = validate_expense_type(expense_type)
             if not valid:
                 return jsonify({"error": msg}), 400
 
@@ -209,8 +209,7 @@ def add_accounting_record():
             'category': data['category'],
             'date': data['date'],
             'description': data.get('description', ''),
-            'is_recurring': data.get('is_recurring', False),
-            'recurring_type': recurring_type,
+            'expense_type': expense_type,  # 新欄位
             'created_at': datetime.now()
         }
 
@@ -273,15 +272,13 @@ def update_accounting_record(record_id):
         if 'description' in data:
             update_data['description'] = data['description']
 
-        if 'is_recurring' in data:
-            update_data['is_recurring'] = data['is_recurring']
-
-        # 驗證重複類型
-        if 'recurring_type' in data:
-            valid, msg = validate_recurring_type(data['recurring_type'])
-            if not valid:
-                return jsonify({"error": msg}), 400
-            update_data['recurring_type'] = data['recurring_type']
+        # 驗證支出類型
+        if 'expense_type' in data:
+            if data['expense_type']:  # 如果不是空值才驗證
+                valid, msg = validate_expense_type(data['expense_type'])
+                if not valid:
+                    return jsonify({"error": msg}), 400
+            update_data['expense_type'] = data['expense_type']
 
         update_data['updated_at'] = datetime.now()
 
