@@ -1,10 +1,14 @@
-const CACHE_NAME = 'accounting-system-v2';  // 更新版本以強制重新安裝
+const CACHE_NAME = 'accounting-system-v3';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 
 // 需要快取的靜態資源
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/service-worker.js',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
