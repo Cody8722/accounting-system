@@ -673,6 +673,110 @@
                 padding-bottom: 20px !important;
             }
         }
+
+        /* ===== 自訂數字鍵盤 ===== */
+        .custom-keyboard {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 12px;
+            padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            display: none;
+            z-index: 2000;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .custom-keyboard.active {
+            display: block;
+        }
+
+        .keyboard-display {
+            background: white;
+            border: 2px solid #7c3aed;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            text-align: right;
+            font-size: 28px;
+            font-weight: bold;
+            color: #1f2937;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .keyboard-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .keyboard-btn {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            height: 56px;
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2937;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .keyboard-btn:active {
+            background: #f1f5f9;
+            transform: scale(0.95);
+        }
+
+        .keyboard-btn.keyboard-special {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .keyboard-btn.keyboard-special:active {
+            background: #fde68a;
+        }
+
+        .keyboard-btn.keyboard-delete {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .keyboard-btn.keyboard-delete:active {
+            background: #fecaca;
+        }
+
+        .keyboard-btn.keyboard-confirm {
+            background: #7c3aed;
+            color: white;
+            grid-column: span 3;
+        }
+
+        .keyboard-btn.keyboard-confirm:active {
+            background: #6d28d9;
+        }
+
+        /* 桌面版隱藏自訂鍵盤 */
+        @media (min-width: 768px) {
+            .custom-keyboard {
+                display: none !important;
+            }
+        }
+
+        /* 手機版：當鍵盤顯示時，為底部導航添加額外間距 */
+        .custom-keyboard.active ~ .mobile-nav {
+            bottom: 320px;
+            transition: bottom 0.3s ease;
+        }
     </style>
 </head>
 <body class="p-0">
@@ -1837,6 +1941,30 @@
         </div>
     </nav>
 
+    <!-- 自訂數字鍵盤 (手機版專用) -->
+    <div class="custom-keyboard" id="custom-keyboard">
+        <div class="keyboard-display" id="keyboard-display">0</div>
+        <div class="keyboard-grid">
+            <button type="button" class="keyboard-btn" data-key="7">7</button>
+            <button type="button" class="keyboard-btn" data-key="8">8</button>
+            <button type="button" class="keyboard-btn" data-key="9">9</button>
+            <button type="button" class="keyboard-btn" data-key="4">4</button>
+            <button type="button" class="keyboard-btn" data-key="5">5</button>
+            <button type="button" class="keyboard-btn" data-key="6">6</button>
+            <button type="button" class="keyboard-btn" data-key="1">1</button>
+            <button type="button" class="keyboard-btn" data-key="2">2</button>
+            <button type="button" class="keyboard-btn" data-key="3">3</button>
+            <button type="button" class="keyboard-btn keyboard-special" data-key=".">.</button>
+            <button type="button" class="keyboard-btn" data-key="0">0</button>
+            <button type="button" class="keyboard-btn keyboard-delete" data-key="backspace">
+                <i class="fas fa-backspace"></i>
+            </button>
+            <button type="button" class="keyboard-btn keyboard-confirm" data-key="confirm">
+                <i class="fas fa-check mr-2"></i>確認
+            </button>
+        </div>
+    </div>
+
     <script>
         // ===== SPA Router 類別 =====
         class Router {
@@ -1944,6 +2072,143 @@
 
         // 暴露 router 到全局，方便其他地方使用
         window.appRouter = router;
+
+        // ===== 自訂數字鍵盤類別 =====
+        class CustomKeyboard {
+            constructor() {
+                this.keyboard = document.getElementById('custom-keyboard');
+                this.display = document.getElementById('keyboard-display');
+                this.targetInput = null;
+                this.currentValue = '0';
+                this.init();
+            }
+
+            init() {
+                // 綁定所有鍵盤按鈕
+                const buttons = this.keyboard.querySelectorAll('.keyboard-btn');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const key = btn.dataset.key;
+                        this.handleKey(key);
+                    });
+                });
+
+                // 綁定金額輸入框的點擊事件
+                const amountInput = document.getElementById('record-amount');
+                if (amountInput) {
+                    // 阻止手機系統鍵盤彈出
+                    amountInput.setAttribute('readonly', 'true');
+                    amountInput.setAttribute('inputmode', 'none');
+
+                    amountInput.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.show(amountInput);
+                    });
+
+                    amountInput.addEventListener('focus', (e) => {
+                        e.preventDefault();
+                        this.show(amountInput);
+                        amountInput.blur(); // 立即失焦，避免系統鍵盤彈出
+                    });
+                }
+
+                // 點擊鍵盤外部關閉
+                document.addEventListener('click', (e) => {
+                    if (this.keyboard.classList.contains('active')) {
+                        const isKeyboard = this.keyboard.contains(e.target);
+                        const isInput = e.target === this.targetInput;
+                        if (!isKeyboard && !isInput) {
+                            this.hide();
+                        }
+                    }
+                });
+            }
+
+            show(inputElement) {
+                this.targetInput = inputElement;
+                this.currentValue = inputElement.value || '0';
+                this.updateDisplay();
+                this.keyboard.classList.add('active');
+
+                // 向上推動底部導航
+                const mobileNav = document.getElementById('mobile-nav');
+                if (mobileNav) {
+                    mobileNav.style.bottom = '320px';
+                }
+
+                // 滾動到輸入框位置
+                setTimeout(() => {
+                    inputElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+
+            hide() {
+                this.keyboard.classList.remove('active');
+                this.targetInput = null;
+
+                // 恢復底部導航位置
+                const mobileNav = document.getElementById('mobile-nav');
+                if (mobileNav) {
+                    mobileNav.style.bottom = '0';
+                }
+            }
+
+            handleKey(key) {
+                if (key === 'confirm') {
+                    // 確認：更新輸入框並關閉鍵盤
+                    if (this.targetInput) {
+                        this.targetInput.value = this.currentValue;
+                        // 觸發 input 事件，讓其他邏輯知道值已更改
+                        this.targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    this.hide();
+                } else if (key === 'backspace') {
+                    // 刪除：移除最後一個字符
+                    if (this.currentValue.length > 1) {
+                        this.currentValue = this.currentValue.slice(0, -1);
+                    } else {
+                        this.currentValue = '0';
+                    }
+                    this.updateDisplay();
+                } else if (key === '.') {
+                    // 小數點：只允許一個小數點
+                    if (!this.currentValue.includes('.')) {
+                        this.currentValue += '.';
+                        this.updateDisplay();
+                    }
+                } else {
+                    // 數字鍵
+                    if (this.currentValue === '0') {
+                        this.currentValue = key;
+                    } else {
+                        // 限制最多 2 位小數
+                        if (this.currentValue.includes('.')) {
+                            const parts = this.currentValue.split('.');
+                            if (parts[1] && parts[1].length >= 2) {
+                                return; // 已有 2 位小數，不再添加
+                            }
+                        }
+
+                        // 限制最大值
+                        const newValue = this.currentValue + key;
+                        if (parseFloat(newValue) <= 9999999.99) {
+                            this.currentValue = newValue;
+                        }
+                    }
+                    this.updateDisplay();
+                }
+            }
+
+            updateDisplay() {
+                this.display.textContent = this.currentValue;
+            }
+        }
+
+        // 初始化自訂鍵盤（僅在手機版）
+        if (window.innerWidth < 768) {
+            const customKeyboard = new CustomKeyboard();
+            window.customKeyboard = customKeyboard;
+        }
     </script>
 </body>
 </html>
