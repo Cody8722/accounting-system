@@ -836,6 +836,91 @@
                 transform: none; /* 禁用 hover 效果，避免干擾滑動 */
             }
         }
+
+        /* ===== 長按選單功能 ===== */
+        .context-menu {
+            position: fixed;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            z-index: 3000;
+            display: none;
+            min-width: 180px;
+            overflow: hidden;
+        }
+
+        .context-menu.active {
+            display: block;
+            animation: contextMenuFadeIn 0.2s ease-out;
+        }
+
+        @keyframes contextMenuFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .context-menu-item {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-size: 15px;
+            color: #1f2937;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .context-menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .context-menu-item:active {
+            background: #f3f4f6;
+        }
+
+        .context-menu-item i {
+            width: 20px;
+            font-size: 16px;
+        }
+
+        .context-menu-item.danger {
+            color: #ef4444;
+        }
+
+        .context-menu-item.cancel {
+            color: #6b7280;
+            font-weight: 600;
+        }
+
+        /* 長按選中效果 */
+        .record-card.long-pressing {
+            background: #ede9fe !important;
+            transform: scale(0.98);
+        }
+
+        /* 遮罩層 */
+        .context-menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 2999;
+            display: none;
+        }
+
+        .context-menu-overlay.active {
+            display: block;
+            animation: fadeIn 0.2s ease-out;
+        }
     </style>
 </head>
 <body class="p-0">
@@ -1612,11 +1697,21 @@
                 // Update chart with expense data
                 updateExpenseChart(records.filter(r => r.type === 'expense'));
 
-                // 初始化滑動刪除功能
-                if (window.SwipeToDelete) {
+                // 初始化滑動刪除功能 + 長按選單功能
+                if (window.SwipeToDelete || window.longPressMenu) {
                     const recordCards = document.querySelectorAll('.record-card');
                     recordCards.forEach(card => {
-                        new SwipeToDelete(card);
+                        const recordId = card.dataset.recordId;
+
+                        // 滑動刪除
+                        if (window.SwipeToDelete) {
+                            new SwipeToDelete(card);
+                        }
+
+                        // 長按選單
+                        if (window.longPressMenu && recordId) {
+                            window.longPressMenu.bindToElement(card, recordId);
+                        }
                     });
                 }
             } catch (error) {
@@ -2036,6 +2131,29 @@
         </div>
     </div>
 
+    <!-- 長按選單遮罩層 -->
+    <div class="context-menu-overlay" id="context-menu-overlay"></div>
+
+    <!-- 長按選單 -->
+    <div class="context-menu" id="context-menu">
+        <div class="context-menu-item" data-action="edit">
+            <i class="fas fa-edit"></i>
+            <span>編輯</span>
+        </div>
+        <div class="context-menu-item danger" data-action="delete">
+            <i class="fas fa-trash"></i>
+            <span>刪除</span>
+        </div>
+        <div class="context-menu-item" data-action="copy">
+            <i class="fas fa-copy"></i>
+            <span>複製</span>
+        </div>
+        <div class="context-menu-item cancel" data-action="cancel">
+            <i class="fas fa-times"></i>
+            <span>取消</span>
+        </div>
+    </div>
+
     <script>
         // ===== SPA Router 類別 =====
         class Router {
@@ -2354,6 +2472,187 @@
 
         // 暴露到全局
         window.SwipeToDelete = SwipeToDelete;
+
+        // ===== 長按選單類別 =====
+        class LongPressMenu {
+            constructor() {
+                this.menu = document.getElementById('context-menu');
+                this.overlay = document.getElementById('context-menu-overlay');
+                this.longPressTimer = null;
+                this.longPressDuration = 800; // 長按時間（ms）
+                this.currentRecord = null;
+                this.init();
+            }
+
+            init() {
+                // 綁定選單項點擊事件
+                const menuItems = this.menu.querySelectorAll('.context-menu-item');
+                menuItems.forEach(item => {
+                    item.addEventListener('click', () => {
+                        const action = item.dataset.action;
+                        this.handleAction(action);
+                    });
+                });
+
+                // 點擊遮罩層關閉選單
+                this.overlay.addEventListener('click', () => {
+                    this.hide();
+                });
+            }
+
+            bindToElement(element, recordId) {
+                // 綁定長按事件
+                element.addEventListener('touchstart', (e) => {
+                    // 如果是在刪除按鈕上，不觸發長按
+                    if (e.target.closest('.delete-btn')) return;
+
+                    this.currentRecord = recordId;
+                    element.classList.add('long-pressing');
+
+                    // 啟動長按計時器
+                    this.longPressTimer = setTimeout(() => {
+                        // 觸發震動反饋
+                        if (navigator.vibrate) {
+                            navigator.vibrate(50);
+                        }
+
+                        // 顯示選單
+                        this.show(e.touches[0].clientX, e.touches[0].clientY);
+                    }, this.longPressDuration);
+                });
+
+                element.addEventListener('touchmove', (e) => {
+                    // 移動超過 10px 取消長按
+                    if (this.longPressTimer) {
+                        clearTimeout(this.longPressTimer);
+                        element.classList.remove('long-pressing');
+                    }
+                });
+
+                element.addEventListener('touchend', (e) => {
+                    // 取消長按計時器
+                    if (this.longPressTimer) {
+                        clearTimeout(this.longPressTimer);
+                        element.classList.remove('long-pressing');
+                    }
+                });
+
+                element.addEventListener('touchcancel', (e) => {
+                    // 取消長按計時器
+                    if (this.longPressTimer) {
+                        clearTimeout(this.longPressTimer);
+                        element.classList.remove('long-pressing');
+                    }
+                });
+            }
+
+            show(x, y) {
+                // 計算選單位置（確保不會超出螢幕）
+                const menuWidth = 180;
+                const menuHeight = 200;
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+
+                let left = x;
+                let top = y;
+
+                // 右邊界檢查
+                if (left + menuWidth > screenWidth) {
+                    left = screenWidth - menuWidth - 20;
+                }
+
+                // 底部邊界檢查
+                if (top + menuHeight > screenHeight) {
+                    top = screenHeight - menuHeight - 20;
+                }
+
+                // 左邊界檢查
+                if (left < 20) {
+                    left = 20;
+                }
+
+                // 頂部邊界檢查
+                if (top < 20) {
+                    top = 20;
+                }
+
+                this.menu.style.left = `${left}px`;
+                this.menu.style.top = `${top}px`;
+                this.menu.classList.add('active');
+                this.overlay.classList.add('active');
+            }
+
+            hide() {
+                this.menu.classList.remove('active');
+                this.overlay.classList.remove('active');
+                this.currentRecord = null;
+
+                // 移除所有長按選中效果
+                document.querySelectorAll('.record-card.long-pressing').forEach(el => {
+                    el.classList.remove('long-pressing');
+                });
+            }
+
+            handleAction(action) {
+                if (!this.currentRecord) return;
+
+                switch (action) {
+                    case 'edit':
+                        alert('編輯功能開發中...');
+                        // TODO: 實作編輯功能
+                        break;
+                    case 'delete':
+                        deleteAccountingRecord(this.currentRecord);
+                        break;
+                    case 'copy':
+                        // 複製記錄資訊到剪貼簿
+                        this.copyRecordInfo();
+                        break;
+                    case 'cancel':
+                        // 取消：直接關閉選單
+                        break;
+                }
+
+                this.hide();
+            }
+
+            copyRecordInfo() {
+                // 找到對應的記錄元素
+                const recordCard = document.querySelector(`[data-record-id="${this.currentRecord}"]`);
+                if (!recordCard) return;
+
+                // 提取記錄資訊
+                const amountText = recordCard.querySelector('.font-medium')?.textContent || '';
+                const categoryText = recordCard.querySelector('.text-sm')?.textContent || '';
+                const dateText = recordCard.querySelector('.text-xs')?.textContent || '';
+
+                const copyText = `${amountText}\n${categoryText}\n${dateText}`;
+
+                // 複製到剪貼簿
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(copyText).then(() => {
+                        alert('已複製到剪貼簿！');
+                    }).catch(err => {
+                        console.error('複製失敗:', err);
+                    });
+                } else {
+                    // Fallback: 使用舊方法
+                    const textarea = document.createElement('textarea');
+                    textarea.value = copyText;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    alert('已複製到剪貼簿！');
+                }
+            }
+        }
+
+        // 初始化長按選單
+        const longPressMenu = new LongPressMenu();
+        window.longPressMenu = longPressMenu;
     </script>
 </body>
 </html>
