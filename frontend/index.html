@@ -50,10 +50,168 @@
         console.log('🔗 使用後端 URL:', window.BACKEND_URL);
     </script>
     <style>
+        :root {
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            --card-bg: white;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        /* 深色模式 */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-gradient-start: #1e1b4b;
+                --bg-gradient-end: #312e81;
+                --card-bg: #1f2937;
+                --text-primary: #f9fafb;
+                --text-secondary: #d1d5db;
+                --border-color: #374151;
+            }
+
+            body {
+                color: var(--text-primary);
+            }
+
+            .bg-white {
+                background-color: var(--card-bg) !important;
+                color: var(--text-primary);
+            }
+
+            .text-gray-800,
+            .text-gray-700,
+            .text-gray-600,
+            h1, h2, h3, label {
+                color: var(--text-primary) !important;
+            }
+
+            .text-gray-500 {
+                color: var(--text-secondary) !important;
+            }
+
+            input, select, textarea {
+                background-color: #374151 !important;
+                color: var(--text-primary) !important;
+                border-color: #4b5563 !important;
+            }
+
+            input::placeholder {
+                color: #9ca3af !important;
+            }
+
+            .bg-gray-50 {
+                background-color: #374151 !important;
+            }
+
+            .record-card {
+                background-color: #374151 !important;
+            }
+
+            .stat-card {
+                background-color: #374151 !important;
+            }
+
+            .mobile-nav {
+                background: #1f2937 !important;
+                border-top: 1px solid #374151;
+            }
+
+            .category-modal-content {
+                background: #1f2937 !important;
+            }
+
+            .category-item {
+                background: #374151 !important;
+                border-color: #4b5563 !important;
+            }
+
+            .category-tab {
+                background: #374151 !important;
+                color: #d1d5db !important;
+            }
+
+            .category-tab.active {
+                background: #7c3aed !important;
+                color: white !important;
+            }
+        }
+
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             min-height: 100vh;
+        }
+
+        /* 手機版優化 - 觸控友好 */
+        @media (max-width: 768px) {
+            /* 加大觸控目標 - 最小 44x44px */
+            input[type="text"],
+            input[type="number"],
+            input[type="date"],
+            select,
+            textarea {
+                min-height: 48px !important;
+                font-size: 16px !important; /* 防止 iOS 自動縮放 */
+                padding: 12px 16px !important;
+            }
+
+            /* 按鈕加大 */
+            button {
+                min-height: 48px !important;
+                padding: 12px 24px !important;
+                font-size: 16px !important;
+            }
+
+            /* 統計卡片優化 */
+            .stat-card {
+                padding: 20px !important;
+            }
+
+            .stat-card p:first-child {
+                font-size: 14px !important;
+            }
+
+            .stat-card p:last-child {
+                font-size: 28px !important;
+            }
+
+            /* 標題優化 */
+            h1 {
+                font-size: 32px !important;
+            }
+
+            h2 {
+                font-size: 18px !important;
+            }
+
+            /* 記錄卡片優化 */
+            .record-card {
+                padding: 16px 12px !important;
+            }
+
+            /* 容器內距調整 */
+            .container {
+                padding: 16px !important;
+            }
+
+            /* 表單區塊優化 */
+            .bg-white {
+                padding: 16px !important;
+            }
+
+            /* 預算輸入框加大 */
+            .budget-input {
+                min-height: 44px !important;
+                padding: 10px 12px !important;
+                font-size: 16px !important;
+            }
+
+            /* 標籤文字加大 */
+            label {
+                font-size: 14px !important;
+                margin-bottom: 8px !important;
+            }
         }
 
         /* 登入對話框樣式 */
@@ -115,6 +273,7 @@
         /* Stat card hover effect */
         .stat-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            will-change: transform;
         }
 
         .stat-card:hover {
@@ -125,6 +284,7 @@
         /* Record card animation */
         .record-card {
             transition: all 0.2s ease;
+            will-change: transform;
         }
 
         .record-card:hover {
@@ -132,11 +292,45 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
+        /* 效能優化 - 減少重繪 */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+            will-change: opacity, transform;
+        }
+
+        @media (max-width: 768px) {
+            /* 手機上減少動畫以提升效能 */
+            .stat-card:hover,
+            .record-card:hover {
+                transform: none;
+            }
+
+            /* 使用 transform 而非 margin/padding 以提升性能 */
+            * {
+                -webkit-tap-highlight-color: transparent;
+                -webkit-touch-callout: none;
+            }
+        }
+
         /* Chart container */
         .chart-container {
             position: relative;
             height: 300px;
             margin: 20px 0;
+        }
+
+        /* 手機版圖表優化 */
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 280px;
+                margin: 16px 0;
+            }
+
+            /* 確保圖表在小螢幕上可見 */
+            #expenseChart {
+                max-width: 100%;
+                height: auto !important;
+            }
         }
 
         /* Error message styling */
@@ -270,9 +464,126 @@
             color: #475569;
         }
 
+        /* 手機版分類選擇優化 */
         @media (max-width: 640px) {
             .category-items {
                 grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+                padding: 12px;
+            }
+
+            .category-item {
+                padding: 12px 8px !important;
+                min-height: 80px;
+            }
+
+            .category-item-icon {
+                font-size: 28px !important;
+            }
+
+            .category-item-text {
+                font-size: 12px !important;
+            }
+
+            .category-modal-content {
+                width: 95%;
+                max-height: 85vh;
+            }
+
+            .category-tab {
+                padding: 10px 14px !important;
+                font-size: 13px !important;
+                min-height: 44px;
+            }
+        }
+
+        /* 手機版底部導航列 */
+        .mobile-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            z-index: 1000;
+            padding-bottom: env(safe-area-inset-bottom); /* iOS 安全區域 */
+        }
+
+        .mobile-nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 8px;
+            text-decoration: none;
+            color: #64748b;
+            transition: all 0.2s;
+            cursor: pointer;
+            min-height: 64px;
+        }
+
+        .mobile-nav-item.active {
+            color: #7c3aed;
+            background: linear-gradient(to top, #f3e8ff, transparent);
+        }
+
+        .mobile-nav-item i {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .mobile-nav-item span {
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .mobile-nav-item:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .mobile-nav {
+                display: flex;
+            }
+
+            /* 為主內容添加底部間距，避免被導航列遮擋 */
+            #main-content {
+                padding-bottom: 80px !important;
+            }
+        }
+
+        /* 快速記帳浮動按鈕 */
+        .quick-add-btn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 999;
+        }
+
+        .quick-add-btn:active {
+            transform: scale(0.9);
+        }
+
+        .quick-add-btn i {
+            font-size: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .quick-add-btn {
+                display: flex;
             }
         }
     </style>
@@ -1045,6 +1356,9 @@
 
             // Create new chart
             if (categories.length > 0) {
+                // 檢測是否為手機版
+                const isMobile = window.innerWidth <= 768;
+
                 expenseChart = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
@@ -1062,12 +1376,13 @@
                         maintainAspectRatio: false,
                         plugins: {
                             legend: {
-                                position: 'right',
+                                position: isMobile ? 'bottom' : 'right',
                                 labels: {
                                     font: {
-                                        size: 14
+                                        size: isMobile ? 11 : 14
                                     },
-                                    padding: 15
+                                    padding: isMobile ? 8 : 15,
+                                    boxWidth: isMobile ? 12 : 15
                                 }
                             },
                             tooltip: {
@@ -1359,6 +1674,85 @@
             `;
             document.head.appendChild(style);
         }
+    </script>
+
+    <!-- 手機版底部導航列 -->
+    <nav class="mobile-nav" id="mobile-nav">
+        <div class="mobile-nav-item active" data-section="home">
+            <i class="fas fa-home"></i>
+            <span>首頁</span>
+        </div>
+        <div class="mobile-nav-item" data-section="add">
+            <i class="fas fa-plus-circle"></i>
+            <span>記帳</span>
+        </div>
+        <div class="mobile-nav-item" data-section="stats">
+            <i class="fas fa-chart-pie"></i>
+            <span>統計</span>
+        </div>
+        <div class="mobile-nav-item" data-section="budget">
+            <i class="fas fa-bullseye"></i>
+            <span>預算</span>
+        </div>
+    </nav>
+
+    <!-- 快速記帳浮動按鈕 -->
+    <div class="quick-add-btn" id="quick-add-btn" title="快速記帳">
+        <i class="fas fa-plus"></i>
+    </div>
+
+    <script>
+        // 手機版導航功能
+        const mobileNavItems = document.querySelectorAll('.mobile-nav-item');
+        const quickAddBtn = document.getElementById('quick-add-btn');
+
+        // 導航項點擊事件
+        mobileNavItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const section = item.dataset.section;
+
+                // 更新活動狀態
+                mobileNavItems.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+
+                // 滾動到對應區塊
+                if (section === 'home') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else if (section === 'add') {
+                    document.getElementById('accounting-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    document.getElementById('record-amount').focus();
+                } else if (section === 'stats') {
+                    document.getElementById('expenseChart').parentElement.parentElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else if (section === 'budget') {
+                    document.getElementById('budget-form').parentElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // 快速記帳按鈕點擊事件
+        if (quickAddBtn) {
+            quickAddBtn.addEventListener('click', () => {
+                document.getElementById('accounting-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                setTimeout(() => {
+                    document.getElementById('record-amount').focus();
+                }, 300);
+            });
+        }
+
+        // 根據滾動位置更新導航活動狀態
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const scrollPos = window.scrollY;
+                const windowHeight = window.innerHeight;
+
+                if (scrollPos < windowHeight * 0.3) {
+                    mobileNavItems.forEach(nav => nav.classList.remove('active'));
+                    mobileNavItems[0].classList.add('active'); // 首頁
+                }
+            }, 100);
+        });
     </script>
 </body>
 </html>
