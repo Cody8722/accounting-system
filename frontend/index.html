@@ -777,6 +777,65 @@
             bottom: 320px;
             transition: bottom 0.3s ease;
         }
+
+        /* ===== 滑動刪除功能 ===== */
+        .record-item-wrapper {
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .record-card {
+            position: relative;
+            z-index: 1;
+            background: #f9fafb;
+            transition: transform 0.3s ease;
+            touch-action: pan-y; /* 允許垂直滾動，限制水平滑動 */
+        }
+
+        .record-card.swiping {
+            transition: none; /* 滑動時禁用過渡，讓跟隨更流暢 */
+        }
+
+        .delete-actions {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-right: 12px;
+            z-index: 0;
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .delete-btn:active {
+            background: #dc2626;
+            transform: scale(0.95);
+        }
+
+        /* 手機版優化滑動體驗 */
+        @media (max-width: 768px) {
+            .record-card:hover {
+                transform: none; /* 禁用 hover 效果，避免干擾滑動 */
+            }
+        }
     </style>
 </head>
 <body class="p-0">
@@ -1528,26 +1587,38 @@
                     const escapedDescription = escapeHtml(record.description);
 
                     return `
-                        <div class="record-card flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-2xl ${typeClass}">${typeIcon}</span>
-                                    <div>
-                                        <p class="font-medium ${typeClass}">$${record.amount.toFixed(2)}</p>
-                                        <p class="text-sm text-gray-600">${escapedCategory}${escapedDescription ? ' - ' + escapedDescription : ''}</p>
-                                        <p class="text-xs text-gray-500"><i class="fas fa-calendar mr-1"></i>${record.date}${expenseTypeBadge}</p>
+                        <div class="record-item-wrapper">
+                            <div class="delete-actions">
+                                <button class="delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}')">
+                                    <i class="fas fa-trash"></i>刪除
+                                </button>
+                            </div>
+                            <div class="record-card flex items-center justify-between p-4 bg-gray-50 rounded-lg transition" data-record-id="${record._id.$oid}">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-2xl ${typeClass}">${typeIcon}</span>
+                                        <div>
+                                            <p class="font-medium ${typeClass}">$${record.amount.toFixed(2)}</p>
+                                            <p class="text-sm text-gray-600">${escapedCategory}${escapedDescription ? ' - ' + escapedDescription : ''}</p>
+                                            <p class="text-xs text-gray-500"><i class="fas fa-calendar mr-1"></i>${record.date}${expenseTypeBadge}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <button onclick="deleteAccountingRecord('${record._id.$oid}')" class="text-red-500 hover:text-red-700 px-3 py-1 rounded-md hover:bg-red-50 text-sm font-medium transition">
-                                <i class="fas fa-trash mr-1"></i>刪除
-                            </button>
                         </div>
                     `;
                 }).join('');
 
                 // Update chart with expense data
                 updateExpenseChart(records.filter(r => r.type === 'expense'));
+
+                // 初始化滑動刪除功能
+                if (window.SwipeToDelete) {
+                    const recordCards = document.querySelectorAll('.record-card');
+                    recordCards.forEach(card => {
+                        new SwipeToDelete(card);
+                    });
+                }
             } catch (error) {
                 recordsList.innerHTML = `<p class="text-center text-red-500 py-8">❌ ${error.message}</p>`;
             }
@@ -2209,6 +2280,80 @@
             const customKeyboard = new CustomKeyboard();
             window.customKeyboard = customKeyboard;
         }
+
+        // ===== 滑動刪除類別 =====
+        class SwipeToDelete {
+            constructor(element) {
+                this.element = element;
+                this.startX = 0;
+                this.currentX = 0;
+                this.isDragging = false;
+                this.threshold = 80; // 滑動閾值（px）
+                this.init();
+            }
+
+            init() {
+                // 綁定觸控事件
+                this.element.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: true });
+                this.element.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
+                this.element.addEventListener('touchend', (e) => this.onTouchEnd(e), { passive: true });
+                this.element.addEventListener('touchcancel', (e) => this.onTouchEnd(e), { passive: true });
+            }
+
+            onTouchStart(e) {
+                this.startX = e.touches[0].clientX;
+                this.isDragging = false;
+                this.element.classList.add('swiping');
+            }
+
+            onTouchMove(e) {
+                if (!e.touches[0]) return;
+
+                const currentX = e.touches[0].clientX;
+                const diff = this.startX - currentX;
+
+                // 只處理左滑（diff > 0）
+                if (diff > 0) {
+                    this.isDragging = true;
+
+                    // 限制最大滑動距離為 120px
+                    const translateX = Math.min(diff, 120);
+                    this.element.style.transform = `translateX(-${translateX}px)`;
+
+                    // 防止滾動
+                    if (diff > 10) {
+                        e.preventDefault();
+                    }
+                } else if (diff < -10) {
+                    // 右滑：重置位置
+                    this.element.style.transform = 'translateX(0)';
+                }
+            }
+
+            onTouchEnd(e) {
+                this.element.classList.remove('swiping');
+
+                // 計算最終滑動距離
+                const transform = this.element.style.transform;
+                const match = transform.match(/translateX\(-?(\d+)px\)/);
+                const currentTranslate = match ? parseInt(match[1]) : 0;
+
+                // 如果滑動超過閾值，顯示刪除按鈕
+                if (currentTranslate > this.threshold) {
+                    this.element.style.transform = 'translateX(-100px)';
+                } else {
+                    // 否則重置
+                    this.element.style.transform = 'translateX(0)';
+                }
+
+                // 重置狀態
+                this.isDragging = false;
+                this.startX = 0;
+            }
+        }
+
+        // 暴露到全局
+        window.SwipeToDelete = SwipeToDelete;
     </script>
 </body>
 </html>
