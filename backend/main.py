@@ -2,9 +2,11 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING
 from bson import json_util, ObjectId
 from bson.errors import InvalidId
+from functools import wraps
+from typing import Tuple, Dict, Any, Optional
 import json
 import os
 from dotenv import load_dotenv
@@ -22,11 +24,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 常數定義
+MAX_AMOUNT = 9999999.99
+MAX_RECORDS_LIMIT = 500
+SERVER_SELECTION_TIMEOUT_MS = 5000
+
 app = Flask(__name__)
+
+# 設定最大請求大小 (16MB)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # CORS 設定 - 限制來源
 FRONTEND_URLS = os.getenv('FRONTEND_URLS', 'http://localhost:8080,https://accounting-system.zeabur.app').split(',')
 CORS(app, origins=FRONTEND_URLS)
+
+# 安全 headers
+@app.after_request
+def add_security_headers(response):
+    """添加安全相關的 HTTP headers"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 # 速率限制
 limiter = Limiter(
@@ -47,13 +67,23 @@ accounting_budget_collection = None
 
 if MONGO_URI:
     try:
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS)
         client.admin.command('ping')
 
         # 記帳資料庫
         accounting_db = client['accounting_db']
         accounting_records_collection = accounting_db['records']
         accounting_budget_collection = accounting_db['budget']
+
+        # 建立索引以優化查詢效能
+        try:
+            accounting_records_collection.create_index([('date', ASCENDING)])
+            accounting_records_collection.create_index([('type', ASCENDING)])
+            accounting_records_collection.create_index([('category', ASCENDING)])
+            accounting_budget_collection.create_index([('month', ASCENDING)], unique=True)
+            logger.info("✅ 資料庫索引已建立")
+        except Exception as index_error:
+            logger.warning(f"⚠️ 索引建立警告: {index_error}")
 
         logger.info("✅ 已連接到記帳資料庫")
     except Exception as e:
@@ -62,9 +92,24 @@ if MONGO_URI:
 else:
     logger.warning("⚠️ 未設定 MONGO_URI，資料庫功能無法使用")
 
+# ==================== 認證裝飾器 ====================
+
+def require_auth(f):
+    """
+    認證裝飾器：驗證 X-Admin-Secret header
+    避免在每個路由中重複認證邏輯
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        secret = request.headers.get('X-Admin-Secret')
+        if not secret or secret != ADMIN_SECRET:
+            return jsonify({"error": "未授權"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
 # ==================== 輸入驗證函數 ====================
 
-def validate_objectid(oid_string):
+def validate_objectid(oid_string: str) -> bool:
     """驗證 ObjectId 格式"""
     try:
         ObjectId(oid_string)
@@ -72,19 +117,19 @@ def validate_objectid(oid_string):
     except (InvalidId, TypeError):
         return False
 
-def validate_amount(amount):
+def validate_amount(amount: Any) -> Tuple[bool, Any]:
     """驗證金額（必須 > 0 且非 NaN）"""
     try:
         amount_float = float(amount)
         if amount_float <= 0 or amount_float != amount_float:  # NaN check
             return False, "金額必須大於 0"
-        if amount_float > 9999999.99:  # 最大金額限制
-            return False, "金額不得超過 9,999,999.99"
+        if amount_float > MAX_AMOUNT:
+            return False, f"金額不得超過 {MAX_AMOUNT:,.2f}"
         return True, amount_float
     except (ValueError, TypeError):
         return False, "金額格式錯誤"
 
-def validate_date(date_string):
+def validate_date(date_string: str) -> Tuple[bool, str]:
     """驗證日期格式（YYYY-MM-DD）"""
     if not date_string or not isinstance(date_string, str):
         return False, "日期格式錯誤"
@@ -99,14 +144,14 @@ def validate_date(date_string):
     except ValueError:
         return False, "無效的日期"
 
-def validate_expense_type(expense_type):
+def validate_expense_type(expense_type: Optional[str]) -> Tuple[bool, Optional[str]]:
     """驗證支出類型"""
     valid_types = ['fixed', 'variable', 'onetime']
     if expense_type and expense_type not in valid_types:
         return False, f"支出類型必須為: {', '.join(valid_types)}"
     return True, expense_type
 
-def validate_record_type(record_type):
+def validate_record_type(record_type: str) -> Tuple[bool, str]:
     """驗證記錄類型"""
     valid_types = ['income', 'expense']
     if record_type not in valid_types:
@@ -117,12 +162,9 @@ def validate_record_type(record_type):
 
 @app.route('/admin/api/accounting/records', methods=['GET'])
 @limiter.limit("100 per minute")
+@require_auth
 def get_accounting_records():
     """取得記帳記錄"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -151,7 +193,7 @@ def get_accounting_records():
             query['category'] = category
 
         # 查詢記錄，按日期降冪排序
-        records = accounting_records_collection.find(query).sort('date', -1).limit(500)
+        records = accounting_records_collection.find(query).sort('date', -1).limit(MAX_RECORDS_LIMIT)
         return json.loads(json_util.dumps(list(records))), 200
     except Exception as e:
         logger.error(f"查詢記帳記錄失敗: {e}")
@@ -159,12 +201,9 @@ def get_accounting_records():
 
 @app.route('/admin/api/accounting/records', methods=['POST'])
 @limiter.limit("50 per minute")
+@require_auth
 def add_accounting_record():
     """新增記帳記錄"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -225,12 +264,9 @@ def add_accounting_record():
 
 @app.route('/admin/api/accounting/records/<record_id>', methods=['PUT'])
 @limiter.limit("50 per minute")
+@require_auth
 def update_accounting_record(record_id):
     """更新記帳記錄"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -298,12 +334,9 @@ def update_accounting_record(record_id):
 
 @app.route('/admin/api/accounting/records/<record_id>', methods=['DELETE'])
 @limiter.limit("50 per minute")
+@require_auth
 def delete_accounting_record(record_id):
     """刪除記帳記錄"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -325,12 +358,9 @@ def delete_accounting_record(record_id):
 
 @app.route('/admin/api/accounting/stats', methods=['GET'])
 @limiter.limit("100 per minute")
+@require_auth
 def get_accounting_stats():
     """取得記帳統計"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -383,12 +413,9 @@ def get_accounting_stats():
 
 @app.route('/admin/api/accounting/budget', methods=['GET'])
 @limiter.limit("100 per minute")
+@require_auth
 def get_accounting_budget():
     """取得預算設定"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_budget_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -407,12 +434,9 @@ def get_accounting_budget():
 
 @app.route('/admin/api/accounting/budget', methods=['POST'])
 @limiter.limit("50 per minute")
+@require_auth
 def set_accounting_budget():
     """設定預算"""
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     if accounting_budget_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
 
@@ -444,14 +468,10 @@ def set_accounting_budget():
 # ==================== 系統狀態 ====================
 
 @app.route('/status', methods=['GET'])
-@limiter.limit("10 per minute")  # 加入速率限制
+@limiter.limit("10 per minute")
+@require_auth
 def status():
     """系統狀態檢查（需要驗證）"""
-    # 驗證管理員密碼
-    secret = request.headers.get('X-Admin-Secret')
-    if not secret or secret != ADMIN_SECRET:
-        return jsonify({"error": "未授權"}), 403
-
     db_connected = client is not None
 
     return jsonify({

@@ -1,5 +1,7 @@
-const CACHE_NAME = 'accounting-system-v3';  // 更新版本以強制重新安裝
+const CACHE_NAME = 'accounting-system-v4';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
+const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
 
 // 需要快取的靜態資源
 const STATIC_ASSETS = [
@@ -13,6 +15,16 @@ const STATIC_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
+
+// Fetch with timeout helper
+async function fetchWithTimeout(request, timeout = FETCH_TIMEOUT) {
+  return Promise.race([
+    fetch(request),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    )
+  ]);
+}
 
 // 安裝 Service Worker
 self.addEventListener('install', (event) => {
@@ -158,10 +170,10 @@ async function saveToOfflineQueue(request) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([OFFLINE_QUEUE_NAME], 'readwrite');
     const store = transaction.objectStore(OFFLINE_QUEUE_NAME);
-    const request = store.add(queueItem);
+    const addRequest = store.add(queueItem);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+    addRequest.onsuccess = () => resolve();
+    addRequest.onerror = () => reject(addRequest.error);
   });
 }
 
