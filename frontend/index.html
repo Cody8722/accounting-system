@@ -1695,6 +1695,7 @@
                     setTodayAsDefault();
                     loadBudget();
                     updateUserDisplay();
+                    updateAccountingStats(); // 載入當月統計數據
 
                     console.log('✅ 登入成功:', data.user.email);
                 } else {
@@ -2220,6 +2221,7 @@
                 setTodayAsDefault();
                 loadBudget();
                 updateUserDisplay();
+                updateAccountingStats(); // 載入當月統計數據
                 console.log('✅ 已自動登入');
             } else {
                 // 未登入，顯示登入modal
@@ -2503,8 +2505,16 @@
                 if (pageName === 'add') {
                     // 記帳頁：更新簡潔統計
                     this.updateCompactStats();
+                } else if (pageName === 'records') {
+                    // 記錄頁：自動載入記錄
+                    if (typeof loadAccountingRecords === 'function') {
+                        loadAccountingRecords();
+                    }
                 } else if (pageName === 'analytics') {
-                    // 分析頁：重新渲染圖表
+                    // 分析頁：重新渲染圖表和統計
+                    if (typeof updateAccountingStats === 'function') {
+                        updateAccountingStats();
+                    }
                     if (typeof updateChart === 'function') {
                         setTimeout(() => updateChart(), 100);
                     }
