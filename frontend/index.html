@@ -1806,7 +1806,12 @@
                 }
             } catch (error) {
                 console.error('註冊錯誤:', error);
-                registerError.textContent = '網路錯誤，請稍後再試';
+                // 顯示更詳細的錯誤訊息
+                let errorMsg = '網路錯誤，請稍後再試';
+                if (error.message) {
+                    errorMsg += ` (${error.message})`;
+                }
+                registerError.textContent = errorMsg;
                 registerError.classList.remove('text-gray-500');
                 registerError.classList.add('text-red-500');
             }
