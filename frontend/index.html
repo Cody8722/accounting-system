@@ -950,15 +950,22 @@
         <div class="modal-content">
             <div class="text-center mb-6">
                 <div class="text-4xl mb-3">🔐</div>
-                <h2 class="text-2xl font-bold text-gray-800">管理員登入</h2>
-                <p class="text-gray-500 mt-2">請輸入管理員密碼以存取記帳本</p>
+                <h2 class="text-2xl font-bold text-gray-800">登入</h2>
+                <p class="text-gray-500 mt-2">使用你的帳號登入記帳本</p>
             </div>
             <form id="login-form" class="space-y-4">
                 <div>
-                    <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-1">管理員密碼</label>
-                    <input type="password" id="admin-password"
+                    <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="login-email"
                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                           placeholder="請輸入 ADMIN_SECRET"
+                           placeholder="your@email.com"
+                           required>
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">密碼</label>
+                    <input type="password" id="login-password"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                           placeholder="請輸入密碼"
                            required>
                 </div>
                 <div id="login-error" class="text-red-500 text-sm text-center hidden"></div>
@@ -966,6 +973,59 @@
                         class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 font-semibold transition">
                     登入
                 </button>
+                <div class="text-center text-sm text-gray-600">
+                    還沒有帳號？<button type="button" onclick="showRegisterModal()" class="text-purple-600 hover:text-purple-700 font-semibold">註冊</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 註冊對話框 -->
+    <div id="register-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-3">✨</div>
+                <h2 class="text-2xl font-bold text-gray-800">註冊新帳號</h2>
+                <p class="text-gray-500 mt-2">建立你的記帳本帳號</p>
+            </div>
+            <form id="register-form" class="space-y-4">
+                <div>
+                    <label for="register-name" class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+                    <input type="text" id="register-name"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                           placeholder="你的名字"
+                           required>
+                </div>
+                <div>
+                    <label for="register-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="register-email"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                           placeholder="your@email.com"
+                           required>
+                </div>
+                <div>
+                    <label for="register-password" class="block text-sm font-medium text-gray-700 mb-1">密碼</label>
+                    <input type="password" id="register-password"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                           placeholder="至少8個字元，需含字母和數字"
+                           required>
+                    <p class="text-xs text-gray-500 mt-1">密碼需至少8個字元，包含字母和數字</p>
+                </div>
+                <div>
+                    <label for="register-password-confirm" class="block text-sm font-medium text-gray-700 mb-1">確認密碼</label>
+                    <input type="password" id="register-password-confirm"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                           placeholder="再次輸入密碼"
+                           required>
+                </div>
+                <div id="register-error" class="text-red-500 text-sm text-center hidden"></div>
+                <button type="submit"
+                        class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 font-semibold transition">
+                    註冊
+                </button>
+                <div class="text-center text-sm text-gray-600">
+                    已有帳號？<button type="button" onclick="showLoginModal()" class="text-purple-600 hover:text-purple-700 font-semibold">登入</button>
+                </div>
             </form>
         </div>
     </div>
@@ -1199,6 +1259,27 @@
 
             <!-- 設定頁 -->
             <div class="page" id="page-settings" data-page="settings">
+                <!-- 用戶資訊卡片 -->
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center text-gray-800">
+                        <i class="fas fa-user-circle text-2xl mr-2 text-purple-600"></i>
+                        帳號資訊
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="text-gray-600">姓名</span>
+                            <span class="font-semibold text-gray-800" id="user-name-display">-</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="text-gray-600">Email</span>
+                            <span class="font-semibold text-gray-800" id="user-email-display">-</span>
+                        </div>
+                        <button onclick="handleLogout()" class="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 font-semibold transition shadow-md hover:shadow-lg flex items-center justify-center">
+                            <i class="fas fa-sign-out-alt mr-2"></i>登出
+                        </button>
+                    </div>
+                </div>
+
                 <!-- 預算設定 -->
                 <div class="bg-white p-6 rounded-xl shadow-lg">
                     <h2 class="text-xl font-bold mb-4 flex items-center text-gray-800">
@@ -1435,63 +1516,260 @@
             });
         }
 
-        // --- 密碼管理 ---
-        function getAdminSecret() {
-            return sessionStorage.getItem('adminSecret') || '';
+        // --- JWT Token 管理 ---
+        function getAuthToken() {
+            return localStorage.getItem('authToken') || '';
         }
 
-        function setAdminSecret(secret) {
-            sessionStorage.setItem('adminSecret', secret);
+        function setAuthToken(token) {
+            localStorage.setItem('authToken', token);
         }
 
-        // --- 登入功能 ---
-        const loginModal = document.getElementById('login-modal');
-        const loginForm = document.getElementById('login-form');
-        const adminPasswordInput = document.getElementById('admin-password');
-        const loginError = document.getElementById('login-error');
-        const mainContent = document.getElementById('main-content');
+        function removeAuthToken() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userData');
+        }
 
-        async function verifyPassword(password) {
+        function getUserData() {
+            const data = localStorage.getItem('userData');
+            return data ? JSON.parse(data) : null;
+        }
+
+        function setUserData(user) {
+            localStorage.setItem('userData', JSON.stringify(user));
+        }
+
+        // 檢查token是否有效
+        async function verifyToken() {
+            const token = getAuthToken();
+            if (!token) return false;
+
             try {
-                const response = await fetch(`${backendUrl}/status`, {
-                    headers: { 'X-Admin-Secret': password }
+                const response = await apiCall(`${backendUrl}/api/auth/verify`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
-                return response.ok;
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setUserData(data.user);
+                    return true;
+                }
+                return false;
             } catch (error) {
+                console.error('驗證token失敗:', error);
                 return false;
             }
         }
 
+        // 統一的API調用函數（自動添加Authorization header）
+        async function apiCall(url, options = {}) {
+            const token = getAuthToken();
+            const headers = {
+                ...options.headers,
+                'Content-Type': 'application/json'
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            try {
+                const response = await apiCall(url, {
+                    ...options,
+                    headers
+                });
+
+                // 如果返回401，清除token並跳轉到登入頁
+                if (response.status === 401) {
+                    removeAuthToken();
+                    showLoginModal();
+                    throw new Error('未授權，請重新登入');
+                }
+
+                return response;
+            } catch (error) {
+                console.error('API調用失敗:', error);
+                throw error;
+            }
+        }
+
+        // --- 登入/註冊功能 ---
+        const loginModal = document.getElementById('login-modal');
+        const registerModal = document.getElementById('register-modal');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const loginError = document.getElementById('login-error');
+        const registerError = document.getElementById('register-error');
+        const mainContent = document.getElementById('main-content');
+
+        function showLoginModal() {
+            loginModal.style.display = 'flex';
+            registerModal.style.display = 'none';
+            loginError.classList.add('hidden');
+            loginForm.reset();
+        }
+
+        function showRegisterModal() {
+            registerModal.style.display = 'flex';
+            loginModal.style.display = 'none';
+            registerError.classList.add('hidden');
+            registerForm.reset();
+        }
+
+        function hideAuthModals() {
+            loginModal.style.display = 'none';
+            registerModal.style.display = 'none';
+        }
+
+        // 更新用戶顯示
+        function updateUserDisplay() {
+            const user = getUserData();
+            if (user) {
+                const nameDisplay = document.getElementById('user-name-display');
+                const emailDisplay = document.getElementById('user-email-display');
+
+                if (nameDisplay) nameDisplay.textContent = user.name || '-';
+                if (emailDisplay) emailDisplay.textContent = user.email || '-';
+            }
+        }
+
+        // 登出處理
+        async function handleLogout() {
+            if (!confirm('確定要登出嗎？')) return;
+
+            try {
+                // 呼叫登出API（記錄登出）
+                await apiCall(`${backendUrl}/api/auth/logout`, {
+                    method: 'POST'
+                });
+            } catch (error) {
+                console.error('登出API錯誤:', error);
+            }
+
+            // 清除本地token和用戶資料
+            removeAuthToken();
+
+            // 跳轉到登入頁
+            mainContent.style.display = 'none';
+            showLoginModal();
+
+            console.log('✅ 已登出');
+        }
+
+        // 登入表單處理
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const password = adminPasswordInput.value.trim();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
 
-            if (!password) {
-                loginError.textContent = '請輸入密碼';
+            if (!email || !password) {
+                loginError.textContent = '請輸入Email和密碼';
                 loginError.classList.remove('hidden');
                 return;
             }
 
-            loginError.textContent = '驗證中...';
+            loginError.textContent = '登入中...';
             loginError.classList.remove('hidden');
             loginError.classList.remove('text-red-500');
             loginError.classList.add('text-gray-500');
 
-            const isValid = await verifyPassword(password);
+            try {
+                const response = await apiCall(`${backendUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
 
-            if (isValid) {
-                setAdminSecret(password);
-                loginModal.classList.add('hidden');
-                mainContent.style.display = 'block';
+                const data = await response.json();
 
-                // 初始化記帳功能
-                setTodayAsDefault();
-                loadBudget();
-            } else {
-                loginError.textContent = '❌ 密碼錯誤，請重試';
+                if (response.ok) {
+                    // 儲存token和用戶資料
+                    setAuthToken(data.token);
+                    setUserData(data.user);
+
+                    // 隱藏登入modal，顯示主內容
+                    hideAuthModals();
+                    mainContent.style.display = 'block';
+
+                    // 初始化記帳功能
+                    setTodayAsDefault();
+                    loadBudget();
+                    updateUserDisplay();
+
+                    console.log('✅ 登入成功:', data.user.email);
+                } else {
+                    loginError.textContent = data.error || '登入失敗';
+                    loginError.classList.remove('text-gray-500');
+                    loginError.classList.add('text-red-500');
+                }
+            } catch (error) {
+                console.error('登入錯誤:', error);
+                loginError.textContent = '網路錯誤，請稍後再試';
                 loginError.classList.remove('text-gray-500');
                 loginError.classList.add('text-red-500');
-                adminPasswordInput.value = '';
+            }
+        });
+
+        // 註冊表單處理
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value.trim();
+            const email = document.getElementById('register-email').value.trim();
+            const password = document.getElementById('register-password').value;
+            const passwordConfirm = document.getElementById('register-password-confirm').value;
+
+            if (!name || !email || !password || !passwordConfirm) {
+                registerError.textContent = '請填寫所有欄位';
+                registerError.classList.remove('hidden');
+                return;
+            }
+
+            if (password !== passwordConfirm) {
+                registerError.textContent = '密碼不一致';
+                registerError.classList.remove('hidden');
+                return;
+            }
+
+            if (password.length < 8) {
+                registerError.textContent = '密碼至少需要8個字元';
+                registerError.classList.remove('hidden');
+                return;
+            }
+
+            registerError.textContent = '註冊中...';
+            registerError.classList.remove('hidden');
+            registerError.classList.remove('text-red-500');
+            registerError.classList.add('text-gray-500');
+
+            try {
+                const response = await apiCall(`${backendUrl}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    registerError.textContent = '✅ 註冊成功！請登入';
+                    registerError.classList.remove('text-red-500');
+                    registerError.classList.add('text-green-500');
+
+                    // 2秒後切換到登入頁
+                    setTimeout(() => {
+                        showLoginModal();
+                        document.getElementById('login-email').value = email;
+                    }, 2000);
+                } else {
+                    registerError.textContent = data.error || '註冊失敗';
+                    registerError.classList.remove('text-gray-500');
+                    registerError.classList.add('text-red-500');
+                }
+            } catch (error) {
+                console.error('註冊錯誤:', error);
+                registerError.textContent = '網路錯誤，請稍後再試';
+                registerError.classList.remove('text-gray-500');
+                registerError.classList.add('text-red-500');
             }
         });
 
@@ -1559,7 +1837,6 @@
         // 新增記帳記錄
         accountingForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const secret = getAdminSecret();
 
             const amount = parseFloat(recordAmount.value);
             const validation = validateAmount(amount);
@@ -1588,12 +1865,8 @@
             };
 
             try {
-                const response = await fetch(`${backendUrl}/admin/api/accounting/records`, {
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/records`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Secret': secret
-                    },
                     body: JSON.stringify(recordData)
                 });
 
@@ -1628,7 +1901,7 @@
 
         // 載入記帳記錄
         async function loadAccountingRecords() {
-            const secret = getAdminSecret();
+            
             const startDate = document.getElementById('filter-start-date').value;
             const endDate = document.getElementById('filter-end-date').value;
             const filterType = document.getElementById('filter-type').value;
@@ -1643,8 +1916,8 @@
             recordsList.innerHTML = '<p class="text-center text-gray-500 py-8"><span class="spinner"></span>載入中...</p>';
 
             try {
-                const response = await fetch(url, {
-                    headers: { 'X-Admin-Secret': secret }
+                const response = await apiCall(url, {
+                    
                 });
 
                 const records = await response.json();
@@ -1808,7 +2081,7 @@
 
         // 更新統計資料
         async function updateAccountingStats() {
-            const secret = getAdminSecret();
+            
             const startDate = document.getElementById('filter-start-date').value;
             const endDate = document.getElementById('filter-end-date').value;
 
@@ -1817,8 +2090,8 @@
             if (endDate) url += `end_date=${endDate}`;
 
             try {
-                const response = await fetch(url, {
-                    headers: { 'X-Admin-Secret': secret }
+                const response = await apiCall(url, {
+                    
                 });
 
                 const stats = await response.json();
@@ -1849,12 +2122,12 @@
         window.deleteAccountingRecord = async function(recordId) {
             if (!confirm('確定要刪除這筆記錄嗎？')) return;
 
-            const secret = getAdminSecret();
+            
 
             try {
-                const response = await fetch(`${backendUrl}/admin/api/accounting/records/${recordId}`, {
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/records/${recordId}`, {
                     method: 'DELETE',
-                    headers: { 'X-Admin-Secret': secret }
+                    
                 });
 
                 const result = await response.json();
@@ -1870,11 +2143,11 @@
 
         // 載入預算設定
         async function loadBudget() {
-            const secret = getAdminSecret();
+            
 
             try {
-                const response = await fetch(`${backendUrl}/admin/api/accounting/budget`, {
-                    headers: { 'X-Admin-Secret': secret }
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/budget`, {
+                    
                 });
 
                 const result = await response.json();
@@ -1895,7 +2168,7 @@
 
         // 儲存預算設定
         saveBudgetBtn.addEventListener('click', async () => {
-            const secret = getAdminSecret();
+            
             const budget = {};
 
             document.querySelectorAll('.budget-input').forEach(input => {
@@ -1908,12 +2181,8 @@
             saveBudgetBtn.innerHTML = '<span class="spinner"></span>儲存中...';
 
             try {
-                const response = await fetch(`${backendUrl}/admin/api/accounting/budget`, {
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/budget`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Secret': secret
-                    },
                     body: JSON.stringify({ budget })
                 });
 
@@ -1943,20 +2212,18 @@
             // 初始化篩選器分類選項
             initializeFilterCategories();
 
-            const savedSecret = getAdminSecret();
-            if (savedSecret) {
-                const isValid = await verifyPassword(savedSecret);
-                if (isValid) {
-                    loginModal.classList.add('hidden');
-                    mainContent.style.display = 'block';
-                    setTodayAsDefault();
-                    loadBudget();
-                } else {
-                    sessionStorage.removeItem('adminSecret');
-                    loginModal.classList.remove('hidden');
-                }
+            // 檢查是否已登入（驗證token）
+            const isLoggedIn = await verifyToken();
+            if (isLoggedIn) {
+                hideAuthModals();
+                mainContent.style.display = 'block';
+                setTodayAsDefault();
+                loadBudget();
+                updateUserDisplay();
+                console.log('✅ 已自動登入');
             } else {
-                loginModal.classList.remove('hidden');
+                // 未登入，顯示登入modal
+                showLoginModal();
             }
         });
     </script>
