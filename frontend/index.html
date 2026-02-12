@@ -1595,7 +1595,7 @@
             }
 
             try {
-                const response = await apiCall(url, {
+                const response = await fetch(url, {
                     ...options,
                     headers
                 });
