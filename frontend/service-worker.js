@@ -1,19 +1,21 @@
-const CACHE_NAME = 'accounting-system-v4';  // 更新版本以強制重新安裝
+const CACHE_NAME = 'accounting-system-v5';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
 
-// 需要快取的靜態資源
+// 需要快取的靜態資源（只包含本地資源）
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/service-worker.js',
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
+  '/icon-192.png'
+];
+
+// CDN資源（使用runtime caching，不在安裝時cache）
+const CDN_URLS = [
+  'cdn.tailwindcss.com',
+  'cdn.jsdelivr.net',
+  'cdnjs.cloudflare.com'
 ];
 
 // Fetch with timeout helper
@@ -69,7 +71,30 @@ self.addEventListener('fetch', (event) => {
 
   // 只處理 GET 請求
   if (request.method === 'GET') {
-    // 靜態資源：Cache First 策略
+    // CDN資源：Cache First with Network Fallback
+    if (CDN_URLS.some(cdn => request.url.includes(cdn))) {
+      event.respondWith(
+        caches.match(request)
+          .then((response) => {
+            return response || fetch(request, { mode: 'cors' }).then((fetchResponse) => {
+              // 只cache成功的回應
+              if (fetchResponse && fetchResponse.status === 200) {
+                return caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(request, fetchResponse.clone());
+                  return fetchResponse;
+                });
+              }
+              return fetchResponse;
+            }).catch(() => {
+              // CDN失敗也不要緊，瀏覽器會處理
+              return fetch(request);
+            });
+          })
+      );
+      return;
+    }
+
+    // 本地靜態資源：Cache First 策略
     if (STATIC_ASSETS.some(asset => request.url.includes(asset))) {
       event.respondWith(
         caches.match(request)
