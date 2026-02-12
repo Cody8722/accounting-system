@@ -216,8 +216,9 @@
             }
         }
 
-        /* 登入對話框樣式 */
-        #login-modal {
+        /* 登入/註冊對話框樣式 */
+        #login-modal,
+        #register-modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -229,7 +230,10 @@
             justify-content: center;
             z-index: 9999;
         }
-        #login-modal.hidden { display: none; }
+        #login-modal.hidden,
+        #register-modal.hidden {
+            display: none;
+        }
 
         .modal-content {
             background: white;
@@ -994,7 +998,7 @@
     </div>
 
     <!-- 註冊對話框 -->
-    <div id="register-modal" style="display: none;">
+    <div id="register-modal" class="hidden">
         <div class="modal-content">
             <div class="text-center mb-6">
                 <div class="text-4xl mb-3">✨</div>
@@ -1620,8 +1624,8 @@
         const mainContent = document.getElementById('main-content');
 
         function showLoginModal() {
-            loginModal.style.display = 'flex';
-            registerModal.style.display = 'none';
+            loginModal.classList.remove('hidden');
+            registerModal.classList.add('hidden');
             loginError.classList.add('hidden');
             loginForm.reset();
 
@@ -1636,15 +1640,15 @@
         }
 
         function showRegisterModal() {
-            registerModal.style.display = 'flex';
-            loginModal.style.display = 'none';
+            registerModal.classList.remove('hidden');
+            loginModal.classList.add('hidden');
             registerError.classList.add('hidden');
             registerForm.reset();
         }
 
         function hideAuthModals() {
-            loginModal.style.display = 'none';
-            registerModal.style.display = 'none';
+            loginModal.classList.add('hidden');
+            registerModal.classList.add('hidden');
         }
 
         // 更新用戶顯示
