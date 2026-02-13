@@ -823,7 +823,7 @@
 
         .keyboard-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
         }
 
@@ -870,7 +870,26 @@
         .keyboard-btn.keyboard-confirm {
             background: #7c3aed;
             color: white;
-            grid-column: span 3;
+            grid-column: span 4;
+        }
+
+        .keyboard-btn.keyboard-operator {
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 20px;
+        }
+
+        .keyboard-btn.keyboard-operator:active {
+            background: #bfdbfe;
+        }
+
+        .keyboard-btn.keyboard-equals {
+            background: #10b981;
+            color: white;
+        }
+
+        .keyboard-btn.keyboard-equals:active {
+            background: #059669;
         }
 
         .keyboard-btn.keyboard-confirm:active {
@@ -2806,17 +2825,22 @@
             <button type="button" class="keyboard-btn" data-key="7">7</button>
             <button type="button" class="keyboard-btn" data-key="8">8</button>
             <button type="button" class="keyboard-btn" data-key="9">9</button>
+            <button type="button" class="keyboard-btn keyboard-operator" data-key="÷">÷</button>
             <button type="button" class="keyboard-btn" data-key="4">4</button>
             <button type="button" class="keyboard-btn" data-key="5">5</button>
             <button type="button" class="keyboard-btn" data-key="6">6</button>
+            <button type="button" class="keyboard-btn keyboard-operator" data-key="×">×</button>
             <button type="button" class="keyboard-btn" data-key="1">1</button>
             <button type="button" class="keyboard-btn" data-key="2">2</button>
             <button type="button" class="keyboard-btn" data-key="3">3</button>
+            <button type="button" class="keyboard-btn keyboard-operator" data-key="-">-</button>
             <button type="button" class="keyboard-btn keyboard-special" data-key=".">.</button>
             <button type="button" class="keyboard-btn" data-key="0">0</button>
             <button type="button" class="keyboard-btn keyboard-delete" data-key="backspace">
                 <i class="fas fa-backspace"></i>
             </button>
+            <button type="button" class="keyboard-btn keyboard-operator" data-key="+">+</button>
+            <button type="button" class="keyboard-btn keyboard-equals" data-key="=">=</button>
             <button type="button" class="keyboard-btn keyboard-confirm" data-key="confirm">
                 <i class="fas fa-check mr-2"></i>確認
             </button>
@@ -2969,6 +2993,9 @@
                 this.display = document.getElementById('keyboard-display');
                 this.targetInput = null;
                 this.currentValue = '0';
+                this.operator = null;
+                this.firstOperand = null;
+                this.waitingForOperand = false;
                 this.init();
             }
 
@@ -3050,6 +3077,7 @@
                         // 觸發 input 事件，讓其他邏輯知道值已更改
                         this.targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                     }
+                    this.resetCalculator();
                     this.hide();
                 } else if (key === 'backspace') {
                     // 刪除：移除最後一個字符
@@ -3059,15 +3087,37 @@
                         this.currentValue = '0';
                     }
                     this.updateDisplay();
+                } else if (key === '=') {
+                    // 等於：計算結果
+                    this.calculate();
+                    this.operator = null;
+                    this.firstOperand = null;
+                    this.waitingForOperand = false;
+                } else if (['+', '-', '×', '÷'].includes(key)) {
+                    // 運算符：儲存當前值和運算符
+                    if (this.operator && !this.waitingForOperand) {
+                        // 如果已有運算符，先計算之前的結果
+                        this.calculate();
+                    }
+                    this.firstOperand = parseFloat(this.currentValue);
+                    this.operator = key;
+                    this.waitingForOperand = true;
+                    this.updateDisplay();
                 } else if (key === '.') {
                     // 小數點：只允許一個小數點
-                    if (!this.currentValue.includes('.')) {
+                    if (this.waitingForOperand) {
+                        this.currentValue = '0.';
+                        this.waitingForOperand = false;
+                    } else if (!this.currentValue.includes('.')) {
                         this.currentValue += '.';
-                        this.updateDisplay();
                     }
+                    this.updateDisplay();
                 } else {
                     // 數字鍵
-                    if (this.currentValue === '0') {
+                    if (this.waitingForOperand) {
+                        this.currentValue = key;
+                        this.waitingForOperand = false;
+                    } else if (this.currentValue === '0') {
                         this.currentValue = key;
                     } else {
                         // 限制最多 2 位小數
@@ -3086,6 +3136,57 @@
                     }
                     this.updateDisplay();
                 }
+            }
+
+            calculate() {
+                if (this.operator && this.firstOperand !== null) {
+                    const secondOperand = parseFloat(this.currentValue);
+                    let result = 0;
+
+                    switch (this.operator) {
+                        case '+':
+                            result = this.firstOperand + secondOperand;
+                            break;
+                        case '-':
+                            result = this.firstOperand - secondOperand;
+                            break;
+                        case '×':
+                            result = this.firstOperand * secondOperand;
+                            break;
+                        case '÷':
+                            if (secondOperand === 0) {
+                                this.currentValue = '錯誤';
+                                this.updateDisplay();
+                                setTimeout(() => {
+                                    this.resetCalculator();
+                                }, 1000);
+                                return;
+                            }
+                            result = this.firstOperand / secondOperand;
+                            break;
+                    }
+
+                    // 四捨五入到 2 位小數
+                    result = Math.round(result * 100) / 100;
+
+                    // 限制最大值
+                    if (result > 9999999.99) {
+                        result = 9999999.99;
+                    } else if (result < -9999999.99) {
+                        result = -9999999.99;
+                    }
+
+                    this.currentValue = result.toString();
+                    this.updateDisplay();
+                }
+            }
+
+            resetCalculator() {
+                this.operator = null;
+                this.firstOperand = null;
+                this.waitingForOperand = false;
+                this.currentValue = '0';
+                this.updateDisplay();
             }
 
             updateDisplay() {
