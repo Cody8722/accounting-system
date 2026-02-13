@@ -966,30 +966,30 @@
     </aside>
 
     <!-- iOS PWA 安裝提示 -->
-    <div id="ios-install-prompt" class="hidden fixed bottom-0 left-0 right-0 bg-white shadow-2xl rounded-t-3xl p-6 z-50 animate-slide-up" style="box-shadow: 0 -10px 40px rgba(0,0,0,0.15);">
-        <button onclick="dismissIOSPrompt()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+    <div id="ios-install-prompt" class="hidden fixed bottom-0 left-0 right-0 shadow-2xl rounded-t-3xl p-6 z-50 animate-slide-up" style="background-color: #ffffff; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937;">
+        <button onclick="dismissIOSPrompt()" class="absolute top-4 right-4 hover:opacity-70 transition" style="color: #9ca3af;">
             <i class="fas fa-times text-xl"></i>
         </button>
         <div class="flex items-start gap-4">
             <div class="text-5xl">📱</div>
             <div class="flex-1">
-                <h3 class="text-lg font-bold text-gray-800 mb-2">安裝記帳本到主畫面</h3>
-                <p class="text-sm text-gray-600 mb-4">輕鬆快速開啟，像原生 App 一樣使用</p>
-                <div class="bg-purple-50 rounded-lg p-3 space-y-2 text-sm">
+                <h3 class="text-lg font-bold mb-2" style="color: #1f2937;">安裝記帳本到主畫面</h3>
+                <p class="text-sm mb-4" style="color: #4b5563;">輕鬆快速開啟，像原生 App 一樣使用</p>
+                <div class="rounded-lg p-3 space-y-2 text-sm" style="background-color: #f3f4f6; color: #1f2937;">
                     <div class="flex items-center gap-2">
-                        <span class="text-blue-500 text-lg">1️⃣</span>
+                        <span class="text-lg">1️⃣</span>
                         <span>點擊下方的 <i class="fas fa-share" style="color: #007AFF;"></i> <strong>分享</strong> 按鈕</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="text-blue-500 text-lg">2️⃣</span>
+                        <span class="text-lg">2️⃣</span>
                         <span>選擇「<strong>加入主畫面</strong>」<i class="fas fa-plus-square ml-1"></i></span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="text-blue-500 text-lg">3️⃣</span>
+                        <span class="text-lg">3️⃣</span>
                         <span>點擊「<strong>新增</strong>」完成安裝</span>
                     </div>
                 </div>
-                <button onclick="dismissIOSPrompt()" class="mt-4 w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-2 px-4 rounded-lg font-medium hover:from-purple-600 hover:to-purple-700 transition">
+                <button onclick="dismissIOSPrompt()" class="mt-4 w-full py-2 px-4 rounded-lg font-medium transition" style="background: linear-gradient(to right, #8b5cf6, #7c3aed); color: white;">
                     我知道了
                 </button>
             </div>
