@@ -5,11 +5,11 @@
 import os
 import re
 import secrets
-import bcrypt
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from email_validator import validate_email, EmailNotValidError
+from passlib.hash import pbkdf2_sha256
 
 
 # JWT 配置
@@ -20,7 +20,7 @@ JWT_EXPIRATION_HOURS = 24  # Token 24 小時過期
 
 def hash_password(password: str) -> str:
     """
-    使用 bcrypt 加密密碼
+    使用 PBKDF2-SHA256 加密密碼
 
     Args:
         password: 明文密碼
@@ -28,10 +28,8 @@ def hash_password(password: str) -> str:
     Returns:
         加密後的密碼 hash
     """
-    # 生成 salt 並加密 (cost factor = 12)
-    salt = bcrypt.gensalt(rounds=12)
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    # 使用 PBKDF2-SHA256 (29000 rounds, NIST 推薦標準)
+    return pbkdf2_sha256.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -46,10 +44,7 @@ def verify_password(password: str, password_hash: str) -> bool:
         密碼是否匹配
     """
     try:
-        return bcrypt.checkpw(
-            password.encode('utf-8'),
-            password_hash.encode('utf-8')
-        )
+        return pbkdf2_sha256.verify(password, password_hash)
     except Exception:
         return False
 
