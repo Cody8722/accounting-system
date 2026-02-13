@@ -2492,6 +2492,9 @@
 
         // 數字滾動動畫函數
         function animateNumber(element, targetValue, duration = 1000) {
+            // 檢查元素是否存在
+            if (!element) return;
+
             const startText = element.textContent;
             const startValue = parseFloat(startText.replace(/[^0-9.-]/g, '')) || 0;
             const endValue = parseFloat(targetValue);
