@@ -978,10 +978,54 @@
             transform: scale(0.95);
         }
 
+        /* 電腦版：在記錄卡片上添加刪除按鈕 */
+        @media (min-width: 769px) {
+            .record-item-wrapper {
+                position: relative;
+            }
+
+            .record-card-delete-btn {
+                position: absolute;
+                right: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: #ef4444;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                border: none;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                opacity: 0;
+                transition: opacity 0.2s, background 0.2s;
+                z-index: 10;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .record-item-wrapper:hover .record-card-delete-btn {
+                opacity: 1;
+            }
+
+            .record-card-delete-btn:hover {
+                background: #dc2626;
+            }
+
+            .record-card-delete-btn:active {
+                transform: translateY(-50%) scale(0.95);
+            }
+        }
+
         /* 手機版優化滑動體驗 */
         @media (max-width: 768px) {
             .record-card:hover {
                 transform: none; /* 禁用 hover 效果，避免干擾滑動 */
+            }
+
+            .record-card-delete-btn {
+                display: none !important; /* 手機版隱藏電腦版刪除按鈕 */
             }
         }
 
@@ -2375,6 +2419,9 @@
                                     </div>
                                 </div>
                             </div>
+                            <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}')">
+                                <i class="fas fa-trash"></i>刪除
+                            </button>
                         </div>
                     `;
                 }).join('');
