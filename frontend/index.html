@@ -1787,6 +1787,23 @@
                     body: JSON.stringify({ name, email, password })
                 });
 
+                // 檢查 Content-Type 是否為 JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('後端返回非JSON回應:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        contentType: contentType
+                    });
+                    const text = await response.text();
+                    console.error('回應內容:', text.substring(0, 200));
+
+                    registerError.textContent = `後端錯誤 (HTTP ${response.status})，請檢查後端服務是否正常運行`;
+                    registerError.classList.remove('text-gray-500');
+                    registerError.classList.add('text-red-500');
+                    return;
+                }
+
                 const data = await response.json();
 
                 if (response.ok) {
