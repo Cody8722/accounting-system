@@ -1837,8 +1837,9 @@
                 // 如果返回401，清除token並跳轉到登入頁
                 if (response.status === 401) {
                     removeAuthToken();
+                    alert('登入已過期，請重新登入');
                     showLoginModal();
-                    throw new Error('未授權，請重新登入');
+                    throw new Error('登入已過期，請重新登入');
                 }
 
                 return response;
