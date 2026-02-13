@@ -581,7 +581,7 @@ def register():
     Request: { "email": "...", "password": "...", "name": "..." }
     Response: { "message": "註冊成功", "user_id": "..." }
     """
-    if not users_collection:
+    if users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
@@ -652,7 +652,7 @@ def login():
     Request: { "email": "...", "password": "..." }
     Response: { "token": "jwt_token...", "user": { "id": "...", "email": "...", "name": "..." } }
     """
-    if not users_collection:
+    if users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
@@ -715,7 +715,7 @@ def verify_token():
     驗證 token 有效性
     Response: { "valid": true, "user": {...} }
     """
-    if not users_collection:
+    if users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
@@ -767,7 +767,7 @@ def get_profile():
     取得用戶個人資料
     Response: { "id": "...", "email": "...", "name": "...", "created_at": "..." }
     """
-    if not users_collection:
+    if users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
@@ -800,7 +800,7 @@ def update_profile():
     Request: { "name": "...", "email": "..." }
     Response: { "message": "資料已更新" }
     """
-    if not users_collection:
+    if users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
@@ -866,7 +866,7 @@ def change_password():
     Request: { "old_password": "...", "new_password": "..." }
     Response: { "message": "密碼已更新" }
     """
-    if not users_collection:
+    if users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
