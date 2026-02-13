@@ -117,16 +117,16 @@ PASSWORD_RULES = {
 
 def show_config():
     """顯示當前密碼規則配置"""
-    print("\n" + "="*60)
+    print("\n" + "="*92)
     print("📋 當前密碼規則配置")
-    print("="*60)
+    print("="*92)
 
     for rule, info in PASSWORD_RULES.items():
         current_value = os.getenv(info['env'], info['default'])
         status = "✅ 啟用" if current_value.lower() == 'true' else ("❌ 禁用" if current_value.lower() == 'false' else f"📊 {current_value}")
-        print(f"{rule:25} | {status:10} | {info['description']}")
+        print(f"{info['env']:35} | {status:10} | {info['description']}")
 
-    print("="*60)
+    print("="*92)
 
     # 顯示需要強制更新密碼的用戶數量
     users_requiring_update = users_collection.count_documents({'requires_password_change': True})
