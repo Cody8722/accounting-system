@@ -1,4 +1,4 @@
-const CACHE_NAME = 'accounting-system-v5';  // 更新版本以強制重新安裝
+const CACHE_NAME = 'accounting-system-v6';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -71,12 +71,21 @@ self.addEventListener('fetch', (event) => {
 
   // 只處理 GET 請求
   if (request.method === 'GET') {
+    // 跳過 chrome-extension:// 和其他非 http(s) 協議
+    const url = new URL(request.url);
+    if (!url.protocol.startsWith('http')) {
+      return;
+    }
+
     // CDN資源：Cache First with Network Fallback
     if (CDN_URLS.some(cdn => request.url.includes(cdn))) {
       event.respondWith(
         caches.match(request)
           .then((response) => {
-            return response || fetch(request, { mode: 'cors' }).then((fetchResponse) => {
+            return response || fetch(request, {
+              mode: 'cors',
+              credentials: 'omit'  // 明確設定不帶 credentials，避免 CORS 問題
+            }).then((fetchResponse) => {
               // 只cache成功的回應
               if (fetchResponse && fetchResponse.status === 200) {
                 return caches.open(CACHE_NAME).then((cache) => {
@@ -87,7 +96,7 @@ self.addEventListener('fetch', (event) => {
               return fetchResponse;
             }).catch(() => {
               // CDN失敗也不要緊，瀏覽器會處理
-              return fetch(request);
+              return fetch(request, { credentials: 'omit' });
             });
           })
       );
