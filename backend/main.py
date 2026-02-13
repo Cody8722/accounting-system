@@ -573,6 +573,56 @@ def status():
 
 # ==================== 用戶認證 API ====================
 
+@app.route('/api/auth/validate-password', methods=['POST'])
+def validate_password():
+    """
+    即時密碼強度驗證（用於前端即時顯示）
+    Request: { "password": "...", "email": "..." (可選), "name": "..." (可選) }
+    Response: { "valid": true/false, "checks": {...}, "errors": [...] }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        password = data.get('password', '')
+        email = data.get('email', '')
+        name = data.get('name', '')
+
+        # 使用詳細驗證函數
+        result = auth.validate_password_strength_detailed(password, email, name)
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"密碼驗證失敗: {e}")
+        return jsonify({"error": "驗證失敗"}), 500
+
+
+@app.route('/api/auth/password-config', methods=['GET'])
+def get_password_config():
+    """
+    獲取密碼規則配置（用於前端顯示規則）
+    Response: { "min_length": 12, "require_uppercase": true, ... }
+    """
+    try:
+        # 返回當前的密碼配置
+        config = {
+            'min_length': auth.PASSWORD_CONFIG['min_length'],
+            'require_uppercase': auth.PASSWORD_CONFIG['require_uppercase'],
+            'require_lowercase': auth.PASSWORD_CONFIG['require_lowercase'],
+            'require_digit': auth.PASSWORD_CONFIG['require_digit'],
+            'require_special': auth.PASSWORD_CONFIG['require_special'],
+            'max_repeating': auth.PASSWORD_CONFIG['max_repeating'],
+            'max_sequential': auth.PASSWORD_CONFIG['max_sequential'],
+        }
+        return jsonify(config), 200
+
+    except Exception as e:
+        logger.error(f"獲取密碼配置失敗: {e}")
+        return jsonify({"error": "獲取配置失敗"}), 500
+
+
 @app.route('/api/auth/register', methods=['POST'])
 @limiter.limit("5 per hour")
 def register():
@@ -600,15 +650,15 @@ def register():
 
         email = email_or_error  # 使用規範化後的 email
 
-        # 驗證密碼強度
-        is_valid_password, password_message = auth.validate_password_strength(password)
-        if not is_valid_password:
-            return jsonify({"error": password_message}), 400
-
-        # 驗證名稱
+        # 驗證名稱（先驗證名稱，這樣才能用於密碼檢查）
         is_valid_name, name_message = auth.validate_name(name)
         if not is_valid_name:
             return jsonify({"error": name_message}), 400
+
+        # 驗證密碼強度（傳入 email 和 name 進行個人資訊檢查）
+        is_valid_password, password_message = auth.validate_password_strength(password, email, name)
+        if not is_valid_password:
+            return jsonify({"error": password_message}), 400
 
         # 檢查 email 是否已存在
         existing_user = users_collection.find_one({'email': email})
@@ -626,7 +676,9 @@ def register():
             'created_at': datetime.now(),
             'last_login': None,
             'is_active': True,
-            'email_verified': False  # 可選：Email 驗證功能
+            'email_verified': False,  # 可選：Email 驗證功能
+            'password_last_updated': datetime.now(),  # 密碼最後更新時間
+            'requires_password_change': False  # 是否需要強制更改密碼
         }
 
         result = users_collection.insert_one(user)
