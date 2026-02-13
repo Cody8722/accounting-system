@@ -259,6 +259,15 @@
             animation: fadeIn 0.5s ease-out;
         }
 
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.4s ease-out;
+        }
+
         /* Loading spinner */
         .spinner {
             border: 3px solid rgba(255, 255, 255, 0.3);
@@ -955,6 +964,37 @@
             <span>設定</span>
         </div>
     </aside>
+
+    <!-- iOS PWA 安裝提示 -->
+    <div id="ios-install-prompt" class="hidden fixed bottom-0 left-0 right-0 bg-white shadow-2xl rounded-t-3xl p-6 z-50 animate-slide-up" style="box-shadow: 0 -10px 40px rgba(0,0,0,0.15);">
+        <button onclick="dismissIOSPrompt()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-xl"></i>
+        </button>
+        <div class="flex items-start gap-4">
+            <div class="text-5xl">📱</div>
+            <div class="flex-1">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">安裝記帳本到主畫面</h3>
+                <p class="text-sm text-gray-600 mb-4">輕鬆快速開啟，像原生 App 一樣使用</p>
+                <div class="bg-purple-50 rounded-lg p-3 space-y-2 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="text-blue-500 text-lg">1️⃣</span>
+                        <span>點擊下方的 <i class="fas fa-share" style="color: #007AFF;"></i> <strong>分享</strong> 按鈕</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-blue-500 text-lg">2️⃣</span>
+                        <span>選擇「<strong>加入主畫面</strong>」<i class="fas fa-plus-square ml-1"></i></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-blue-500 text-lg">3️⃣</span>
+                        <span>點擊「<strong>新增</strong>」完成安裝</span>
+                    </div>
+                </div>
+                <button onclick="dismissIOSPrompt()" class="mt-4 w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-2 px-4 rounded-lg font-medium hover:from-purple-600 hover:to-purple-700 transition">
+                    我知道了
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 登入對話框 -->
     <div id="login-modal">
@@ -2268,6 +2308,52 @@
             updateAccountingStats();
         });
 
+        // --- iOS PWA 安裝提示 ---
+        function isIOS() {
+            const userAgent = window.navigator.userAgent.toLowerCase();
+            return /iphone|ipad|ipod/.test(userAgent);
+        }
+
+        function isInStandaloneMode() {
+            return ('standalone' in window.navigator) && (window.navigator.standalone);
+        }
+
+        function shouldShowIOSPrompt() {
+            // 1. 必須是 iOS 設備
+            if (!isIOS()) return false;
+
+            // 2. 不在獨立模式（已安裝）
+            if (isInStandaloneMode()) return false;
+
+            // 3. 檢查是否已經關閉過提示（7天內不再顯示）
+            const lastDismissed = localStorage.getItem('iosPromptDismissed');
+            if (lastDismissed) {
+                const daysSinceDismissed = (Date.now() - parseInt(lastDismissed)) / (1000 * 60 * 60 * 24);
+                if (daysSinceDismissed < 7) return false;
+            }
+
+            return true;
+        }
+
+        function showIOSInstallPrompt() {
+            if (shouldShowIOSPrompt()) {
+                setTimeout(() => {
+                    const prompt = document.getElementById('ios-install-prompt');
+                    if (prompt) {
+                        prompt.classList.remove('hidden');
+                    }
+                }, 3000); // 3秒後顯示
+            }
+        }
+
+        function dismissIOSPrompt() {
+            const prompt = document.getElementById('ios-install-prompt');
+            if (prompt) {
+                prompt.classList.add('hidden');
+                localStorage.setItem('iosPromptDismissed', Date.now().toString());
+            }
+        }
+
         // --- 初始載入 ---
         document.addEventListener('DOMContentLoaded', async () => {
             // 初始化篩選器分類選項
@@ -2283,6 +2369,9 @@
                 updateUserDisplay();
                 updateAccountingStats(); // 載入當月統計數據
                 console.log('✅ 已自動登入');
+
+                // 登入後顯示 iOS 安裝提示
+                showIOSInstallPrompt();
             } else {
                 // 未登入，顯示登入modal
                 showLoginModal();
