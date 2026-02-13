@@ -1,4 +1,4 @@
-const CACHE_NAME = 'accounting-system-v6';  // 更新版本以強制重新安裝
+const CACHE_NAME = 'accounting-system-v7';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -77,30 +77,10 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // CDN資源：Cache First with Network Fallback
+    // CDN 資源：完全不攔截，讓瀏覽器直接處理
+    // 這樣可以避免 CORS 錯誤
     if (CDN_URLS.some(cdn => request.url.includes(cdn))) {
-      event.respondWith(
-        caches.match(request)
-          .then((response) => {
-            return response || fetch(request, {
-              mode: 'cors',
-              credentials: 'omit'  // 明確設定不帶 credentials，避免 CORS 問題
-            }).then((fetchResponse) => {
-              // 只cache成功的回應
-              if (fetchResponse && fetchResponse.status === 200) {
-                return caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(request, fetchResponse.clone());
-                  return fetchResponse;
-                });
-              }
-              return fetchResponse;
-            }).catch(() => {
-              // CDN失敗也不要緊，瀏覽器會處理
-              return fetch(request, { credentials: 'omit' });
-            });
-          })
-      );
-      return;
+      return; // 不使用 event.respondWith，直接讓瀏覽器處理
     }
 
     // 本地靜態資源：Cache First 策略
