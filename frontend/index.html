@@ -332,6 +332,23 @@
             animation: slideUp 0.4s ease-out;
         }
 
+        /* 數字動畫效果 */
+        @keyframes numberPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes numberGlow {
+            0% { text-shadow: 0 0 5px rgba(124, 58, 237, 0); }
+            50% { text-shadow: 0 0 20px rgba(124, 58, 237, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(124, 58, 237, 0); }
+        }
+
+        .number-animating {
+            animation: numberPulse 0.5s ease-in-out;
+        }
+
         /* 密碼強度檢查器樣式 */
         .password-check {
             display: flex;
@@ -2473,6 +2490,44 @@
             }
         }
 
+        // 數字滾動動畫函數
+        function animateNumber(element, targetValue, duration = 1000) {
+            const startText = element.textContent;
+            const startValue = parseFloat(startText.replace(/[^0-9.-]/g, '')) || 0;
+            const endValue = parseFloat(targetValue);
+
+            // 如果值沒有變化，直接返回
+            if (startValue === endValue) return;
+
+            // 添加動畫 class
+            element.classList.add('number-animating');
+
+            const startTime = performance.now();
+            const prefix = startText.match(/^\$/)?.[0] || '';
+
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // 使用 easeOutCubic 緩動函數
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+                const currentValue = startValue + (endValue - startValue) * easeProgress;
+                element.textContent = `${prefix}${currentValue.toFixed(2)}`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                } else {
+                    // 動畫完成後移除 class
+                    setTimeout(() => {
+                        element.classList.remove('number-animating');
+                    }, 100);
+                }
+            }
+
+            requestAnimationFrame(update);
+        }
+
         // 更新統計資料
         async function updateAccountingStats() {
             
@@ -2491,9 +2546,10 @@
                 const stats = await response.json();
                 if (!response.ok) throw new Error(stats.error || '載入失敗');
 
-                totalIncomeEl.textContent = `$${stats.total_income.toFixed(2)}`;
-                totalExpenseEl.textContent = `$${stats.total_expense.toFixed(2)}`;
-                balanceEl.textContent = `$${stats.balance.toFixed(2)}`;
+                // 使用動畫更新統計數字
+                animateNumber(totalIncomeEl, stats.total_income.toFixed(2));
+                animateNumber(totalExpenseEl, stats.total_expense.toFixed(2));
+                animateNumber(balanceEl, stats.balance.toFixed(2));
                 balanceEl.className = `text-3xl font-bold ${stats.balance >= 0 ? 'text-blue-700' : 'text-red-700'}`;
 
                 // 同步更新簡潔統計列
@@ -2501,10 +2557,10 @@
                 const compactExpense = document.getElementById('compact-expense');
                 const compactBalance = document.getElementById('compact-balance');
 
-                if (compactIncome) compactIncome.textContent = `$${stats.total_income.toFixed(2)}`;
-                if (compactExpense) compactExpense.textContent = `$${stats.total_expense.toFixed(2)}`;
+                if (compactIncome) animateNumber(compactIncome, stats.total_income.toFixed(2));
+                if (compactExpense) animateNumber(compactExpense, stats.total_expense.toFixed(2));
                 if (compactBalance) {
-                    compactBalance.textContent = `$${stats.balance.toFixed(2)}`;
+                    animateNumber(compactBalance, stats.balance.toFixed(2));
                     compactBalance.style.color = stats.balance >= 0 ? '#3b82f6' : '#ef4444';
                 }
             } catch (error) {
