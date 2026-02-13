@@ -2962,8 +2962,8 @@
                     if (typeof updateAccountingStats === 'function') {
                         updateAccountingStats();
                     }
-                    if (typeof updateChart === 'function') {
-                        setTimeout(() => updateChart(), 100);
+                    if (typeof loadAccountingRecords === 'function') {
+                        setTimeout(() => loadAccountingRecords(), 100);
                     }
                 }
             }
