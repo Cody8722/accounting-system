@@ -30,7 +30,7 @@ max_requests_jitter = 100
 
 # 日誌設置
 accesslog = "-"  # 輸出到 stdout
-errorlog = "-"   # 輸出到 stderr
+errorlog = "-"  # 輸出到 stderr
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 
