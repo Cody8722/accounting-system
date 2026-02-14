@@ -6,14 +6,23 @@ import pytest
 import sys
 import os
 from datetime import datetime
+import mongomock
 
 # Set environment variables before importing main
 os.environ["TESTING"] = "true"
 os.environ["ADMIN_SECRET"] = "test-secret-key-123"
+os.environ["MONGO_URI"] = "mongodb://localhost:27017/test_accounting_db"
+os.environ["JWT_SECRET"] = "test-jwt-secret-key-for-testing"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from main import app
+# Patch pymongo with mongomock before importing main
+@mongomock.patch(servers=(('localhost', 27017),))
+def get_app():
+    from main import app
+    return app
+
+app = get_app()
 
 
 @pytest.fixture(scope="session")
