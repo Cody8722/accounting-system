@@ -78,8 +78,15 @@ users_collection = None  # 新增：用戶集合
 
 if MONGO_URI:
     try:
+        # 優化 MongoDB 連接設置以提高性能和穩定性
         client = MongoClient(
-            MONGO_URI, serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS
+            MONGO_URI,
+            serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
+            connectTimeoutMS=10000,  # 連接超時 10 秒
+            socketTimeoutMS=10000,  # Socket 超時 10 秒
+            maxPoolSize=10,  # 最大連接池大小
+            minPoolSize=1,  # 最小連接池大小
+            maxIdleTimeMS=45000,  # 最大閒置時間 45 秒
         )
         client.admin.command("ping")
 
@@ -89,33 +96,45 @@ if MONGO_URI:
         accounting_budget_collection = accounting_db["budget"]
         users_collection = accounting_db["users"]  # 新增：用戶集合
 
-        # 建立索引以優化查詢效能
+        # 建立索引以優化查詢效能（背景執行避免阻塞）
         try:
             # 記帳記錄索引
-            accounting_records_collection.create_index([("date", ASCENDING)])
-            accounting_records_collection.create_index([("type", ASCENDING)])
-            accounting_records_collection.create_index([("category", ASCENDING)])
             accounting_records_collection.create_index(
-                [("user_id", ASCENDING)]
-            )  # 新增：用戶索引
+                [("date", ASCENDING)], background=True
+            )
             accounting_records_collection.create_index(
-                [("user_id", ASCENDING), ("date", ASCENDING)]
-            )  # 新增：複合索引
+                [("type", ASCENDING)], background=True
+            )
+            accounting_records_collection.create_index(
+                [("category", ASCENDING)], background=True
+            )
+            accounting_records_collection.create_index(
+                [("user_id", ASCENDING)], background=True
+            )
+            accounting_records_collection.create_index(
+                [("user_id", ASCENDING), ("date", ASCENDING)], background=True
+            )
 
             # 預算索引（更新為複合唯一索引）
             try:
-                accounting_budget_collection.drop_index("month_1")  # 刪除舊的唯一索引
+                accounting_budget_collection.drop_index("month_1")
             except:
                 pass
             accounting_budget_collection.create_index(
-                [("user_id", ASCENDING), ("month", ASCENDING)], unique=True
+                [("user_id", ASCENDING), ("month", ASCENDING)],
+                unique=True,
+                background=True,
             )
 
             # 用戶索引
-            users_collection.create_index([("email", ASCENDING)], unique=True)
-            users_collection.create_index([("password_reset_token", ASCENDING)])
+            users_collection.create_index(
+                [("email", ASCENDING)], unique=True, background=True
+            )
+            users_collection.create_index(
+                [("password_reset_token", ASCENDING)], background=True
+            )
 
-            logger.info("✅ 資料庫索引已建立")
+            logger.info("✅ 資料庫索引已建立（背景執行）")
         except Exception as index_error:
             logger.warning(f"⚠️ 索引建立警告: {index_error}")
 
@@ -227,6 +246,19 @@ def validate_record_type(record_type: str) -> Tuple[bool, str]:
     if record_type not in valid_types:
         return False, f"記錄類型必須為: {', '.join(valid_types)}"
     return True, record_type
+
+
+# ==================== 健康檢查端點 ====================
+
+
+@app.route("/", methods=["GET"])
+@app.route("/health", methods=["GET"])
+def health_check():
+    """
+    輕量級健康檢查端點（無需認證）
+    用於 Zeabur 或其他服務的健康檢查
+    """
+    return jsonify({"status": "healthy", "service": "accounting-system"}), 200
 
 
 # ==================== 記帳 API ====================
