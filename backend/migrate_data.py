@@ -42,22 +42,22 @@ def create_admin_user(users_collection, email, password, name):
         管理員用戶的 ObjectId
     """
     # 檢查是否已存在
-    existing_user = users_collection.find_one({'email': email})
+    existing_user = users_collection.find_one({"email": email})
     if existing_user:
         print(f"✓ 管理員用戶已存在: {email}")
-        return existing_user['_id']
+        return existing_user["_id"]
 
     # 創建新管理員用戶
     password_hash = auth.hash_password(password)
 
     admin_user = {
-        'email': email,
-        'password_hash': password_hash,
-        'name': name,
-        'created_at': datetime.now(),
-        'last_login': None,
-        'is_active': True,
-        'email_verified': True
+        "email": email,
+        "password_hash": password_hash,
+        "name": name,
+        "created_at": datetime.now(),
+        "last_login": None,
+        "is_active": True,
+        "email_verified": True,
     }
 
     result = users_collection.insert_one(admin_user)
@@ -78,7 +78,9 @@ def migrate_records(records_collection, admin_user_id, dry_run=False):
         更新的記錄數量
     """
     # 查找沒有 user_id 的記錄
-    records_without_user = records_collection.count_documents({'user_id': {'$exists': False}})
+    records_without_user = records_collection.count_documents(
+        {"user_id": {"$exists": False}}
+    )
 
     if records_without_user == 0:
         print("✓ 所有記帳記錄都已有 user_id")
@@ -92,8 +94,8 @@ def migrate_records(records_collection, admin_user_id, dry_run=False):
 
     # 更新記錄
     result = records_collection.update_many(
-        {'user_id': {'$exists': False}},
-        {'$set': {'user_id': admin_user_id, 'migrated_at': datetime.now()}}
+        {"user_id": {"$exists": False}},
+        {"$set": {"user_id": admin_user_id, "migrated_at": datetime.now()}},
     )
 
     print(f"✓ 已更新 {result.modified_count} 筆記帳記錄")
@@ -113,7 +115,9 @@ def migrate_budget(budget_collection, admin_user_id, dry_run=False):
         更新的預算數量
     """
     # 查找沒有 user_id 的預算
-    budget_without_user = budget_collection.count_documents({'user_id': {'$exists': False}})
+    budget_without_user = budget_collection.count_documents(
+        {"user_id": {"$exists": False}}
+    )
 
     if budget_without_user == 0:
         print("✓ 所有預算都已有 user_id")
@@ -127,8 +131,8 @@ def migrate_budget(budget_collection, admin_user_id, dry_run=False):
 
     # 更新預算
     result = budget_collection.update_many(
-        {'user_id': {'$exists': False}},
-        {'$set': {'user_id': admin_user_id, 'migrated_at': datetime.now()}}
+        {"user_id": {"$exists": False}},
+        {"$set": {"user_id": admin_user_id, "migrated_at": datetime.now()}},
     )
 
     print(f"✓ 已更新 {result.modified_count} 筆預算")
@@ -138,17 +142,23 @@ def migrate_budget(budget_collection, admin_user_id, dry_run=False):
 def main():
     """主函數"""
     # 解析命令列參數
-    parser = argparse.ArgumentParser(description='數據遷移腳本 - 為現有數據添加 user_id')
-    parser.add_argument('--dry-run', action='store_true', help='預覽模式，不實際修改數據')
-    parser.add_argument('--admin-email', default='admin@example.com', help='管理員 email')
-    parser.add_argument('--admin-password', default='admin123456', help='管理員密碼')
-    parser.add_argument('--admin-name', default='系統管理員', help='管理員名稱')
+    parser = argparse.ArgumentParser(
+        description="數據遷移腳本 - 為現有數據添加 user_id"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="預覽模式，不實際修改數據"
+    )
+    parser.add_argument(
+        "--admin-email", default="admin@example.com", help="管理員 email"
+    )
+    parser.add_argument("--admin-password", default="admin123456", help="管理員密碼")
+    parser.add_argument("--admin-name", default="系統管理員", help="管理員名稱")
     args = parser.parse_args()
 
     # 載入環境變數
     load_dotenv()
 
-    MONGO_URI = os.getenv('MONGO_URI')
+    MONGO_URI = os.getenv("MONGO_URI")
     if not MONGO_URI:
         print("❌ 錯誤：未設定 MONGO_URI 環境變數")
         print("請在 .env 文件中設定 MONGO_URI")
@@ -165,14 +175,14 @@ def main():
         # 連接到 MongoDB
         print("\n正在連接到 MongoDB...")
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping')
+        client.admin.command("ping")
         print("✓ 已連接到 MongoDB")
 
         # 獲取集合
-        db = client['accounting_db']
-        users_collection = db['users']
-        records_collection = db['records']
-        budget_collection = db['budget']
+        db = client["accounting_db"]
+        users_collection = db["users"]
+        records_collection = db["records"]
+        budget_collection = db["budget"]
 
         # 統計現有數據
         total_users = users_collection.count_documents({})
@@ -191,10 +201,7 @@ def main():
             admin_user_id = ObjectId()  # 臨時 ID 用於預覽
         else:
             admin_user_id = create_admin_user(
-                users_collection,
-                args.admin_email,
-                args.admin_password,
-                args.admin_name
+                users_collection, args.admin_email, args.admin_password, args.admin_name
             )
 
         print(f"✓ 管理員用戶 ID: {admin_user_id}")
@@ -203,7 +210,9 @@ def main():
         print("\n" + "=" * 60)
         print("遷移記帳記錄")
         print("=" * 60)
-        records_updated = migrate_records(records_collection, admin_user_id, args.dry_run)
+        records_updated = migrate_records(
+            records_collection, admin_user_id, args.dry_run
+        )
 
         # 遷移預算
         print("\n" + "=" * 60)
@@ -234,9 +243,10 @@ def main():
     except Exception as e:
         print(f"\n❌ 遷移失敗: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
