@@ -7,8 +7,9 @@ import sys
 import os
 from datetime import datetime
 
-# Set TESTING environment variable before importing main
+# Set environment variables before importing main
 os.environ["TESTING"] = "true"
+os.environ["ADMIN_SECRET"] = "test-secret-key-123"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

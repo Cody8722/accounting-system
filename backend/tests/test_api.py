@@ -8,16 +8,15 @@ import sys
 import os
 from datetime import datetime
 
-# Set TESTING environment variable before importing main
+# Set environment variables before importing main
 os.environ["TESTING"] = "true"
+TEST_ADMIN_SECRET = "test-secret-key-123"
+os.environ["ADMIN_SECRET"] = TEST_ADMIN_SECRET
 
 # 添加父目录到 Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import app
-
-# Test admin secret - should match .env ADMIN_SECRET in production
-TEST_ADMIN_SECRET = os.getenv("ADMIN_SECRET", "test-secret-key-123")
 
 
 @pytest.fixture
