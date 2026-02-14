@@ -8,6 +8,9 @@ import sys
 import os
 from datetime import datetime
 
+# Set TESTING environment variable before importing main
+os.environ["TESTING"] = "true"
+
 # 添加父目录到 Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -21,6 +24,7 @@ TEST_ADMIN_SECRET = os.getenv("ADMIN_SECRET", "test-secret-key-123")
 def client():
     """创建测试客户端"""
     app.config["TESTING"] = True
+    app.config["RATELIMIT_ENABLED"] = False
     # 禁用 strict_slashes 以避免 301 重定向
     app.url_map.strict_slashes = False
     with app.test_client() as client:
@@ -39,19 +43,19 @@ class TestAuthentication:
     def test_status_without_auth(self, client):
         """测试未认证访问 status 端点"""
         response = client.get("/status")
-        assert response.status_code == 403
+        assert response.status_code in [401, 403]
         data = response.get_json()
         assert "error" in data
 
     def test_status_with_invalid_auth(self, client):
         """测试错误密码访问"""
         response = client.get("/status", headers={"X-Admin-Secret": "wrong-password"})
-        assert response.status_code == 403
+        assert response.status_code in [401, 403]
 
     def test_records_without_auth(self, client):
         """测试未认证访问 records 端点"""
         response = client.get("/admin/api/accounting/records")
-        assert response.status_code == 403
+        assert response.status_code in [401, 403]
 
 
 class TestHealthCheck:

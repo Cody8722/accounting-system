@@ -7,6 +7,9 @@ import sys
 import os
 from datetime import datetime
 
+# Set TESTING environment variable before importing main
+os.environ["TESTING"] = "true"
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import app
@@ -16,6 +19,7 @@ from main import app
 def test_app():
     """創建測試應用實例"""
     app.config["TESTING"] = True
+    app.config["RATELIMIT_ENABLED"] = False  # Disable rate limiting for tests
     app.url_map.strict_slashes = False
     return app
 
