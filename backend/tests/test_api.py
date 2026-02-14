@@ -320,9 +320,7 @@ class TestAuthenticatedEndpoints:
         """測試設定預算（已認證）"""
         budget_data = {"budget": {"food": 5000, "transport": 3000}}
         response = client.post(
-            "/admin/api/accounting/budget",
-            json=budget_data,
-            headers=auth_headers
+            "/admin/api/accounting/budget", json=budget_data, headers=auth_headers
         )
         assert response.status_code in [200, 201, 500]
 
@@ -332,8 +330,7 @@ class TestAuthenticatedEndpoints:
             pytest.skip("需要認證 token")
 
         response = client.get(
-            "/api/user/profile",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            "/api/user/profile", headers={"Authorization": f"Bearer {auth_token}"}
         )
         assert response.status_code in [200, 404, 500]
         if response.status_code == 200:
@@ -349,7 +346,7 @@ class TestAuthenticatedEndpoints:
         response = client.put(
             "/api/user/profile",
             json=update_data,
-            headers={"Authorization": f"Bearer {auth_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code in [200, 400, 500]
 
@@ -361,12 +358,12 @@ class TestAuthenticatedEndpoints:
         # 測試更改密碼（會失敗因為舊密碼錯誤，但會覆蓋代碼）
         password_data = {
             "old_password": "WrongOldPassword",
-            "new_password": "MyN3wP@ssw0rd!XyZ"
+            "new_password": "MyN3wP@ssw0rd!XyZ",
         }
         response = client.post(
             "/api/user/change-password",
             json=password_data,
-            headers={"Authorization": f"Bearer {auth_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code in [200, 400, 401, 500]
 

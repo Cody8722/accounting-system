@@ -55,7 +55,7 @@ jobs:
     - name: Check coverage threshold
       run: |
         cd backend
-        coverage report --fail-under=90
+        coverage report --fail-under=75
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4

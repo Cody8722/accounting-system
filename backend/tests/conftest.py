@@ -16,11 +16,14 @@ os.environ["JWT_SECRET"] = "test-jwt-secret-key-for-testing"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+
 # Patch pymongo with mongomock before importing main
-@mongomock.patch(servers=(('localhost', 27017),))
+@mongomock.patch(servers=(("localhost", 27017),))
 def get_app():
     from main import app
+
     return app
+
 
 app = get_app()
 
