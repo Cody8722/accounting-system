@@ -56,7 +56,15 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 FRONTEND_URLS = os.getenv(
     "FRONTEND_URLS", "http://localhost:8080,https://accounting-system.zeabur.app"
 ).split(",")
-CORS(app, origins=FRONTEND_URLS)
+# 清理 URL，移除空白字符
+FRONTEND_URLS = [url.strip() for url in FRONTEND_URLS if url.strip()]
+CORS(
+    app,
+    origins=FRONTEND_URLS,
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization", "X-Admin-Secret"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+)
 
 
 # 安全 headers
