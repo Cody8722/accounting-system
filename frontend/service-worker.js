@@ -1,4 +1,4 @@
-const CACHE_NAME = 'accounting-system-v7';  // 更新版本以強制重新安裝
+const CACHE_NAME = 'accounting-system-v8';  // 更新版本以強制重新安裝
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests

@@ -2791,16 +2791,23 @@
                         // 檢查更新
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
+                            console.log('🔄 檢測到新版本，準備更新...');
+
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // 有新版本可用
-                                    if (confirm('有新版本可用！點擊確定重新載入頁面。')) {
-                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
-                                        window.location.reload();
-                                    }
+                                    // 有新版本可用，顯示更新提示
+                                    console.log('✨ 新版本已準備就緒');
+                                    showUpdateNotification(newWorker);
                                 }
                             });
                         });
+
+                        // 定期檢查更新（每 30 分鐘）
+                        setInterval(() => {
+                            registration.update().catch(err => {
+                                console.log('更新檢查失敗:', err);
+                            });
+                        }, 30 * 60 * 1000);
                     })
                     .catch((error) => {
                         console.error('❌ Service Worker 註冊失敗:', error);
@@ -2889,6 +2896,79 @@
                 }, 3000);
             }
 
+            // 顯示更新通知
+            function showUpdateNotification(newWorker) {
+                // 創建更新提示條
+                const updateBanner = document.createElement('div');
+                updateBanner.id = 'update-banner';
+                updateBanner.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 16px 20px;
+                    text-align: center;
+                    z-index: 10001;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    animation: slideDown 0.3s ease-out;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 15px;
+                `;
+
+                updateBanner.innerHTML = `
+                    <span style="font-weight: 500;">✨ 新版本已就緒！</span>
+                    <button id="update-now-btn" style="
+                        background: white;
+                        color: #667eea;
+                        border: none;
+                        padding: 8px 20px;
+                        border-radius: 6px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: transform 0.2s;
+                    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        立即更新
+                    </button>
+                    <button id="update-later-btn" style="
+                        background: transparent;
+                        color: white;
+                        border: 1px solid white;
+                        padding: 8px 20px;
+                        border-radius: 6px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    " onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                        稍後
+                    </button>
+                `;
+
+                document.body.appendChild(updateBanner);
+
+                // 立即更新按鈕
+                document.getElementById('update-now-btn').addEventListener('click', () => {
+                    console.log('用戶選擇立即更新');
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                });
+
+                // 稍後更新按鈕
+                document.getElementById('update-later-btn').addEventListener('click', () => {
+                    console.log('用戶選擇稍後更新');
+                    updateBanner.style.animation = 'slideUp 0.3s ease-out';
+                    setTimeout(() => updateBanner.remove(), 300);
+
+                    // 30 分鐘後再次提醒
+                    setTimeout(() => {
+                        showUpdateNotification(newWorker);
+                    }, 30 * 60 * 1000);
+                });
+            }
+
             // 添加動畫樣式
             const style = document.createElement('style');
             style.textContent = `
@@ -2899,6 +2979,14 @@
                 @keyframes slideOutRight {
                     from { transform: translateX(0); opacity: 1; }
                     to { transform: translateX(100%); opacity: 0; }
+                }
+                @keyframes slideDown {
+                    from { transform: translateY(-100%); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes slideUp {
+                    from { transform: translateY(0); opacity: 1; }
+                    to { transform: translateY(-100%); opacity: 0; }
                 }
             `;
             document.head.appendChild(style);
