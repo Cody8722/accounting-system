@@ -2539,7 +2539,7 @@
         }
 
         // 數字滾動動畫函數
-        function animateNumber(element, targetValue, duration = 1000) {
+        function animateNumber(element, targetValue, duration = 1000, forceAnimate = false) {
             // 檢查元素是否存在
             if (!element) return;
 
@@ -2547,8 +2547,11 @@
             const startValue = parseFloat(startText.replace(/[^0-9.-]/g, '')) || 0;
             const endValue = parseFloat(targetValue);
 
-            // 如果值沒有變化，直接返回
-            if (startValue === endValue) return;
+            // 如果值沒有變化且不強制動畫，直接返回
+            if (startValue === endValue && !forceAnimate) return;
+
+            // 如果強制動畫且值相同，從 0 開始動畫
+            const animateStartValue = (forceAnimate && startValue === endValue) ? 0 : startValue;
 
             // 添加動畫 class
             element.classList.add('number-animating');
@@ -2563,7 +2566,7 @@
                 // 使用 easeOutCubic 緩動函數
                 const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-                const currentValue = startValue + (endValue - startValue) * easeProgress;
+                const currentValue = animateStartValue + (endValue - animateStartValue) * easeProgress;
                 element.textContent = `${prefix}${currentValue.toFixed(2)}`;
 
                 if (progress < 1) {
@@ -2580,8 +2583,8 @@
         }
 
         // 更新統計資料
-        async function updateAccountingStats() {
-            
+        async function updateAccountingStats(forceAnimate = false) {
+
             const startDate = document.getElementById('filter-start-date').value;
             const endDate = document.getElementById('filter-end-date').value;
 
@@ -2591,16 +2594,16 @@
 
             try {
                 const response = await apiCall(url, {
-                    
+
                 });
 
                 const stats = await response.json();
                 if (!response.ok) throw new Error(stats.error || '載入失敗');
 
-                // 使用動畫更新統計數字
-                animateNumber(totalIncomeEl, stats.total_income.toFixed(2));
-                animateNumber(totalExpenseEl, stats.total_expense.toFixed(2));
-                animateNumber(balanceEl, stats.balance.toFixed(2));
+                // 使用動畫更新統計數字（forceAnimate = true 時每次都播放動畫）
+                animateNumber(totalIncomeEl, stats.total_income.toFixed(2), 1000, forceAnimate);
+                animateNumber(totalExpenseEl, stats.total_expense.toFixed(2), 1000, forceAnimate);
+                animateNumber(balanceEl, stats.balance.toFixed(2), 1000, forceAnimate);
                 balanceEl.className = `text-3xl font-bold ${stats.balance >= 0 ? 'text-blue-700' : 'text-red-700'}`;
 
                 // 同步更新簡潔統計列
@@ -2608,10 +2611,10 @@
                 const compactExpense = document.getElementById('compact-expense');
                 const compactBalance = document.getElementById('compact-balance');
 
-                if (compactIncome) animateNumber(compactIncome, stats.total_income.toFixed(2));
-                if (compactExpense) animateNumber(compactExpense, stats.total_expense.toFixed(2));
+                if (compactIncome) animateNumber(compactIncome, stats.total_income.toFixed(2), 1000, forceAnimate);
+                if (compactExpense) animateNumber(compactExpense, stats.total_expense.toFixed(2), 1000, forceAnimate);
                 if (compactBalance) {
-                    animateNumber(compactBalance, stats.balance.toFixed(2));
+                    animateNumber(compactBalance, stats.balance.toFixed(2), 1000, forceAnimate);
                     compactBalance.style.color = stats.balance >= 0 ? '#3b82f6' : '#ef4444';
                 }
             } catch (error) {
@@ -3159,9 +3162,9 @@
                         loadAccountingRecords();
                     }
                 } else if (pageName === 'analytics') {
-                    // 分析頁：重新渲染圖表和統計
+                    // 分析頁：重新渲染圖表和統計（強制播放數字動畫）
                     if (typeof updateAccountingStats === 'function') {
-                        updateAccountingStats();
+                        updateAccountingStats(true);  // 每次切換都播放動畫
                     }
                     if (typeof loadAccountingRecords === 'function') {
                         setTimeout(() => loadAccountingRecords(), 100);
