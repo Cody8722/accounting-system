@@ -876,8 +876,8 @@ def register():
 
 
 @app.route("/api/auth/login", methods=["POST"])
-@limiter.limit("10 per hour")
-@limiter.limit("3 per minute")
+@limiter.limit("30 per hour")  # 每小時 30 次（放寬限制）
+@limiter.limit("10 per minute")  # 每分鐘 10 次（允許快速重試）
 def login():
     """
     用戶登入
