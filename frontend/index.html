@@ -1352,6 +1352,84 @@
         </div>
     </div>
 
+    <!-- 編輯記帳記錄 Modal -->
+    <div id="edit-record-modal" class="hidden" onclick="event.target === this && closeEditRecordModal()">
+        <div class="category-modal-content" style="max-width: 600px;">
+            <!-- 標題列 -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800">
+                    <i class="fas fa-edit mr-2 text-purple-600"></i>編輯記帳記錄
+                </h3>
+                <button onclick="closeEditRecordModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 表單內容 -->
+            <form id="edit-record-form" class="p-6 space-y-4">
+                <input type="hidden" id="edit-record-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-black mb-1">
+                            <i class="fas fa-exchange-alt mr-1"></i>類型
+                        </label>
+                        <select id="edit-record-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" required>
+                            <option value="expense">支出</option>
+                            <option value="income">收入</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-black mb-1">
+                            <i class="fas fa-dollar-sign mr-1"></i>金額
+                        </label>
+                        <input type="number" id="edit-record-amount" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="0" min="0.01" step="0.01" required>
+                        <p id="edit-amount-error" class="text-red-500 text-xs mt-1 hidden">金額必須大於 0</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-black mb-1">
+                            <i class="fas fa-list mr-1"></i>分類
+                        </label>
+                        <div class="flex gap-2">
+                            <input type="text" id="edit-record-category" class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-pointer focus:ring-2 focus:ring-purple-500" placeholder="點擊選擇分類" readonly required onclick="openCategoryModalForEdit()">
+                            <button type="button" onclick="openCategoryModalForEdit()" class="px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition">
+                                <i class="fas fa-th"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-black mb-1">
+                            <i class="fas fa-calendar mr-1"></i>日期
+                        </label>
+                        <input type="date" id="edit-record-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-black mb-1">
+                        <i class="fas fa-comment mr-1"></i>描述 (選填)
+                    </label>
+                    <input type="text" id="edit-record-description" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="例如：便利商店">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-black mb-1">
+                        <i class="fas fa-tag mr-1"></i>支出類型 (選填)
+                    </label>
+                    <select id="edit-expense-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                        <option value="">不設定</option>
+                        <option value="fixed">固定支出</option>
+                        <option value="variable">變動支出</option>
+                        <option value="onetime">一次性支出</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-purple-600 text-white py-3 px-4 rounded-md hover:bg-purple-700 font-semibold transition shadow-md hover:shadow-lg">
+                    <i class="fas fa-save mr-2"></i>更新記帳
+                </button>
+                <div id="edit-record-message" class="text-center text-sm font-medium hidden"></div>
+            </form>
+        </div>
+    </div>
+
     <!-- 主內容 -->
     <div class="container mx-auto p-4 sm:p-8" id="main-content" style="display: none;">
         <div class="max-w-7xl mx-auto">
@@ -1697,6 +1775,80 @@
             categoryInput.value = category;
             closeCategoryModal();
         }
+
+        // 編輯記錄模式的分類選擇
+        let isEditMode = false;
+
+        function openCategoryModalForEdit() {
+            isEditMode = true;
+            openCategoryModal();
+        }
+
+        function selectCategoryForEdit(category) {
+            const categoryInput = document.getElementById('edit-record-category');
+            categoryInput.value = category;
+            isEditMode = false;
+            closeCategoryModal();
+        }
+
+        // 原本的 selectCategory 需要修改以支援編輯模式
+        const originalSelectCategory = selectCategory;
+        selectCategory = function(category) {
+            if (isEditMode) {
+                selectCategoryForEdit(category);
+            } else {
+                originalSelectCategory(category);
+            }
+        };
+
+        // 編輯記帳記錄 Modal 函數
+        async function openEditRecordModal(recordId) {
+            try {
+                // 從 DOM 中找到對應的記錄卡片來獲取數據
+                // 或者我們可以從後端重新獲取
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/records?`, {});
+                const records = await response.json();
+
+                if (!response.ok) throw new Error(records.error || '載入記錄失敗');
+
+                const record = records.find(r => {
+                    const id = r._id.$oid || r._id;
+                    return id === recordId;
+                });
+
+                if (!record) {
+                    alert('找不到該記錄');
+                    return;
+                }
+
+                // 填充表單
+                document.getElementById('edit-record-id').value = recordId;
+                document.getElementById('edit-record-type').value = record.type;
+                document.getElementById('edit-record-amount').value = record.amount;
+                document.getElementById('edit-record-category').value = record.category;
+                document.getElementById('edit-record-date').value = record.date;
+                document.getElementById('edit-record-description').value = record.description || '';
+                document.getElementById('edit-expense-type').value = record.expense_type || '';
+
+                // 顯示 Modal
+                document.getElementById('edit-record-modal').classList.remove('hidden');
+            } catch (error) {
+                alert(`載入記錄失敗: ${error.message}`);
+            }
+        }
+
+        function closeEditRecordModal() {
+            document.getElementById('edit-record-modal').classList.add('hidden');
+            // 清空表單
+            document.getElementById('edit-record-form').reset();
+            document.getElementById('edit-record-message').classList.add('hidden');
+            document.getElementById('edit-amount-error').classList.add('hidden');
+        }
+
+        // 將函數暴露到全局以便內聯事件處理器可以調用
+        window.openEditRecordModal = openEditRecordModal;
+        window.closeEditRecordModal = closeEditRecordModal;
+        window.openCategoryModalForEdit = openCategoryModalForEdit;
 
         function renderCategoryModal() {
             const categories = categoryData[currentCategoryType];
@@ -2352,6 +2504,69 @@
                 accountingMessage.textContent = `❌ ${error.message}`;
                 accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
                 accountingMessage.classList.remove('hidden');
+            }
+        });
+
+        // 編輯記帳表單提交處理
+        const editRecordForm = document.getElementById('edit-record-form');
+        const editRecordAmount = document.getElementById('edit-record-amount');
+        const editAmountError = document.getElementById('edit-amount-error');
+        const editRecordMessage = document.getElementById('edit-record-message');
+
+        editRecordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const amount = parseFloat(editRecordAmount.value);
+            const validation = validateAmount(amount);
+
+            // 前端驗證金額
+            if (!validation.valid) {
+                editRecordAmount.classList.add('input-error');
+                editAmountError.textContent = validation.message;
+                editAmountError.classList.remove('hidden');
+                editRecordMessage.textContent = `❌ ${validation.message}`;
+                editRecordMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                editRecordMessage.classList.remove('hidden');
+                setTimeout(() => {
+                    editRecordMessage.classList.add('hidden');
+                }, 3000);
+                return;
+            }
+
+            const recordId = document.getElementById('edit-record-id').value;
+            const recordData = {
+                type: document.getElementById('edit-record-type').value,
+                amount: amount,
+                category: document.getElementById('edit-record-category').value,
+                date: document.getElementById('edit-record-date').value,
+                description: document.getElementById('edit-record-description').value,
+                expense_type: document.getElementById('edit-expense-type').value || null
+            };
+
+            try {
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/records/${recordId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(recordData)
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || '更新失敗');
+
+                editRecordMessage.textContent = '✅ 記帳記錄已更新';
+                editRecordMessage.className = 'text-center text-sm font-medium text-green-600';
+                editRecordMessage.classList.remove('hidden');
+
+                // 重新載入記錄和統計
+                loadAccountingRecords();
+                updateAccountingStats();
+
+                setTimeout(() => {
+                    closeEditRecordModal();
+                }, 1500);
+            } catch (error) {
+                editRecordMessage.textContent = `❌ ${error.message}`;
+                editRecordMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                editRecordMessage.classList.remove('hidden');
             }
         });
 
@@ -3603,8 +3818,7 @@
 
                 switch (action) {
                     case 'edit':
-                        alert('編輯功能開發中...');
-                        // TODO: 實作編輯功能
+                        openEditRecordModal(this.currentRecord);
                         break;
                     case 'delete':
                         deleteAccountingRecord(this.currentRecord);
