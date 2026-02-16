@@ -142,15 +142,9 @@ def migrate_budget(budget_collection, admin_user_id, dry_run=False):
 def main():
     """主函數"""
     # 解析命令列參數
-    parser = argparse.ArgumentParser(
-        description="數據遷移腳本 - 為現有數據添加 user_id"
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="預覽模式，不實際修改數據"
-    )
-    parser.add_argument(
-        "--admin-email", default="admin@example.com", help="管理員 email"
-    )
+    parser = argparse.ArgumentParser(description="數據遷移腳本 - 為現有數據添加 user_id")
+    parser.add_argument("--dry-run", action="store_true", help="預覽模式，不實際修改數據")
+    parser.add_argument("--admin-email", default="admin@example.com", help="管理員 email")
     parser.add_argument("--admin-password", default="admin123456", help="管理員密碼")
     parser.add_argument("--admin-name", default="系統管理員", help="管理員名稱")
     args = parser.parse_args()
