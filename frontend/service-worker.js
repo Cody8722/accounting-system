@@ -1,4 +1,7 @@
-const CACHE_NAME = 'accounting-system-v8';  // 更新版本以強制重新安裝
+// ⚠️ 重要提醒：每次更新前端時，務必修改此版本號！⚠️
+// 版本號格式：accounting-system-vX (X 為遞增數字)
+// 修改版本號會觸發 Service Worker 更新，讓用戶獲得最新版本
+const CACHE_NAME = 'accounting-system-v8';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests

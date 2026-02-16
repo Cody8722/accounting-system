@@ -104,11 +104,24 @@ python -m http.server 8080
 
 ### 前端部署
 
-1. 修改 `frontend/index.html` 的 `BACKEND_URL` 為後端 URL
-2. 在 Zeabur 建立新服務
-3. 選擇靜態網站部署
-4. 選擇 `frontend` 資料夾
-5. 部署完成
+**⚠️ 重要：每次更新前端時，請務必更新 Service Worker 版本號！**
+
+1. **更新 PWA 版本號**（必須）
+   - 打開 `frontend/service-worker.js`
+   - 修改第 4 行：`const CACHE_NAME = 'accounting-system-vX';`
+   - 將 `vX` 遞增（例如：v8 → v9）
+   - 詳細說明請參考 [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md)
+
+2. 修改 `frontend/index.html` 的 `BACKEND_URL` 為後端 URL
+3. 在 Zeabur 建立新服務
+4. 選擇靜態網站部署
+5. 選擇 `frontend` 資料夾
+6. 部署完成
+
+**為什麼要更新版本號？**
+- PWA 使用 Service Worker 快取
+- 修改版本號會觸發用戶端更新
+- 用戶才能看到最新版本的功能
 
 ## 🗄️ 資料庫結構
 

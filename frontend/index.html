@@ -2788,6 +2788,12 @@
                     .then((registration) => {
                         console.log('✅ Service Worker 註冊成功:', registration.scope);
 
+                        // 立即檢查更新（每次開啟 PWA 都檢查）
+                        console.log('🔍 檢查是否有新版本...');
+                        registration.update().catch(err => {
+                            console.log('初始更新檢查失敗:', err);
+                        });
+
                         // 檢查更新
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
