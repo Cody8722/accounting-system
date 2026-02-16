@@ -1,7 +1,17 @@
 // ⚠️ 重要提醒：每次更新前端時，務必修改此版本號！⚠️
-// 版本號格式：accounting-system-vX (X 為遞增數字)
-// 修改版本號會觸發 Service Worker 更新，讓用戶獲得最新版本
-const CACHE_NAME = 'accounting-system-v8';  // ← 記得更新這裡！
+//
+// 版本號規則（語義化版本控制 Semantic Versioning）：
+// - 格式：accounting-system-v{major}.{minor}.{patch}
+// - MAJOR（主版本）：不兼容的 API 修改或重大重構
+// - MINOR（次版本）：向下兼容的功能性新增
+// - PATCH（修訂版本）：向下兼容的問題修正、優化
+//
+// 範例：
+//   v1.0.0 → v1.0.1  (修復 bug)
+//   v1.0.1 → v1.1.0  (新增功能)
+//   v1.1.0 → v2.0.0  (重大更新)
+//
+const CACHE_NAME = 'accounting-system-v1.0.0';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests

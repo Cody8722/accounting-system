@@ -4,55 +4,131 @@
 
 ### 1. 更新 Service Worker 版本號
 
-📁 **檔案位置**：`frontend/service-worker.js` (第 4 行)
+📁 **檔案位置**：`frontend/service-worker.js` (第 14 行)
 
 ```javascript
-const CACHE_NAME = 'accounting-system-v8';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.0.0';  // ← 記得更新這裡！
 ```
-
-**操作步驟**：
-1. 打開 `service-worker.js`
-2. 找到 `CACHE_NAME` 常數
-3. 將版本號 `v8` 改為 `v9`（遞增）
-4. 保存檔案
-
-**為什麼重要**？
-- 修改版本號會觸發 Service Worker 更新
-- 用戶才能獲得最新的 PWA 功能
-- 舊的快取會被清除，避免用戶看到舊版本
 
 ---
 
-### 2. 測試更新機制
+## 📊 語義化版本控制規則
 
-**本地測試**：
-```bash
-# 啟動本地伺服器
-cd frontend
-python -m http.server 8080
+我們使用 **Semantic Versioning**（語義化版本控制）格式：`v{major}.{minor}.{patch}`
+
+### 版本號格式：`vX.Y.Z`
+
+```
+v1.2.3
+│ │ │
+│ │ └─ PATCH（修訂版本）：向下兼容的問題修正
+│ └─── MINOR（次版本）：向下兼容的功能性新增
+└───── MAJOR（主版本）：不兼容的 API 修改或重大更新
 ```
 
-**驗證步驟**：
-1. 訪問 http://localhost:8080
-2. 打開 Chrome DevTools → Console
-3. 看到 "🔍 檢查是否有新版本..." 表示正常
-4. 修改任何前端檔案並刷新
-5. 應該會看到更新橫幅出現
+### 何時遞增各個版本號？
+
+#### 🔴 MAJOR（主版本）- 重大更新
+
+修改第一位數字，後面歸零：`v1.2.3` → `v2.0.0`
+
+**使用時機**：
+- ❌ 不兼容的 API 變更（breaking changes）
+- 🏗️ 重大架構重構
+- 🎨 完全重新設計的 UI/UX
+- 🔄 資料庫結構重大變更
+
+**範例**：
+- 從單用戶系統改為多用戶系統
+- 移除舊的 API 端點
+- 改變資料格式導致不兼容
 
 ---
 
-### 3. 部署到 Zeabur
+#### 🟡 MINOR（次版本）- 新功能
 
-**自動更新時機**：
-- ✅ 用戶每次開啟 PWA 時立即檢查
-- ✅ 每 30 分鐘自動檢查一次
-- ✅ 發現新版本時顯示更新橫幅
+修改第二位數字，patch 歸零：`v1.2.3` → `v1.3.0`
 
-**部署後驗證**：
-1. 訪問生產環境 URL
-2. 打開 DevTools → Application → Service Workers
-3. 確認新版本已註冊
-4. 手動點擊 "Update" 按鈕測試
+**使用時機**：
+- ✨ 新增功能（向下兼容）
+- 📈 新增 API 端點
+- 🎨 新增頁面或模組
+- 🔧 新增配置選項
+
+**範例**：
+- 新增預算追蹤功能
+- 新增圖表統計頁面
+- 新增匯出功能
+- 新增深色模式
+
+---
+
+#### 🟢 PATCH（修訂版本）- 修復與優化
+
+修改第三位數字：`v1.2.3` → `v1.2.4`
+
+**使用時機**：
+- 🐛 Bug 修復
+- ⚡ 效能優化
+- 📝 文案修正
+- 🎨 UI 微調（不影響功能）
+- 🔒 安全性修補
+
+**範例**：
+- 修復登入按鈕無法點擊
+- 優化載入速度
+- 修正錯別字
+- 修復 RWD 排版問題
+
+---
+
+## 🎯 實際操作範例
+
+### 範例 1：修復 Bug
+
+**情境**：修復刪除記錄時的權限錯誤
+
+```javascript
+// 修改前
+const CACHE_NAME = 'accounting-system-v1.0.0';
+
+// 修改後（PATCH +1）
+const CACHE_NAME = 'accounting-system-v1.0.1';
+```
+
+**說明**：Bug 修復 → PATCH 版本 +1
+
+---
+
+### 範例 2：新增功能
+
+**情境**：新增匯出 CSV 功能
+
+```javascript
+// 修改前
+const CACHE_NAME = 'accounting-system-v1.0.1';
+
+// 修改後（MINOR +1，PATCH 歸零）
+const CACHE_NAME = 'accounting-system-v1.1.0';
+```
+
+**說明**：新功能且向下兼容 → MINOR 版本 +1
+
+---
+
+### 範例 3：重大更新
+
+**情境**：完全重寫前端，從 Vanilla JS 改為 React
+
+```javascript
+// 修改前
+const CACHE_NAME = 'accounting-system-v1.5.3';
+
+// 修改後（MAJOR +1，後面歸零）
+const CACHE_NAME = 'accounting-system-v2.0.0';
+```
+
+**說明**：不兼容的重大變更 → MAJOR 版本 +1
 
 ---
 
@@ -60,35 +136,160 @@ python -m http.server 8080
 
 追蹤每次更新的版本號：
 
-| 版本 | 日期 | 更新內容 |
-|------|------|----------|
-| v8 | 2026-02-16 | 改進自動更新機制，添加更新橫幅 |
-| v7 | 2026-02-14 | 添加離線功能支援 |
+| 版本 | 日期 | 類型 | 更新內容 |
+|------|------|------|----------|
+| v1.0.0 | 2026-02-16 | MAJOR | 採用語義化版本控制，改進自動更新機制 |
+| v0.8.0 | 2026-02-16 | MINOR | 添加更新橫幅功能 |
+| v0.7.0 | 2026-02-14 | MINOR | 添加離線功能支援 |
 
-**下次更新請使用**: `v9`
+**當前版本**: `v1.0.0`
+**下次更新**: 根據變更類型選擇 `v1.0.1`（修復）、`v1.1.0`（功能）或 `v2.0.0`（重大更新）
+
+---
+
+## 🔄 更新步驟
+
+### 步驟 1：確定版本號
+
+根據變更類型選擇：
+
+```bash
+# Bug 修復
+v1.0.0 → v1.0.1
+
+# 新增功能
+v1.0.1 → v1.1.0
+
+# 重大更新
+v1.5.3 → v2.0.0
+```
+
+### 步驟 2：修改版本號
+
+打開 `frontend/service-worker.js`，修改第 14 行：
+
+```javascript
+const CACHE_NAME = 'accounting-system-v1.0.1';  // ← 更新版本號
+```
+
+### 步驟 3：提交變更
+
+```bash
+git add frontend/service-worker.js
+git commit -m "chore: bump version to v1.0.1"
+git push
+```
+
+### 步驟 4：更新版本記錄
+
+在本檔案的「版本記錄」表格中新增一行。
+
+---
+
+## 🧪 測試更新機制
+
+### 本地測試
+
+```bash
+# 啟動本地伺服器
+cd frontend
+python -m http.server 8080
+```
+
+### 驗證步驟
+
+1. 訪問 http://localhost:8080
+2. 打開 Chrome DevTools → Console
+3. 看到 "🔍 檢查是否有新版本..." 表示正常
+4. 修改版本號並重新整理
+5. 應該會看到更新橫幅出現
+
+---
+
+## 🚀 部署到 Zeabur
+
+### 自動更新時機
+
+- ✅ 用戶每次開啟 PWA 時立即檢查
+- ✅ 每 30 分鐘自動檢查一次
+- ✅ 發現新版本時顯示更新橫幅
+
+### 部署後驗證
+
+1. 訪問生產環境 URL
+2. 打開 DevTools → Application → Service Workers
+3. 確認新版本已註冊（檢查版本號）
+4. 手動點擊 "Update" 按鈕測試
 
 ---
 
 ## 🚨 常見錯誤
 
 ### 錯誤 1：忘記更新版本號
+
 **症狀**：用戶看不到更新，仍顯示舊版本
 **解決**：更新 `CACHE_NAME` 並重新部署
 
-### 錯誤 2：版本號格式錯誤
-**錯誤範例**：`accounting-system-8` （缺少 v）
-**正確格式**：`accounting-system-v8`
+---
 
-### 錯誤 3：快取未清除
+### 錯誤 2：版本號格式錯誤
+
+**錯誤範例**：
+- ❌ `accounting-system-1.0.0` （缺少 v）
+- ❌ `accounting-system-v1.0` （缺少 patch）
+- ❌ `accounting-system-v1` （格式不完整）
+
+**正確格式**：
+- ✅ `accounting-system-v1.0.0`
+- ✅ `accounting-system-v2.5.3`
+
+---
+
+### 錯誤 3：版本號邏輯錯誤
+
+**錯誤範例**：
+- ❌ `v1.0.0` → `v1.0.0.1` （不能有第四位）
+- ❌ `v1.2.3` → `v1.3.4` （MINOR 更新時 PATCH 應該歸零）
+- ❌ `v2.0.5` → `v2.0.4` （版本號不能倒退）
+
+**正確做法**：
+- ✅ `v1.0.0` → `v1.0.1` （PATCH +1）
+- ✅ `v1.2.3` → `v1.3.0` （MINOR +1，PATCH 歸零）
+- ✅ `v2.0.5` → `v2.0.6` （只能遞增）
+
+---
+
+### 錯誤 4：快取未清除
+
 **症狀**：本地測試看到舊版本
-**解決**：
+
+**解決方法**：
 1. DevTools → Application → Storage
 2. 點擊 "Clear site data"
 3. 重新整理頁面
+
+或者使用無痕模式測試。
 
 ---
 
 ## 📚 參考資料
 
+- [Semantic Versioning 規範](https://semver.org/lang/zh-TW/)
 - [Service Worker 更新機制](https://developer.chrome.com/docs/workbox/service-worker-lifecycle/)
 - [PWA 最佳實踐](https://web.dev/pwa-checklist/)
+
+---
+
+## 💡 快速決策表
+
+| 變更類型 | 版本變化 | 範例 |
+|---------|---------|------|
+| 🐛 Bug 修復 | PATCH +1 | v1.0.0 → v1.0.1 |
+| ⚡ 效能優化 | PATCH +1 | v1.0.1 → v1.0.2 |
+| 📝 文案修正 | PATCH +1 | v1.0.2 → v1.0.3 |
+| ✨ 新增小功能 | MINOR +1 | v1.0.3 → v1.1.0 |
+| 📈 新增頁面 | MINOR +1 | v1.1.0 → v1.2.0 |
+| 🎨 UI 重新設計 | MAJOR +1 | v1.2.0 → v2.0.0 |
+| 🔄 架構重構 | MAJOR +1 | v2.0.0 → v3.0.0 |
+
+**原則**：如果不確定，選擇較保守的版本號（PATCH 或 MINOR）。

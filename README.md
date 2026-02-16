@@ -106,10 +106,13 @@ python -m http.server 8080
 
 **⚠️ 重要：每次更新前端時，請務必更新 Service Worker 版本號！**
 
-1. **更新 PWA 版本號**（必須）
+1. **更新 PWA 版本號**（必須，使用語義化版本控制）
    - 打開 `frontend/service-worker.js`
-   - 修改第 4 行：`const CACHE_NAME = 'accounting-system-vX';`
-   - 將 `vX` 遞增（例如：v8 → v9）
+   - 修改第 14 行：`const CACHE_NAME = 'accounting-system-vX.Y.Z';`
+   - 根據變更類型更新版本號：
+     - Bug 修復：`v1.0.0` → `v1.0.1` (PATCH +1)
+     - 新功能：`v1.0.1` → `v1.1.0` (MINOR +1)
+     - 重大更新：`v1.5.3` → `v2.0.0` (MAJOR +1)
    - 詳細說明請參考 [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md)
 
 2. 修改 `frontend/index.html` 的 `BACKEND_URL` 為後端 URL
