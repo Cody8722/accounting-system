@@ -470,7 +470,9 @@ def validate_password_strength_detailed(
         "required": min_length,
         "actual": len(password),
         "message": (
-            f"至少 {min_length} 個字元" if not length_check else f"長度符合（{len(password)} 字元）"
+            f"至少 {min_length} 個字元"
+            if not length_check
+            else f"長度符合（{len(password)} 字元）"
         ),
     }
     if not length_check:
@@ -526,11 +528,15 @@ def validate_password_strength_detailed(
         has_repeat, repeat_str = has_repeating_chars(password, config["max_repeating"])
         results["checks"]["repeating"] = {
             "passed": not has_repeat,
-            "message": (f"不包含重複字符" if not has_repeat else f"包含重複字符: {repeat_str}"),
+            "message": (
+                f"不包含重複字符" if not has_repeat else f"包含重複字符: {repeat_str}"
+            ),
         }
         if has_repeat:
             results["valid"] = False
-            results["errors"].append(f'不能有 {config["max_repeating"]+1} 個或以上相同字符')
+            results["errors"].append(
+                f'不能有 {config["max_repeating"]+1} 個或以上相同字符'
+            )
 
     # 7. 連續字符檢查
     if config["check_sequential"]:
@@ -550,7 +556,9 @@ def validate_password_strength_detailed(
         has_kbd, kbd_pattern = has_keyboard_pattern(password)
         results["checks"]["keyboard_pattern"] = {
             "passed": not has_kbd,
-            "message": ("不包含鍵盤模式" if not has_kbd else f"包含鍵盤模式: {kbd_pattern}"),
+            "message": (
+                "不包含鍵盤模式" if not has_kbd else f"包含鍵盤模式: {kbd_pattern}"
+            ),
         }
         if has_kbd:
             results["valid"] = False
@@ -561,7 +569,9 @@ def validate_password_strength_detailed(
         has_math, math_pattern = has_math_pattern(password)
         results["checks"]["math_pattern"] = {
             "passed": not has_math,
-            "message": ("不包含數學模式" if not has_math else f"包含數學模式: {math_pattern}"),
+            "message": (
+                "不包含數學模式" if not has_math else f"包含數學模式: {math_pattern}"
+            ),
         }
         if has_math:
             results["valid"] = False
@@ -583,7 +593,9 @@ def validate_password_strength_detailed(
         has_pinyin, pinyin = has_chinese_pinyin(password)
         results["checks"]["chinese_pinyin"] = {
             "passed": not has_pinyin,
-            "message": ("不包含常見拼音" if not has_pinyin else f"包含常見拼音: {pinyin}"),
+            "message": (
+                "不包含常見拼音" if not has_pinyin else f"包含常見拼音: {pinyin}"
+            ),
         }
         if has_pinyin:
             results["valid"] = False
