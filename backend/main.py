@@ -356,7 +356,9 @@ def get_accounting_records():
 
         # 用戶數據隔離：JWT 用戶只能查看自己的數據，管理員可查看所有數據
         if request.user_id:
+            # JWT 用戶：只查詢有 user_id 且匹配的記錄
             query["user_id"] = ObjectId(request.user_id)
+        # 管理員模式（ADMIN_SECRET）：查看所有記錄（包括沒有 user_id 的舊記錄）
 
         if start_date and end_date:
             # 驗證日期格式
@@ -480,7 +482,11 @@ def update_accounting_record(record_id):
         # 用戶數據隔離：驗證記錄所有權
         query = {"_id": ObjectId(record_id)}
         if request.user_id:
-            query["user_id"] = ObjectId(request.user_id)
+            # JWT 用戶可以更新：1) 自己的記錄 或 2) 沒有 user_id 的舊記錄
+            query["$or"] = [
+                {"user_id": ObjectId(request.user_id)},
+                {"user_id": {"$exists": False}},
+            ]
 
         # 先檢查記錄是否存在且屬於當前用戶
         existing_record = accounting_records_collection.find_one(query)
@@ -566,7 +572,11 @@ def delete_accounting_record(record_id):
         # 用戶數據隔離：驗證記錄所有權
         query = {"_id": ObjectId(record_id)}
         if request.user_id:
-            query["user_id"] = ObjectId(request.user_id)
+            # JWT 用戶可以刪除：1) 自己的記錄 或 2) 沒有 user_id 的舊記錄
+            query["$or"] = [
+                {"user_id": ObjectId(request.user_id)},
+                {"user_id": {"$exists": False}},
+            ]
 
         result = accounting_records_collection.delete_one(query)
 
