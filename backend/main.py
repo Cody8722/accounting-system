@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import logging
 import re
+import secrets
 
 # 導入認證模組
 import auth
@@ -30,6 +31,8 @@ logger = logging.getLogger(__name__)
 MAX_AMOUNT = 9999999.99
 MAX_RECORDS_LIMIT = 500
 SERVER_SELECTION_TIMEOUT_MS = 5000
+MAX_DESCRIPTION_LENGTH = 500
+ALLOWED_CATEGORIES = ["早餐", "午餐", "晚餐", "點心", "飲料", "其他", "交通", "娛樂", "購物", "醫療", "教育", "居住"]
 
 app = Flask(__name__)
 
@@ -118,8 +121,9 @@ if MONGO_URI:
             # 預算索引（更新為複合唯一索引）
             try:
                 accounting_budget_collection.drop_index("month_1")
-            except:
-                pass
+            except Exception as e:
+                # 索引可能不存在，忽略錯誤
+                logger.debug(f"無法刪除舊索引 month_1: {str(e)}")
             accounting_budget_collection.create_index(
                 [("user_id", ASCENDING), ("month", ASCENDING)],
                 unique=True,
@@ -164,21 +168,27 @@ def require_auth(f):
         # 方法 1: JWT 認證 (優先)
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            payload = auth.verify_jwt(token)
+            # 安全地解析 token，防止 IndexError
+            parts = auth_header.split(" ")
+            if len(parts) == 2:
+                token = parts[1]
+                payload = auth.verify_jwt(token)
 
-            if payload:
-                # JWT 驗證成功，注入用戶資訊到 request
-                request.user_id = payload.get("user_id")
-                request.email = payload.get("email")
-                request.name = payload.get("name", "")
-                return f(*args, **kwargs)
+                if payload:
+                    # JWT 驗證成功，注入用戶資訊到 request
+                    request.user_id = payload.get("user_id")
+                    request.email = payload.get("email")
+                    request.name = payload.get("name", "")
+                    return f(*args, **kwargs)
+                else:
+                    return jsonify({"error": "Token 無效或已過期"}), 401
             else:
-                return jsonify({"error": "Token 無效或已過期"}), 401
+                return jsonify({"error": "Authorization header 格式錯誤"}), 401
 
         # 方法 2: 舊版 ADMIN_SECRET 認證 (向後兼容)
         admin_secret = request.headers.get("X-Admin-Secret")
-        if admin_secret and ADMIN_SECRET and admin_secret == ADMIN_SECRET:
+        # 使用 secrets.compare_digest 防止時序攻擊
+        if admin_secret and ADMIN_SECRET and secrets.compare_digest(admin_secret, ADMIN_SECRET):
             # 舊版認證成功，設定為管理員模式
             request.user_id = None  # None 表示管理員（可訪問所有數據）
             request.email = "admin"
@@ -246,6 +256,43 @@ def validate_record_type(record_type: str) -> Tuple[bool, str]:
     if record_type not in valid_types:
         return False, f"記錄類型必須為: {', '.join(valid_types)}"
     return True, record_type
+
+
+def validate_category(category: str) -> Tuple[bool, str]:
+    """驗證分類"""
+    if not category or not isinstance(category, str):
+        return False, "分類不可為空"
+
+    # 去除前後空白
+    category = category.strip()
+
+    # 再次檢查去除空白後是否為空
+    if not category:
+        return False, "分類不可為空"
+
+    # 檢查長度
+    if len(category) > 50:
+        return False, "分類長度不可超過 50 個字元"
+
+    # 不強制分類必須在清單中，允許用戶自定義分類
+    # ALLOWED_CATEGORIES 僅作為建議參考
+
+    return True, category
+
+
+def validate_description(description: str) -> Tuple[bool, str]:
+    """驗證描述"""
+    if not isinstance(description, str):
+        return False, "描述格式錯誤"
+
+    # 去除前後空白
+    description = description.strip()
+
+    # 檢查長度
+    if len(description) > MAX_DESCRIPTION_LENGTH:
+        return False, f"描述長度不可超過 {MAX_DESCRIPTION_LENGTH} 個字元"
+
+    return True, description
 
 
 # ==================== 健康檢查端點 ====================
@@ -348,6 +395,17 @@ def add_accounting_record():
         if not valid:
             return jsonify({"error": result}), 400
 
+        # 驗證分類
+        valid, category = validate_category(data["category"])
+        if not valid:
+            return jsonify({"error": category}), 400
+
+        # 驗證描述
+        description = data.get("description", "")
+        valid, description = validate_description(description)
+        if not valid:
+            return jsonify({"error": description}), 400
+
         # 驗證支出類型（新格式）或重複類型（舊格式，向後相容）
         expense_type = data.get("expense_type")
         if expense_type:
@@ -359,9 +417,9 @@ def add_accounting_record():
         record = {
             "type": data["type"],
             "amount": amount,
-            "category": data["category"],
+            "category": category,
             "date": data["date"],
-            "description": data.get("description", ""),
+            "description": description,
             "expense_type": expense_type,  # 新欄位
             "created_at": datetime.now(),
         }
@@ -424,8 +482,12 @@ def update_accounting_record(record_id):
                 return jsonify({"error": result}), 400
             update_data["amount"] = result
 
+        # 驗證分類
         if "category" in data:
-            update_data["category"] = data["category"]
+            valid, category = validate_category(data["category"])
+            if not valid:
+                return jsonify({"error": category}), 400
+            update_data["category"] = category
 
         # 驗證日期
         if "date" in data:
@@ -434,8 +496,12 @@ def update_accounting_record(record_id):
                 return jsonify({"error": result}), 400
             update_data["date"] = data["date"]
 
+        # 驗證描述
         if "description" in data:
-            update_data["description"] = data["description"]
+            valid, description = validate_description(data["description"])
+            if not valid:
+                return jsonify({"error": description}), 400
+            update_data["description"] = description
 
         # 驗證支出類型
         if "expense_type" in data:
@@ -1050,8 +1116,12 @@ def change_password():
         if not auth.verify_password(old_password, user["password_hash"]):
             return jsonify({"error": "舊密碼錯誤"}), 401
 
-        # 驗證新密碼強度
-        is_valid, message = auth.validate_password_strength(new_password)
+        # 驗證新密碼強度（包含個人資訊檢查）
+        is_valid, message = auth.validate_password_strength(
+            new_password,
+            email=user.get("email", ""),
+            name=user.get("name", "")
+        )
         if not is_valid:
             return jsonify({"error": message}), 400
 
