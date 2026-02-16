@@ -32,7 +32,20 @@ MAX_AMOUNT = 9999999.99
 MAX_RECORDS_LIMIT = 500
 SERVER_SELECTION_TIMEOUT_MS = 5000
 MAX_DESCRIPTION_LENGTH = 500
-ALLOWED_CATEGORIES = ["早餐", "午餐", "晚餐", "點心", "飲料", "其他", "交通", "娛樂", "購物", "醫療", "教育", "居住"]
+ALLOWED_CATEGORIES = [
+    "早餐",
+    "午餐",
+    "晚餐",
+    "點心",
+    "飲料",
+    "其他",
+    "交通",
+    "娛樂",
+    "購物",
+    "醫療",
+    "教育",
+    "居住",
+]
 
 app = Flask(__name__)
 
@@ -53,9 +66,9 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=31536000; includeSubDomains"
-    )
+    response.headers[
+        "Strict-Transport-Security"
+    ] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -188,7 +201,11 @@ def require_auth(f):
         # 方法 2: 舊版 ADMIN_SECRET 認證 (向後兼容)
         admin_secret = request.headers.get("X-Admin-Secret")
         # 使用 secrets.compare_digest 防止時序攻擊
-        if admin_secret and ADMIN_SECRET and secrets.compare_digest(admin_secret, ADMIN_SECRET):
+        if (
+            admin_secret
+            and ADMIN_SECRET
+            and secrets.compare_digest(admin_secret, ADMIN_SECRET)
+        ):
             # 舊版認證成功，設定為管理員模式
             request.user_id = None  # None 表示管理員（可訪問所有數據）
             request.email = "admin"
@@ -1118,9 +1135,7 @@ def change_password():
 
         # 驗證新密碼強度（包含個人資訊檢查）
         is_valid, message = auth.validate_password_strength(
-            new_password,
-            email=user.get("email", ""),
-            name=user.get("name", "")
+            new_password, email=user.get("email", ""), name=user.get("name", "")
         )
         if not is_valid:
             return jsonify({"error": message}), 400
