@@ -3369,8 +3369,10 @@
             onPageLoad(pageName) {
                 // 頁面載入時的特定邏輯
                 if (pageName === 'add') {
-                    // 記帳頁：更新簡潔統計
-                    this.updateCompactStats();
+                    // 記帳頁：更新統計數據（強制播放數字動畫）
+                    if (typeof updateAccountingStats === 'function') {
+                        updateAccountingStats(true);  // 每次切換都播放動畫
+                    }
                 } else if (pageName === 'records') {
                     // 記錄頁：自動載入記錄
                     if (typeof loadAccountingRecords === 'function') {
@@ -3388,14 +3390,25 @@
             }
 
             updateCompactStats() {
-                // 更新簡潔統計列的數據
-                const totalIncome = document.getElementById('total-income')?.textContent || '$0';
-                const totalExpense = document.getElementById('total-expense')?.textContent || '$0';
-                const balance = document.getElementById('balance')?.textContent || '$0';
+                // 同步更新簡潔統計列（不帶動畫，用於初始化）
+                // 注意：如果需要動畫，請使用 updateAccountingStats(forceAnimate)
+                const compactIncome = document.getElementById('compact-income');
+                const compactExpense = document.getElementById('compact-expense');
+                const compactBalance = document.getElementById('compact-balance');
 
-                document.getElementById('compact-income').textContent = totalIncome;
-                document.getElementById('compact-expense').textContent = totalExpense;
-                document.getElementById('compact-balance').textContent = balance;
+                const totalIncome = document.getElementById('total-income');
+                const totalExpense = document.getElementById('total-expense');
+                const balance = document.getElementById('balance');
+
+                if (totalIncome && compactIncome) {
+                    compactIncome.textContent = totalIncome.textContent;
+                }
+                if (totalExpense && compactExpense) {
+                    compactExpense.textContent = totalExpense.textContent;
+                }
+                if (balance && compactBalance) {
+                    compactBalance.textContent = balance.textContent;
+                }
             }
         }
 
