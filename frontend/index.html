@@ -2750,6 +2750,7 @@
                 ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
                 const parent = ctx.parentElement;
                 parent.innerHTML = '<p class="text-center text-gray-500 py-8">暫無支出數據</p><canvas id="expenseChart"></canvas>';
+                expenseChart = null;
             }
         }
 
@@ -3379,7 +3380,10 @@
                         loadAccountingRecords();
                     }
                 } else if (pageName === 'analytics') {
-                    // 分析頁：重新渲染圖表和統計（強制播放數字動畫）
+                    // 分析頁：先清除舊圖表，再重新渲染（避免舊資料與新統計不一致）
+                    if (typeof updateExpenseChart === 'function') {
+                        updateExpenseChart([]);  // 立即清除舊圖表，防止顯示過時資料
+                    }
                     if (typeof updateAccountingStats === 'function') {
                         updateAccountingStats(true);  // 每次切換都播放動畫
                     }
