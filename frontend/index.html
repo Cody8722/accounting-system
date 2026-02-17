@@ -2886,9 +2886,9 @@
             if (endDate) url += `end_date=${endDate}`;
 
             try {
-                const response = await apiCall(url, {
-
-                });
+                // cache: 'no-store' 強制略過瀏覽器 HTTP cache，確保每次都從伺服器取得最新統計
+                // 手機端 HTTP cache 較積極，若不加此選項，刪除後統計可能仍顯示舊資料
+                const response = await apiCall(url, { cache: 'no-store' });
 
                 const stats = await response.json();
                 if (!response.ok) throw new Error(stats.error || '載入失敗');

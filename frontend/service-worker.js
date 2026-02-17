@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.2.2';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.2.3';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -113,11 +113,14 @@ self.addEventListener('fetch', (event) => {
     }
 
     // API 請求：Network First 策略（優先網路，失敗才用快取）
+    // 使用 cache: 'no-store' 強制略過瀏覽器 HTTP cache，
+    // 確保 Network First 真的去伺服器取最新資料（手機端 HTTP cache 較積極，容易拿到舊統計）
     if (request.url.includes('/admin/api/')) {
+      const networkRequest = new Request(request, { cache: 'no-store' });
       event.respondWith(
-        fetch(request)
+        fetch(networkRequest)
           .then((response) => {
-            // 成功取得資料，快取回應
+            // 成功取得資料，快取回應（作為離線備援）
             if (response.ok) {
               const responseClone = response.clone();
               caches.open(CACHE_NAME).then((cache) => {
