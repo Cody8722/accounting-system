@@ -536,7 +536,8 @@
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             max-width: 600px;
             width: 90%;
-            max-height: 80vh;
+            /* 使用 min() 避免 modal 超出螢幕，並扣除 iOS 安全區域 */
+            max-height: min(80vh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px));
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -650,7 +651,8 @@
 
             .category-modal-content {
                 width: 95%;
-                max-height: 85vh;
+                /* 手機版更緊湊，同樣扣除安全區域 */
+                max-height: min(85vh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px));
             }
 
             .category-tab {
@@ -1459,7 +1461,7 @@
                         <label class="block text-sm font-medium text-black mb-1">
                             <i class="fas fa-dollar-sign mr-1"></i>金額
                         </label>
-                        <input type="number" id="edit-record-amount" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="0" min="0.01" step="0.01" required>
+                        <input type="number" id="edit-record-amount" inputmode="decimal" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="0" min="0.01" step="0.01" required>
                         <p id="edit-amount-error" class="text-red-500 text-xs mt-1 hidden">金額必須大於 0</p>
                     </div>
                 </div>
@@ -1549,7 +1551,7 @@
                                 <label class="block text-sm font-medium text-black mb-1">
                                     <i class="fas fa-dollar-sign mr-1"></i>金額
                                 </label>
-                                <input type="number" id="record-amount" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="0" min="0.01" step="0.01" required>
+                                <input type="number" id="record-amount" inputmode="decimal" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="0" min="0.01" step="0.01" required>
                                 <p id="amount-error" class="text-red-500 text-xs mt-1 hidden">金額必須大於 0</p>
                             </div>
                         </div>
@@ -1745,37 +1747,37 @@
                             <label class="block text-xs text-gray-600 mb-1">
                                 <i class="fas fa-coffee mr-1"></i>早餐
                             </label>
-                            <input type="number" data-category="早餐" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                            <input type="number" data-category="早餐" inputmode="decimal" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">
                                 <i class="fas fa-utensils mr-1"></i>午餐
                             </label>
-                            <input type="number" data-category="午餐" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                            <input type="number" data-category="午餐" inputmode="decimal" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">
                                 <i class="fas fa-hamburger mr-1"></i>晚餐
                             </label>
-                            <input type="number" data-category="晚餐" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                            <input type="number" data-category="晚餐" inputmode="decimal" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">
                                 <i class="fas fa-cookie mr-1"></i>點心
                             </label>
-                            <input type="number" data-category="點心" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                            <input type="number" data-category="點心" inputmode="decimal" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">
                                 <i class="fas fa-mug-hot mr-1"></i>飲料
                             </label>
-                            <input type="number" data-category="飲料" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                            <input type="number" data-category="飲料" inputmode="decimal" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-600 mb-1">
                                 <i class="fas fa-ellipsis-h mr-1"></i>其他
                             </label>
-                            <input type="number" data-category="其他" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
+                            <input type="number" data-category="其他" inputmode="decimal" class="budget-input w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="0">
                         </div>
                         <button id="save-budget-btn" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 font-semibold text-sm transition shadow-md hover:shadow-lg">
                             <i class="fas fa-save mr-2"></i>儲存預算
@@ -2768,7 +2770,9 @@
                 'rgba(199, 199, 199, 0.8)'
             ];
 
-            const ctx = document.getElementById('expenseChart');
+            const canvasEl = document.getElementById('expenseChart');
+            // willReadFrequently: false 提示瀏覽器不需頻繁讀取像素，iOS GPU 可更好優化繪製
+            const ctx = canvasEl.getContext('2d', { willReadFrequently: false });
 
             // Destroy existing chart if it exists
             if (expenseChart) {
@@ -2780,7 +2784,7 @@
                 // 檢測是否為手機版
                 const isMobile = window.innerWidth <= 768;
 
-                expenseChart = new Chart(ctx, {
+                expenseChart = new Chart(canvasEl, {
                     type: 'doughnut',
                     data: {
                         labels: categories,
@@ -2822,8 +2826,8 @@
                 });
             } else {
                 // Show empty state
-                ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
-                const parent = ctx.parentElement;
+                ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+                const parent = canvasEl.parentElement;
                 parent.innerHTML = '<p class="text-center text-gray-500 py-8">暫無支出數據</p><canvas id="expenseChart"></canvas>';
                 expenseChart = null;
             }
@@ -3818,7 +3822,7 @@
                 this.menu = document.getElementById('context-menu');
                 this.overlay = document.getElementById('context-menu-overlay');
                 this.longPressTimer = null;
-                this.longPressDuration = 800; // 長按時間（ms）
+                this.longPressDuration = 500; // 長按時間（ms）；iOS 800ms 易與原生選單衝突，縮短至 500ms
                 this.currentRecord = null;
                 this.init();
             }
@@ -3845,6 +3849,9 @@
                     // 如果是在刪除按鈕上，不觸發長按
                     if (e.target.closest('.delete-btn')) return;
 
+                    // iOS：多指手勢（縮放等）不觸發長按
+                    if (e.touches.length > 1) return;
+
                     this.currentRecord = recordId;
                     element.classList.add('long-pressing');
 
@@ -3858,7 +3865,7 @@
                         // 顯示選單
                         this.show(e.touches[0].clientX, e.touches[0].clientY);
                     }, this.longPressDuration);
-                });
+                }, { passive: true }); // passive:true 讓 iOS 滾動更流暢
 
                 element.addEventListener('touchmove', (e) => {
                     // 移動超過 10px 取消長按
