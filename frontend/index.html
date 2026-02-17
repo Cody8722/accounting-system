@@ -2901,6 +2901,29 @@
             requestAnimationFrame(update);
         }
 
+        // 統計記憶：上次成功取得的統計資料，用於切頁時立即顯示（Stale-while-revalidate）
+        let lastKnownStats = null;
+
+        // 直接將統計數字寫入 DOM（不帶動畫，用於立即呈現快取值）
+        function applyStatsToDOM(stats) {
+            const fmt = (v) => `$${parseFloat(v).toFixed(2)}`;
+            if (totalIncomeEl)  totalIncomeEl.textContent  = fmt(stats.total_income);
+            if (totalExpenseEl) totalExpenseEl.textContent = fmt(stats.total_expense);
+            if (balanceEl) {
+                balanceEl.textContent  = fmt(stats.balance);
+                balanceEl.className    = `text-3xl font-bold ${stats.balance >= 0 ? 'text-blue-700' : 'text-red-700'}`;
+            }
+            const ci = document.getElementById('compact-income');
+            const ce = document.getElementById('compact-expense');
+            const cb = document.getElementById('compact-balance');
+            if (ci) ci.textContent = fmt(stats.total_income);
+            if (ce) ce.textContent = fmt(stats.total_expense);
+            if (cb) {
+                cb.textContent = fmt(stats.balance);
+                cb.style.color = stats.balance >= 0 ? '#3b82f6' : '#ef4444';
+            }
+        }
+
         // 更新統計資料
         async function updateAccountingStats(forceAnimate = false) {
 
@@ -2911,6 +2934,11 @@
             if (startDate) url += `start_date=${startDate}&`;
             if (endDate) url += `end_date=${endDate}`;
 
+            // ① 立刻顯示上次已知的統計（Stale-while-revalidate，不等網路）
+            if (lastKnownStats) {
+                applyStatsToDOM(lastKnownStats);
+            }
+
             try {
                 // cache: 'no-store' 強制略過瀏覽器 HTTP cache，確保每次都從伺服器取得最新統計
                 // 手機端 HTTP cache 較積極，若不加此選項，刪除後統計可能仍顯示舊資料
@@ -2919,7 +2947,11 @@
                 const stats = await response.json();
                 if (!response.ok) throw new Error(stats.error || '載入失敗');
 
-                // 使用動畫更新統計數字（forceAnimate = true 時每次都播放動畫）
+                // ② 儲存最新統計
+                lastKnownStats = stats;
+
+                // ③ 若值有變化，播放平滑動畫；相同則跳過（animateNumber 自動判斷）
+                // forceAnimate = true 只在分析頁等「慶祝式」場合使用
                 animateNumber(totalIncomeEl, stats.total_income.toFixed(2), 1000, forceAnimate);
                 animateNumber(totalExpenseEl, stats.total_expense.toFixed(2), 1000, forceAnimate);
                 animateNumber(balanceEl, stats.balance.toFixed(2), 1000, forceAnimate);
@@ -3496,9 +3528,10 @@
             onPageLoad(pageName) {
                 // 頁面載入時的特定邏輯
                 if (pageName === 'add') {
-                    // 記帳頁：更新統計數據（強制播放數字動畫）
+                    // 記帳頁：先立刻呈現快取統計，再背景更新（Stale-while-revalidate）
+                    // forceAnimate=false：值有改變才播動畫，避免每次切頁都從 0 重播
                     if (typeof updateAccountingStats === 'function') {
-                        updateAccountingStats(true);  // 每次切換都播放動畫
+                        updateAccountingStats(false);
                     }
                 } else if (pageName === 'records') {
                     // 記錄頁：自動載入記錄
