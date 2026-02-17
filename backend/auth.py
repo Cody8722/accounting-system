@@ -15,7 +15,7 @@ from passlib.hash import pbkdf2_sha256
 # JWT 配置
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24  # Token 24 小時過期
+JWT_EXPIRATION_HOURS = 24 * 7  # Token 7 天過期（原 24 小時太短，手機用戶容易被登出）
 
 # 密碼規則配置（可通過環境變數控制）
 PASSWORD_CONFIG = {

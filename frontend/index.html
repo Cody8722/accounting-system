@@ -2089,6 +2089,31 @@
             }
         }
 
+        // 全域非侵入式 Toast 通知（取代 alert()）
+        function showToast(message, type = 'info', duration = 4000) {
+            const colors = { success: '#10b981', warning: '#f59e0b', error: '#ef4444', info: '#667eea' };
+            const icons  = { success: 'check-circle', warning: 'exclamation-triangle', error: 'times-circle', info: 'info-circle' };
+            const toast = document.createElement('div');
+            toast.style.cssText = [
+                'position:fixed', 'top:20px', 'right:20px', 'max-width:320px',
+                'padding:14px 18px', 'border-radius:10px', 'color:#fff',
+                'font-size:14px', 'font-weight:500', 'line-height:1.4',
+                'z-index:99999', 'box-shadow:0 6px 20px rgba(0,0,0,.18)',
+                'display:flex', 'align-items:flex-start', 'gap:10px',
+                `background:${colors[type] || colors.info}`,
+                /* iOS safe-area */
+                `top:calc(20px + env(safe-area-inset-top))`,
+                `right:calc(16px + env(safe-area-inset-right))`,
+                'transition:opacity .3s ease'
+            ].join(';');
+            toast.innerHTML = `<i class="fas fa-${icons[type] || icons.info}" style="margin-top:2px;flex-shrink:0"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 350);
+            }, duration);
+        }
+
         // 統一的API調用函數（自動添加Authorization header）
         async function apiCall(url, options = {}) {
             const token = getAuthToken();
@@ -2110,7 +2135,8 @@
                 // 如果返回401，清除token並跳轉到登入頁
                 if (response.status === 401) {
                     removeAuthToken();
-                    alert('登入已過期，請重新登入');
+                    // 用非侵入式 toast 取代 alert()，避免強制中斷操作
+                    showToast('登入已過期，請重新登入', 'warning');
                     showLoginModal();
                     throw new Error('登入已過期，請重新登入');
                 }
