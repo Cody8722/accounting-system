@@ -2836,16 +2836,23 @@
             }
         }
 
+        // 正在刪除中的記錄 ID 集合（防止重複刪除）
+        const deletingRecordIds = new Set();
+
         // 刪除記帳記錄
         window.deleteAccountingRecord = async function(recordId) {
+            if (!recordId) return;
+
+            // 防止重複點擊：若正在刪除中則跳過
+            if (deletingRecordIds.has(recordId)) return;
+
             if (!confirm('確定要刪除這筆記錄嗎？')) return;
 
-            
+            deletingRecordIds.add(recordId);
 
             try {
                 const response = await apiCall(`${backendUrl}/admin/api/accounting/records/${recordId}`, {
                     method: 'DELETE',
-                    
                 });
 
                 const result = await response.json();
@@ -2855,6 +2862,8 @@
                 await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
             } catch (error) {
                 alert(`❌ 刪除失敗: ${error.message}`);
+            } finally {
+                deletingRecordIds.delete(recordId);
             }
         };
 
