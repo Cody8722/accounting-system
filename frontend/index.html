@@ -2493,9 +2493,8 @@
                 amountError.classList.add('hidden');
                 setTodayAsDefault();
 
-                // 重新載入記錄和統計
-                loadAccountingRecords();
-                updateAccountingStats();
+                // 重新載入記錄和統計（並行執行，等待兩者都完成避免畫面不一致）
+                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
 
                 setTimeout(() => {
                     accountingMessage.classList.add('hidden');
@@ -2556,9 +2555,8 @@
                 editRecordMessage.className = 'text-center text-sm font-medium text-green-600';
                 editRecordMessage.classList.remove('hidden');
 
-                // 重新載入記錄和統計
-                loadAccountingRecords();
-                updateAccountingStats();
+                // 重新載入記錄和統計（並行執行，等待兩者都完成避免畫面不一致）
+                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
 
                 setTimeout(() => {
                     closeEditRecordModal();
@@ -2853,9 +2851,8 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || '刪除失敗');
 
-                // 重新載入記錄和統計
-                loadAccountingRecords();
-                updateAccountingStats();
+                // 重新載入記錄和統計（並行執行，等待兩者都完成避免畫面不一致）
+                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
             } catch (error) {
                 alert(`❌ 刪除失敗: ${error.message}`);
             }
@@ -2922,9 +2919,8 @@
         });
 
         // 查詢按鈕事件
-        loadRecordsBtn.addEventListener('click', () => {
-            loadAccountingRecords();
-            updateAccountingStats();
+        loadRecordsBtn.addEventListener('click', async () => {
+            await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
         });
 
         // --- iOS PWA 安裝提示 ---
