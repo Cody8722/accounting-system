@@ -2609,8 +2609,8 @@
                 amountError.classList.add('hidden');
                 setTodayAsDefault();
 
-                // 重新載入記錄和統計（並行執行，以伺服器真實值覆蓋樂觀預估）
-                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
+                // 靜默刷新記錄（不顯示 loading 畫面）和統計
+                await Promise.all([loadAccountingRecords(false), updateAccountingStats()]);
 
                 setTimeout(() => {
                     accountingMessage.classList.add('hidden');
@@ -2673,8 +2673,8 @@
                 editRecordMessage.className = 'text-center text-sm font-medium text-green-600';
                 editRecordMessage.classList.remove('hidden');
 
-                // 重新載入記錄和統計（並行執行，等待兩者都完成避免畫面不一致）
-                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
+                // 靜默刷新記錄（不顯示 loading 畫面）和統計
+                await Promise.all([loadAccountingRecords(false), updateAccountingStats()]);
 
                 setTimeout(() => {
                     closeEditRecordModal();
@@ -2687,8 +2687,10 @@
         });
 
         // 載入記帳記錄
-        async function loadAccountingRecords() {
-            
+        // showLoading=true：顯示 loading 畫面（初次載入、切換篩選）
+        // showLoading=false：靜默刷新（新增/刪除後背景更新，不清空畫面）
+        async function loadAccountingRecords(showLoading = true) {
+
             const startDate = document.getElementById('filter-start-date').value;
             const endDate = document.getElementById('filter-end-date').value;
             const filterType = document.getElementById('filter-type').value;
@@ -2700,7 +2702,9 @@
             if (filterType) url += `type=${filterType}&`;
             if (filterCategory) url += `category=${filterCategory}&`;
 
-            recordsList.innerHTML = '<p class="text-center text-gray-500 py-8"><span class="spinner"></span>載入中...</p>';
+            if (showLoading) {
+                recordsList.innerHTML = '<p class="text-center text-gray-500 py-8"><span class="spinner"></span>載入中...</p>';
+            }
 
             try {
                 const response = await apiCall(url, { cache: 'no-store' });
@@ -3028,6 +3032,11 @@
             // 樂觀更新：確認後立即反映在統計數字，不等 API 回應
             applyOptimisticStats(recordType, recordAmount, false);
 
+            // 立即從 DOM 移除卡片（不等 API），讓刪除感覺即時
+            const cardEl = document.querySelector(`[data-record-id="${recordId}"]`);
+            const wrapperEl = cardEl ? cardEl.closest('.record-item-wrapper') : null;
+            if (wrapperEl) wrapperEl.remove();
+
             deletingRecordIds.add(recordId);
 
             try {
@@ -3038,11 +3047,11 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || '刪除失敗');
 
-                // 重新載入記錄和統計（以伺服器真實值覆蓋樂觀預估）
-                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
+                // 靜默刷新列表（不顯示 loading 畫面）和統計
+                await Promise.all([loadAccountingRecords(false), updateAccountingStats()]);
             } catch (error) {
-                // 刪除失敗，還原為伺服器真實值
-                updateAccountingStats();
+                // 刪除失敗，還原：重新載入列表和統計
+                await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
                 alert(`❌ 刪除失敗: ${error.message}`);
             } finally {
                 deletingRecordIds.delete(recordId);
