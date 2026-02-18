@@ -2258,7 +2258,8 @@
                     // 儲存token和用戶資料
                     setAuthToken(data.token);
                     setUserData(data.user);
-                    is401Handling = false; // 登入成功，重置 401 guard
+                    is401Handling = false;    // 登入成功，重置 401 guard
+                    isAuthenticated = true;   // 解鎖 Router onPageLoad
 
                     // 處理「記住我」功能
                     const rememberMe = document.getElementById('remember-me').checked;
@@ -2916,6 +2917,7 @@
         // 統計記憶：上次成功取得的統計資料，用於切頁時立即顯示（Stale-while-revalidate）
         let lastKnownStats = null;
         let is401Handling = false; // 防止多個 401 同時觸發多次 toast
+        let isAuthenticated = false; // 防止 Router 在 auth 檢查前發出 API 請求
 
         // 直接將統計數字寫入 DOM（不帶動畫，用於立即呈現快取值）
         function applyStatsToDOM(stats) {
@@ -3167,6 +3169,7 @@
             // 檢查是否已登入（驗證token）
             const isLoggedIn = await verifyToken();
             if (isLoggedIn) {
+                isAuthenticated = true; // 解鎖 Router onPageLoad，允許發 API 請求
                 hideAuthModals();
                 mainContent.style.display = 'block';
                 setTodayAsDefault();
@@ -3224,9 +3227,12 @@
                         console.error('❌ Service Worker 註冊失敗:', error);
                     });
 
-                // 監聽 Service Worker 控制器變化
+                // 監聽 Service Worker 控制器變化（新版 SW 取得控制權）
+                // 只在未登入狀態下才 reload，避免打斷正在使用的用戶
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    window.location.reload();
+                    if (!isAuthenticated) {
+                        window.location.reload();
+                    }
                 });
             });
 
@@ -3566,6 +3572,9 @@
             }
 
             onPageLoad(pageName) {
+                // Router 在 DOMContentLoaded 之前初始化，auth 尚未驗證時不能發 API 請求
+                if (!isAuthenticated) return;
+
                 // 頁面載入時的特定邏輯
                 if (pageName === 'add') {
                     // 記帳頁：先立刻呈現快取統計，再背景更新（Stale-while-revalidate）
