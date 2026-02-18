@@ -2688,9 +2688,7 @@
             recordsList.innerHTML = '<p class="text-center text-gray-500 py-8"><span class="spinner"></span>載入中...</p>';
 
             try {
-                const response = await apiCall(url, {
-                    
-                });
+                const response = await apiCall(url, { cache: 'no-store' });
 
                 const records = await response.json();
                 if (!response.ok) throw new Error(records.error || '載入失敗');
