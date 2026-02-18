@@ -227,10 +227,20 @@
                 border-right: 1px solid #374151;
             }
 
-            /* 統計列標籤深色模式：深背景改用淺色字 */
+            /* 統計列卡片深色模式：深背景配淺色字 */
+            .compact-stats {
+                background: #1f2937 !important;
+                color: #f9fafb !important;
+            }
+
             .compact-stat-label {
                 color: #d1d5db !important;
             }
+
+            /* 統計列數值深色模式：深背景改用淺版彩色 */
+            #compact-income { color: #6ee7b7 !important; }
+            #compact-expense { color: #fca5a5 !important; }
+            #compact-balance { color: #93c5fd !important; }
 
             /* text-gray-700 深色模式 */
             .text-gray-700 {
@@ -786,6 +796,7 @@
             justify-content: space-around;
             align-items: center;
             background: white;
+            color: #111827; /* 白底 → 深色字 */
             padding: 16px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -805,8 +816,9 @@
         }
 
         .compact-stat-label {
-            font-size: 11px;
+            font-size: 12px;
             color: #374151;
+            font-weight: 500;
         }
 
         /* 桌面版側邊欄 */
@@ -1551,15 +1563,15 @@
                 <!-- 簡潔統計列 (A+B 合併版) -->
                 <div class="compact-stats">
                     <div class="compact-stat-item">
-                        <span class="compact-stat-value" id="compact-income" style="color: #10b981;">$0</span>
+                        <span class="compact-stat-value" id="compact-income" style="color: #047857;">$0</span>
                         <span class="compact-stat-label">💰 本月收入</span>
                     </div>
                     <div class="compact-stat-item">
-                        <span class="compact-stat-value" id="compact-expense" style="color: #ef4444;">$0</span>
+                        <span class="compact-stat-value" id="compact-expense" style="color: #b91c1c;">$0</span>
                         <span class="compact-stat-label">💸 本月支出</span>
                     </div>
                     <div class="compact-stat-item">
-                        <span class="compact-stat-value" id="compact-balance" style="color: #3b82f6;">$0</span>
+                        <span class="compact-stat-value" id="compact-balance" style="color: #1d4ed8;">$0</span>
                         <span class="compact-stat-label">🏦 結餘</span>
                     </div>
                 </div>
@@ -3010,7 +3022,7 @@
             if (ce) ce.textContent = fmt(stats.total_expense);
             if (cb) {
                 cb.textContent = fmt(stats.balance);
-                cb.style.color = stats.balance >= 0 ? '#3b82f6' : '#ef4444';
+                cb.style.color = stats.balance >= 0 ? '#1d4ed8' : '#b91c1c';
             }
         }
 
@@ -3081,7 +3093,7 @@
                 if (compactExpense) animateNumber(compactExpense, stats.total_expense.toFixed(2), 1000, forceAnimate);
                 if (compactBalance) {
                     animateNumber(compactBalance, stats.balance.toFixed(2), 1000, forceAnimate);
-                    compactBalance.style.color = stats.balance >= 0 ? '#3b82f6' : '#ef4444';
+                    compactBalance.style.color = stats.balance >= 0 ? '#1d4ed8' : '#b91c1c';
                 }
             } catch (error) {
                 console.error('更新統計失敗:', error);
