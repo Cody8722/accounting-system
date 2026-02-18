@@ -2958,6 +2958,9 @@
                 optimistic.total_expense += delta * sign;
                 optimistic.balance       -= delta * sign;
             }
+            // 同步更新 lastKnownStats，避免 updateAccountingStats 的 stale-while-revalidate
+            // 把剛顯示的樂觀值蓋回舊數字（閃爍問題）
+            lastKnownStats = optimistic;
             applyStatsToDOM(optimistic);
         }
 
