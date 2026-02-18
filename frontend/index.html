@@ -124,13 +124,24 @@
                 background-color: #374151 !important;
             }
 
-            /* stat-card 深色背景 (#374151) → 所有彩色文字都要用淺版 */
-            .text-green-600 { color: #86efac !important; }
-            .text-green-500 { color: #a7f3d0 !important; }
-            .text-red-600   { color: #fca5a5 !important; }
-            .text-red-500   { color: #fecaca !important; }
-            .text-blue-600  { color: #93c5fd !important; }
-            .text-blue-500  { color: #bfdbfe !important; }
+            /* 深色卡片底下：彩色文字改用淺版（範圍限定在各卡片內） */
+            .record-card .text-green-600,
+            .stat-card .text-green-600 { color: #86efac !important; }
+
+            .record-card .text-green-500,
+            .stat-card .text-green-500 { color: #a7f3d0 !important; }
+
+            .record-card .text-red-600,
+            .stat-card .text-red-600   { color: #fca5a5 !important; }
+
+            .record-card .text-red-500,
+            .stat-card .text-red-500   { color: #fecaca !important; }
+
+            .record-card .text-blue-600,
+            .stat-card .text-blue-600  { color: #93c5fd !important; }
+
+            .record-card .text-blue-500,
+            .stat-card .text-blue-500  { color: #bfdbfe !important; }
 
             .mobile-nav {
                 background: #1f2937 !important;
