@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.2.8';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.2.9';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -76,9 +76,9 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 特別處理：/status 端點永不快取（登入驗證用）
-  if (request.url.includes('/status')) {
-    event.respondWith(fetch(request));
+  // 認證相關端點永不快取（必須每次都去伺服器驗證）
+  if (request.url.includes('/status') || request.url.includes('/api/auth/')) {
+    event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
     return;
   }
 
