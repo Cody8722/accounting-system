@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.2.9';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.3.0';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -76,12 +76,6 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 認證相關端點永不快取（必須每次都去伺服器驗證）
-  if (request.url.includes('/status') || request.url.includes('/api/auth/')) {
-    event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
-    return;
-  }
-
   // 只處理 GET 請求
   if (request.method === 'GET') {
     // 跳過 chrome-extension:// 和其他非 http(s) 協議
@@ -94,6 +88,13 @@ self.addEventListener('fetch', (event) => {
     // 這樣可以避免 CORS 錯誤
     if (CDN_URLS.some(cdn => request.url.includes(cdn))) {
       return; // 不使用 event.respondWith，直接讓瀏覽器處理
+    }
+
+    // 認證端點（GET）：永不快取，每次都去伺服器驗證
+    // 只針對 GET，POST login 讓瀏覽器直接處理即可
+    if (request.url.includes('/status') || request.url.includes('/api/auth/')) {
+      event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
+      return;
     }
 
     // 本地靜態資源：Cache First 策略
