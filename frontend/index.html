@@ -2060,7 +2060,14 @@
 
         function getUserData() {
             const data = localStorage.getItem('userData');
-            return data ? JSON.parse(data) : null;
+            if (!data) return null;
+            try {
+                return JSON.parse(data);
+            } catch {
+                // localStorage 資料損毀時清除，避免 app 崩潰
+                localStorage.removeItem('userData');
+                return null;
+            }
         }
 
         function setUserData(user) {
@@ -2112,6 +2119,33 @@
                 toast.style.opacity = '0';
                 setTimeout(() => toast.remove(), 350);
             }, duration);
+        }
+
+        // 非阻塞式確認對話框（取代 confirm()，PWA 上 confirm() 會阻塞整個 app）
+        function showConfirm(message, confirmText = '確定', cancelText = '取消', danger = true) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = [
+                    'position:fixed', 'inset:0', 'background:rgba(0,0,0,0.5)',
+                    'z-index:99998', 'display:flex', 'align-items:flex-end',
+                    'justify-content:center',
+                    `padding-bottom:env(safe-area-inset-bottom)`
+                ].join(';');
+                const confirmColor = danger ? '#ef4444' : '#667eea';
+                overlay.innerHTML = `
+                    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:24px 20px;box-shadow:0 -4px 24px rgba(0,0,0,0.15)">
+                        <p style="text-align:center;font-size:16px;color:#374151;margin-bottom:20px;line-height:1.5">${message}</p>
+                        <div style="display:flex;gap:12px">
+                            <button id="sc-cancel" style="flex:1;padding:13px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:15px;color:#6b7280;cursor:pointer">${cancelText}</button>
+                            <button id="sc-ok" style="flex:1;padding:13px;border:none;border-radius:10px;background:${confirmColor};color:#fff;font-size:15px;font-weight:600;cursor:pointer">${confirmText}</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                const close = (result) => { overlay.remove(); resolve(result); };
+                overlay.querySelector('#sc-ok').addEventListener('click', () => close(true));
+                overlay.querySelector('#sc-cancel').addEventListener('click', () => close(false));
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+            });
         }
 
         // 統一的API調用函數（自動添加Authorization header）
@@ -2207,7 +2241,7 @@
 
         // 登出處理
         async function handleLogout() {
-            if (!confirm('確定要登出嗎？')) return;
+            if (!await showConfirm('確定要登出嗎？', '登出', '取消', false)) return;
 
             try {
                 // 呼叫登出API（記錄登出）
@@ -3028,7 +3062,7 @@
             // 防止重複點擊：若正在刪除中則跳過
             if (deletingRecordIds.has(recordId)) return;
 
-            if (!confirm('確定要刪除這筆記錄嗎？')) return;
+            if (!await showConfirm('確定要刪除這筆記錄嗎？', '刪除', '取消')) return;
 
             // 樂觀更新：確認後立即反映在統計數字，不等 API 回應
             applyOptimisticStats(recordType, recordAmount, false);

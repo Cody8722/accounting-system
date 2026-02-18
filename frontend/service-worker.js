@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.3.3';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.3.4';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -86,7 +86,7 @@ self.addEventListener('fetch', (event) => {
   // 只處理 GET 請求
   if (request.method === 'GET') {
     // 跳過 chrome-extension:// 和其他非 http(s) 協議
-    const url = new URL(request.url);
+    // 注意：url 已在上方（第 84 行）定義，此處直接使用
     if (!url.protocol.startsWith('http')) {
       return;
     }
