@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.3.2';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.3.3';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -48,7 +48,14 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
+        // 逐一快取，單一資源失敗（如部署期間伺服器重啟 502）不會中斷整個安裝
+        return Promise.all(
+          STATIC_ASSETS.map(url =>
+            cache.add(url).catch(err =>
+              console.warn('Service Worker: 快取失敗（將在下次請求時重試）:', url, err.message)
+            )
+          )
+        );
       })
       .then(() => self.skipWaiting())
   );
