@@ -117,11 +117,20 @@
 
             .record-card {
                 background-color: #374151 !important;
+                color: #f9fafb !important; /* 深色背景 → 淺色字 */
             }
 
             .stat-card {
                 background-color: #374151 !important;
             }
+
+            /* stat-card 深色背景 (#374151) → 所有彩色文字都要用淺版 */
+            .text-green-600 { color: #86efac !important; }
+            .text-green-500 { color: #a7f3d0 !important; }
+            .text-red-600   { color: #fca5a5 !important; }
+            .text-red-500   { color: #fecaca !important; }
+            .text-blue-600  { color: #93c5fd !important; }
+            .text-blue-500  { color: #bfdbfe !important; }
 
             .mobile-nav {
                 background: #1f2937 !important;
@@ -135,6 +144,10 @@
             .category-item {
                 background: #374151 !important;
                 border-color: #4b5563 !important;
+            }
+
+            .category-item-text {
+                color: #f9fafb !important; /* 深色背景 (#374151) → 淺色字 */
             }
 
             .category-tab {
@@ -636,7 +649,7 @@
         .category-item-text {
             font-size: 13px;
             font-weight: 500;
-            color: #475569;
+            color: #1f2937; /* 淺色背景 (#f8fafc) → 深色字 */
         }
 
         /* 手機版分類選擇優化 */
@@ -992,6 +1005,7 @@
             position: relative;
             z-index: 1;
             background: #f9fafb;
+            color: #1f2937; /* 淺色背景 → 深色字 */
             transition: transform 0.3s ease;
             touch-action: pan-y; /* 允許垂直滾動，限制水平滑動 */
         }
