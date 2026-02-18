@@ -2135,9 +2135,14 @@
                 // 如果返回401，清除token並跳轉到登入頁
                 if (response.status === 401) {
                     removeAuthToken();
-                    // 用非侵入式 toast 取代 alert()，避免強制中斷操作
-                    showToast('登入已過期，請重新登入', 'warning');
-                    showLoginModal();
+                    // 防止多個同時發出的請求重複觸發 toast 和 modal
+                    if (!is401Handling) {
+                        is401Handling = true;
+                        showToast('登入已過期，請重新登入', 'warning');
+                        showLoginModal();
+                        // 登入後重置 flag，讓下次過期時可以再次提示
+                        setTimeout(() => { is401Handling = false; }, 5000);
+                    }
                     throw new Error('登入已過期，請重新登入');
                 }
 
@@ -2158,18 +2163,21 @@
         const mainContent = document.getElementById('main-content');
 
         function showLoginModal() {
+            // 若 modal 已經顯示中，不重置表單（避免清掉使用者正在輸入的密碼）
+            const alreadyVisible = !loginModal.classList.contains('hidden');
             loginModal.classList.remove('hidden');
             registerModal.classList.add('hidden');
             loginError.classList.add('hidden');
-            loginForm.reset();
 
-            // 載入記住的帳號
-            const rememberedEmail = localStorage.getItem('rememberedEmail');
-            const rememberCheckbox = document.getElementById('remember-me');
-
-            if (rememberedEmail) {
-                document.getElementById('login-email').value = rememberedEmail;
-                rememberCheckbox.checked = true;
+            if (!alreadyVisible) {
+                loginForm.reset();
+                // 載入記住的帳號
+                const rememberedEmail = localStorage.getItem('rememberedEmail');
+                const rememberCheckbox = document.getElementById('remember-me');
+                if (rememberedEmail) {
+                    document.getElementById('login-email').value = rememberedEmail;
+                    rememberCheckbox.checked = true;
+                }
             }
         }
 
@@ -2250,6 +2258,7 @@
                     // 儲存token和用戶資料
                     setAuthToken(data.token);
                     setUserData(data.user);
+                    is401Handling = false; // 登入成功，重置 401 guard
 
                     // 處理「記住我」功能
                     const rememberMe = document.getElementById('remember-me').checked;
@@ -2901,6 +2910,7 @@
 
         // 統計記憶：上次成功取得的統計資料，用於切頁時立即顯示（Stale-while-revalidate）
         let lastKnownStats = null;
+        let is401Handling = false; // 防止多個 401 同時觸發多次 toast
 
         // 直接將統計數字寫入 DOM（不帶動畫，用於立即呈現快取值）
         function applyStatsToDOM(stats) {
