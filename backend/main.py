@@ -106,11 +106,13 @@ if MONGO_URI:
         client = MongoClient(
             MONGO_URI,
             serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
-            connectTimeoutMS=10000,  # 連接超時 10 秒
-            socketTimeoutMS=10000,  # Socket 超時 10 秒
+            connectTimeoutMS=30000,  # 連接超時 30 秒（SSL 握手需要更長時間）
+            socketTimeoutMS=30000,  # Socket 超時 30 秒
             maxPoolSize=10,  # 最大連接池大小
-            minPoolSize=1,  # 最小連接池大小
-            maxIdleTimeMS=45000,  # 最大閒置時間 45 秒
+            minPoolSize=0,  # 最小連接池大小設為 0，避免背景強制維持連線造成 SSL 超時
+            maxIdleTimeMS=30000,  # 最大閒置時間 30 秒（低於 Atlas 的 60 秒閒置切斷）
+            retryWrites=True,  # 自動重試寫入操作
+            retryReads=True,  # 自動重試讀取操作
         )
         client.admin.command("ping")
 
