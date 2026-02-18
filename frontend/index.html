@@ -202,6 +202,16 @@
                 background: #1f2937 !important;
                 border-right: 1px solid #374151;
             }
+
+            /* 統計列標籤深色模式：深背景改用淺色字 */
+            .compact-stat-label {
+                color: #d1d5db !important;
+            }
+
+            /* text-gray-700 深色模式 */
+            .text-gray-700 {
+                color: var(--text-primary) !important;
+            }
         }
 
         body {
@@ -772,7 +782,7 @@
 
         .compact-stat-label {
             font-size: 11px;
-            color: #64748b;
+            color: #374151;
         }
 
         /* 桌面版側邊欄 */
@@ -1650,7 +1660,7 @@
                         記帳記錄
                     </h2>
                     <div id="records-list" class="space-y-2">
-                        <p class="text-center text-gray-500 py-8">點擊「查詢」載入記錄</p>
+                        <p class="text-center text-gray-700 py-8">點擊「查詢」載入記錄</p>
                     </div>
                 </div>
             </div>
@@ -2738,7 +2748,7 @@
             if (filterCategory) url += `category=${filterCategory}&`;
 
             if (showLoading) {
-                recordsList.innerHTML = '<p class="text-center text-gray-500 py-8"><span class="spinner"></span>載入中...</p>';
+                recordsList.innerHTML = '<p class="text-center text-gray-700 py-8"><span class="spinner"></span>載入中...</p>';
             }
 
             try {
@@ -2748,7 +2758,7 @@
                 if (!response.ok) throw new Error(records.error || '載入失敗');
 
                 if (records.length === 0) {
-                    recordsList.innerHTML = '<p class="text-center text-gray-500 py-8">目前沒有記錄</p>';
+                    recordsList.innerHTML = '<p class="text-center text-gray-700 py-8">目前沒有記錄</p>';
                     updateExpenseChart([]);
                     return;
                 }
@@ -2781,8 +2791,8 @@
                                         <span class="text-2xl ${typeClass}">${typeIcon}</span>
                                         <div>
                                             <p class="font-medium ${typeClass}">$${record.amount.toFixed(2)}</p>
-                                            <p class="text-sm text-gray-800 font-medium">${escapedCategory}${escapedDescription ? '<span class="text-gray-600 font-normal"> - ' + escapedDescription + '</span>' : ''}</p>
-                                            <p class="text-xs text-gray-600"><i class="fas fa-calendar mr-1"></i>${record.date}${expenseTypeBadge}</p>
+                                            <p class="text-sm text-gray-800 font-medium">${escapedCategory}${escapedDescription ? '<span class="text-gray-700 font-normal"> - ' + escapedDescription + '</span>' : ''}</p>
+                                            <p class="text-xs text-gray-700"><i class="fas fa-calendar mr-1"></i>${record.date}${expenseTypeBadge}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2904,7 +2914,7 @@
                 // Show empty state
                 ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
                 const parent = canvasEl.parentElement;
-                parent.innerHTML = '<p class="text-center text-gray-500 py-8">暫無支出數據</p><canvas id="expenseChart"></canvas>';
+                parent.innerHTML = '<p class="text-center text-gray-700 py-8">暫無支出數據</p><canvas id="expenseChart"></canvas>';
                 expenseChart = null;
             }
         }
