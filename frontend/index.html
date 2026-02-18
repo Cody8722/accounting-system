@@ -1894,7 +1894,7 @@
                 });
 
                 if (!record) {
-                    alert('找不到該記錄');
+                    showToast('找不到該記錄', 'error');
                     return;
                 }
 
@@ -1910,7 +1910,7 @@
                 // 顯示 Modal
                 document.getElementById('edit-record-modal').classList.remove('hidden');
             } catch (error) {
-                alert(`載入記錄失敗: ${error.message}`);
+                showToast(`載入記錄失敗: ${error.message}`, 'error');
             }
         }
 
@@ -3052,7 +3052,7 @@
             } catch (error) {
                 // 刪除失敗，還原：重新載入列表和統計
                 await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
-                alert(`❌ 刪除失敗: ${error.message}`);
+                showToast(`刪除失敗: ${error.message}`, 'error');
             } finally {
                 deletingRecordIds.delete(recordId);
             }
@@ -3112,7 +3112,7 @@
                     saveBudgetBtn.disabled = false;
                 }, 2000);
             } catch (error) {
-                alert(`❌ 儲存預算失敗: ${error.message}`);
+                showToast(`儲存預算失敗: ${error.message}`, 'error');
                 saveBudgetBtn.innerHTML = '<i class="fas fa-save mr-2"></i>儲存預算';
                 saveBudgetBtn.disabled = false;
             }
@@ -3147,8 +3147,11 @@
             // 3. 檢查是否已經關閉過提示（7天內不再顯示）
             const lastDismissed = localStorage.getItem('iosPromptDismissed');
             if (lastDismissed) {
-                const daysSinceDismissed = (Date.now() - parseInt(lastDismissed)) / (1000 * 60 * 60 * 24);
-                if (daysSinceDismissed < 7) return false;
+                const parsed = parseInt(lastDismissed, 10);
+                if (!isNaN(parsed)) {
+                    const daysSinceDismissed = (Date.now() - parsed) / (1000 * 60 * 60 * 24);
+                    if (daysSinceDismissed < 7) return false;
+                }
             }
 
             return true;
@@ -3284,13 +3287,14 @@
                 }
 
                 // 註冊 Background Sync（如果支援）
-                if ('sync' in registration) {
-                    navigator.serviceWorker.ready.then((reg) => {
+                // 注意：registration 在此作用域不可用，直接用 navigator.serviceWorker.ready
+                navigator.serviceWorker.ready.then((reg) => {
+                    if ('sync' in reg) {
                         return reg.sync.register('sync-offline-queue');
-                    }).catch((err) => {
-                        console.log('Background Sync 不支援:', err);
-                    });
-                }
+                    }
+                }).catch((err) => {
+                    console.log('Background Sync 不支援:', err);
+                });
             });
 
             window.addEventListener('offline', () => {
@@ -4096,9 +4100,10 @@
                 // 複製到剪貼簿
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(copyText).then(() => {
-                        alert('已複製到剪貼簿！');
+                        showToast('已複製到剪貼簿', 'success');
                     }).catch(err => {
                         console.error('複製失敗:', err);
+                        showToast('複製失敗', 'error');
                     });
                 } else {
                     // Fallback: 使用舊方法
@@ -4110,7 +4115,7 @@
                     textarea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textarea);
-                    alert('已複製到剪貼簿！');
+                    showToast('已複製到剪貼簿', 'success');
                 }
             }
         }
