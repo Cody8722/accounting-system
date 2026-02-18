@@ -2584,6 +2584,9 @@
                 expense_type: expenseType.value || null
             };
 
+            // 樂觀更新：API 送出前立即反映在統計數字上，不等網路回應
+            applyOptimisticStats(recordData.type, recordData.amount, true);
+
             try {
                 const response = await apiCall(`${backendUrl}/admin/api/accounting/records`, {
                     method: 'POST',
@@ -2605,13 +2608,15 @@
                 amountError.classList.add('hidden');
                 setTodayAsDefault();
 
-                // 重新載入記錄和統計（並行執行，等待兩者都完成避免畫面不一致）
+                // 重新載入記錄和統計（並行執行，以伺服器真實值覆蓋樂觀預估）
                 await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
 
                 setTimeout(() => {
                     accountingMessage.classList.add('hidden');
                 }, 3000);
             } catch (error) {
+                // 新增失敗，還原為伺服器真實值
+                updateAccountingStats();
                 accountingMessage.textContent = `❌ ${error.message}`;
                 accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
                 accountingMessage.classList.remove('hidden');
@@ -2726,11 +2731,11 @@
                     return `
                         <div class="record-item-wrapper">
                             <div class="delete-actions">
-                                <button class="delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}')">
+                                <button class="delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}','${record.type}',${record.amount})">
                                     <i class="fas fa-trash"></i>刪除
                                 </button>
                             </div>
-                            <div class="record-card flex items-center justify-between p-4 bg-gray-50 rounded-lg transition" data-record-id="${record._id.$oid}">
+                            <div class="record-card flex items-center justify-between p-4 bg-gray-50 rounded-lg transition" data-record-id="${record._id.$oid}" data-type="${record.type}" data-amount="${record.amount}">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2">
                                         <span class="text-2xl ${typeClass}">${typeIcon}</span>
@@ -2742,7 +2747,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}')">
+                            <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}','${record.type}',${record.amount})">
                                 <i class="fas fa-trash"></i>刪除
                             </button>
                         </div>
@@ -2932,6 +2937,28 @@
             }
         }
 
+        // 樂觀更新：在 API 回應前，根據本地操作立即預估統計數字
+        // isAdd=true 表示新增，isAdd=false 表示刪除
+        function applyOptimisticStats(type, amount, isAdd) {
+            if (!lastKnownStats) return;
+            const delta = parseFloat(amount);
+            if (isNaN(delta) || delta <= 0) return;
+            const sign = isAdd ? 1 : -1;
+            const optimistic = {
+                total_income:  parseFloat(lastKnownStats.total_income),
+                total_expense: parseFloat(lastKnownStats.total_expense),
+                balance:       parseFloat(lastKnownStats.balance)
+            };
+            if (type === 'income') {
+                optimistic.total_income += delta * sign;
+                optimistic.balance      += delta * sign;
+            } else {
+                optimistic.total_expense += delta * sign;
+                optimistic.balance       -= delta * sign;
+            }
+            applyStatsToDOM(optimistic);
+        }
+
         // 更新統計資料
         async function updateAccountingStats(forceAnimate = false) {
 
@@ -2985,13 +3012,16 @@
         const deletingRecordIds = new Set();
 
         // 刪除記帳記錄
-        window.deleteAccountingRecord = async function(recordId) {
+        window.deleteAccountingRecord = async function(recordId, recordType, recordAmount) {
             if (!recordId) return;
 
             // 防止重複點擊：若正在刪除中則跳過
             if (deletingRecordIds.has(recordId)) return;
 
             if (!confirm('確定要刪除這筆記錄嗎？')) return;
+
+            // 樂觀更新：確認後立即反映在統計數字，不等 API 回應
+            applyOptimisticStats(recordType, recordAmount, false);
 
             deletingRecordIds.add(recordId);
 
@@ -3003,9 +3033,11 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || '刪除失敗');
 
-                // 重新載入記錄和統計（並行執行，等待兩者都完成避免畫面不一致）
+                // 重新載入記錄和統計（以伺服器真實值覆蓋樂觀預估）
                 await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
             } catch (error) {
+                // 刪除失敗，還原為伺服器真實值
+                updateAccountingStats();
                 alert(`❌ 刪除失敗: ${error.message}`);
             } finally {
                 deletingRecordIds.delete(recordId);
@@ -3918,6 +3950,8 @@
                     if (e.touches.length > 1) return;
 
                     this.currentRecord = recordId;
+                    this.currentRecordType = element.dataset.type;
+                    this.currentRecordAmount = parseFloat(element.dataset.amount);
                     element.classList.add('long-pressing');
 
                     // 啟動長按計時器
@@ -4012,7 +4046,7 @@
                         openEditRecordModal(this.currentRecord);
                         break;
                     case 'delete':
-                        deleteAccountingRecord(this.currentRecord);
+                        deleteAccountingRecord(this.currentRecord, this.currentRecordType, this.currentRecordAmount);
                         break;
                     case 'copy':
                         // 複製記錄資訊到剪貼簿
