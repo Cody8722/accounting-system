@@ -260,19 +260,20 @@ Authorization: Bearer <token>
 
 Token 有效期：**7 天**。過期後需重新登入。
 
-### 認證端點（不需 Token）
+### 認證端點
 
-| 方法 | 路徑 | 說明 | 速率限制 |
-|------|------|------|---------|
-| `POST` | `/api/auth/register` | 註冊新帳號 | 每 IP 每小時 5 次 |
-| `POST` | `/api/auth/login` | 登入，回傳 JWT token | 一般限制 |
-| `GET` | `/api/auth/verify` | 驗證目前 token | 一般限制 |
-| `POST` | `/api/auth/logout` | 登出 | 一般限制 |
-| `GET` | `/api/auth/profile` | 取得個人資料 | 一般限制 |
-| `PUT` | `/api/auth/profile` | 更新個人資料 | 一般限制 |
-| `POST` | `/api/auth/validate-password` | 檢查密碼是否符合強度規則（可在送出前預先驗證） | 一般限制 |
-| `GET` | `/api/auth/password-config` | 取得目前密碼規則設定 | 一般限制 |
-| `GET` | `/status` | 系統健康檢查，確認後端與資料庫是否正常 | 不限制 |
+| 方法 | 路徑 | 說明 | 需 Token | 速率限制 |
+|------|------|------|:--------:|---------|
+| `POST` | `/api/auth/register` | 註冊新帳號 | | 每 IP 每小時 5 次 |
+| `POST` | `/api/auth/login` | 登入，回傳 JWT token | | 一般限制 |
+| `POST` | `/api/auth/validate-password` | 檢查密碼是否符合強度規則 | | 一般限制 |
+| `GET` | `/api/auth/password-config` | 取得目前密碼規則設定 | | 一般限制 |
+| `GET` | `/api/auth/verify` | 驗證目前 token 是否有效 | ✅ | 一般限制 |
+| `POST` | `/api/auth/logout` | 登出 | ✅ | 一般限制 |
+| `GET` | `/api/user/profile` | 取得個人資料 | ✅ | 一般限制 |
+| `PUT` | `/api/user/profile` | 更新個人資料 | ✅ | 一般限制 |
+| `POST` | `/api/user/change-password` | 修改密碼 | ✅ | 一般限制 |
+| `GET` | `/status` | 系統健康檢查，確認後端與資料庫狀態 | ✅ | 每分鐘 10 次 |
 
 > 一般速率限制：每用戶每日 200 次、每小時 50 次（以 JWT user_id 識別；未認證請求以 IP 計算）
 
