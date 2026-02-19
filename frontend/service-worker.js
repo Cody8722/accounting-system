@@ -14,6 +14,8 @@
 const CACHE_NAME = 'accounting-system-v1.3.6';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
+// JWT Token 有效期為 7 天，API 快取超過此時限後視為過期，不在離線時回傳
+const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // 需要快取的靜態資源（只包含本地資源）
 const STATIC_ASSETS = [
@@ -144,6 +146,19 @@ self.addEventListener('fetch', (event) => {
             // 網路失敗，嘗試從快取取得
             return caches.match(request).then((cachedResponse) => {
               if (cachedResponse) {
+                // 檢查快取是否已超過 JWT 有效期（7 天）
+                // 超過 7 天的快取不回傳，避免用戶重新登入後看到過期資料
+                const dateHeader = cachedResponse.headers.get('Date');
+                if (dateHeader) {
+                  const cacheAge = Date.now() - new Date(dateHeader).getTime();
+                  if (cacheAge > CACHE_MAX_AGE) {
+                    console.warn('Service Worker: API 快取已超過 7 天（與 JWT 同步失效），不使用過期資料');
+                    return new Response(
+                      JSON.stringify({ error: '離線模式：快取已過期，請重新連線', offline: true }),
+                      { status: 503, headers: { 'Content-Type': 'application/json' } }
+                    );
+                  }
+                }
                 return cachedResponse;
               }
               // 如果快取也沒有，返回離線提示
