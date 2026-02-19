@@ -116,6 +116,8 @@ limiter = Limiter(
 
 # 環境變數
 MONGO_URI = os.getenv("MONGO_URI")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@resend.dev")
 
 # MongoDB 連線
 client = None
@@ -722,9 +724,8 @@ def set_accounting_budget():
 
 @app.route("/status", methods=["GET"])
 @limiter.limit("10 per minute")
-@require_auth
 def status():
-    """系統狀態檢查（需要驗證）"""
+    """系統狀態檢查（公開端點）"""
     db_connected = client is not None
 
     return (
@@ -1138,6 +1139,156 @@ def change_password():
     except Exception as e:
         logger.error(f"修改密碼失敗: {e}")
         return jsonify({"error": "修改密碼失敗"}), 500
+
+
+# ==================== 忘記密碼 ====================
+
+
+def send_reset_email(to_email: str, reset_url: str) -> bool:
+    """用 Resend 寄送密碼重設信"""
+    if not RESEND_API_KEY:
+        logger.error("RESEND_API_KEY 未設定")
+        return False
+    try:
+        import urllib.request
+        import urllib.error
+
+        html_body = f"""
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2 style="color: #7c3aed;">密碼重設</h2>
+            <p>我們收到了您的密碼重設請求。請點擊下方按鈕重設密碼：</p>
+            <a href="{reset_url}"
+               style="display:inline-block;padding:12px 24px;background:#7c3aed;color:#fff;
+                      border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
+                重設密碼
+            </a>
+            <p style="color:#6b7280;font-size:0.875rem;">
+                此連結將在 1 小時後失效。若非您本人操作，請忽略此信件。
+            </p>
+        </div>
+        """
+        payload = json.dumps(
+            {
+                "from": RESEND_FROM_EMAIL,
+                "to": [to_email],
+                "subject": "記帳本 — 密碼重設",
+                "html": html_body,
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
+    except Exception as e:
+        logger.error(f"Resend 寄信失敗: {e}")
+        return False
+
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+@limiter.limit("5 per hour")
+def forgot_password():
+    """忘記密碼：寄送重設連結"""
+    try:
+        if users_collection is None:
+            return jsonify({"error": "資料庫未連線"}), 503
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "請提供 Email"}), 400
+
+        email = data.get("email", "").strip().lower()
+        if not email:
+            return jsonify({"error": "請提供 Email"}), 400
+
+        # 不論 email 是否存在都回傳相同訊息（防止用戶枚舉）
+        user = users_collection.find_one({"email": email})
+        if user:
+            token = auth.generate_reset_token()
+            from datetime import timedelta
+
+            expires_at = datetime.now() + timedelta(hours=1)
+
+            users_collection.update_one(
+                {"_id": user["_id"]},
+                {
+                    "$set": {
+                        "password_reset_token": token,
+                        "password_reset_expires": expires_at,
+                    }
+                },
+            )
+
+            # 取前端 URL 來組重設連結
+            frontend_url = (
+                FRONTEND_URLS[0] if FRONTEND_URLS else "http://localhost:8080"
+            )
+            reset_url = f"{frontend_url}?reset_token={token}"
+            send_reset_email(email, reset_url)
+            logger.info(f"密碼重設信已寄送: {email}")
+
+        return jsonify({"message": "若此 Email 已註冊，重設連結已寄出"}), 200
+
+    except Exception as e:
+        logger.error(f"忘記密碼失敗: {e}")
+        return jsonify({"error": "系統錯誤"}), 500
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+@limiter.limit("10 per hour")
+def reset_password():
+    """用 token 重設密碼"""
+    try:
+        if users_collection is None:
+            return jsonify({"error": "資料庫未連線"}), 503
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "請提供 token 和新密碼"}), 400
+
+        token = data.get("token", "").strip()
+        new_password = data.get("new_password", "")
+
+        if not token or not new_password:
+            return jsonify({"error": "請提供 token 和新密碼"}), 400
+
+        user = users_collection.find_one({"password_reset_token": token})
+        if not user:
+            return jsonify({"error": "連結無效或已過期"}), 400
+
+        expires = user.get("password_reset_expires")
+        if not expires or datetime.now() > expires:
+            return jsonify({"error": "連結已過期，請重新申請"}), 400
+
+        is_valid, message = auth.validate_password_strength(
+            new_password,
+            email=user.get("email", ""),
+            name=user.get("name", ""),
+        )
+        if not is_valid:
+            return jsonify({"error": message}), 400
+
+        new_hash = auth.hash_password(new_password)
+        users_collection.update_one(
+            {"_id": user["_id"]},
+            {
+                "$set": {"password_hash": new_hash, "updated_at": datetime.now()},
+                "$unset": {"password_reset_token": "", "password_reset_expires": ""},
+            },
+        )
+
+        logger.info(f"用戶已重設密碼: {user.get('email')}")
+        return jsonify({"message": "密碼已重設，請重新登入"}), 200
+
+    except Exception as e:
+        logger.error(f"重設密碼失敗: {e}")
+        return jsonify({"error": "系統錯誤"}), 500
 
 
 if __name__ == "__main__":

@@ -43,18 +43,16 @@ class TestAuthentication:
     """认证测试"""
 
     def test_status_without_auth(self, client):
-        """测试未认证访问 status 端点"""
+        """/status 為公開端點，不需認證"""
         response = client.get("/status")
-        assert response.status_code in [401, 403]
-        data = response.get_json()
-        assert "error" in data
+        assert response.status_code == 200
 
     def test_status_with_invalid_auth(self, client):
-        """测试无效 Token 访问"""
+        """/status 公開端點，無效 Token 也能存取"""
         response = client.get(
             "/status", headers={"Authorization": "Bearer invalid-token"}
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200
 
     def test_records_without_auth(self, client):
         """测试未认证访问 records 端点"""
@@ -65,23 +63,19 @@ class TestAuthentication:
 class TestHealthCheck:
     """健康检查端点测试"""
 
-    def test_status_endpoint(self, client, auth_headers):
-        """测试 /status 端点"""
-        response = client.get("/status", headers=auth_headers)
-        # May be 200 if DB connected, or could fail if DB not available in test environment
-        assert response.status_code in [200, 500]
+    def test_status_endpoint(self, client):
+        """测试 /status 端点（公開，不需認證）"""
+        response = client.get("/status")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "status" in data
+        assert data["status"] == "ok"
 
-        if response.status_code == 200:
-            data = response.get_json()
-            assert "status" in data
-            assert data["status"] == "ok"
-
-    def test_status_includes_db_info(self, client, auth_headers):
+    def test_status_includes_db_info(self, client):
         """测试状态端点包含数据库信息"""
-        response = client.get("/status", headers=auth_headers)
-        if response.status_code == 200:
-            data = response.get_json()
-            assert "db_status" in data
+        response = client.get("/status")
+        data = response.get_json()
+        assert "db_status" in data
 
 
 class TestRecordsAPI:

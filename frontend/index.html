@@ -1352,7 +1352,68 @@
                 <div class="text-center text-sm text-black">
                     還沒有帳號？<button type="button" onclick="showRegisterModal()" class="text-purple-600 hover:text-purple-700 font-semibold">註冊</button>
                 </div>
+                <div class="text-center text-sm">
+                    <button type="button" onclick="showForgotPasswordModal()" class="text-gray-500 hover:text-purple-600 transition">忘記密碼？</button>
+                </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 忘記密碼對話框 -->
+    <div id="forgot-password-modal" class="hidden">
+        <div class="modal-content">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-3">📧</div>
+                <h2 class="text-2xl font-bold text-black">忘記密碼</h2>
+                <p class="text-black mt-2">輸入你的 Email，我們會寄送重設連結</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-black mb-1">Email</label>
+                    <input type="email" id="forgot-email" autocomplete="email"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500"
+                           placeholder="your@email.com">
+                </div>
+                <div id="forgot-error" class="text-red-500 text-sm text-center hidden"></div>
+                <div id="forgot-success" class="text-green-600 text-sm text-center hidden"></div>
+                <button onclick="submitForgotPassword()"
+                        class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 font-semibold transition">
+                    寄送重設連結
+                </button>
+                <div class="text-center text-sm">
+                    <button type="button" onclick="showLoginModal()" class="text-gray-500 hover:text-purple-600 transition">返回登入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重設密碼對話框 -->
+    <div id="reset-password-modal" class="hidden">
+        <div class="modal-content">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-3">🔑</div>
+                <h2 class="text-2xl font-bold text-black">重設密碼</h2>
+                <p class="text-black mt-2">請輸入你的新密碼</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-black mb-1">新密碼</label>
+                    <input type="password" id="reset-new-password" autocomplete="new-password"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500"
+                           placeholder="請輸入新密碼">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-black mb-1">確認新密碼</label>
+                    <input type="password" id="reset-confirm-password" autocomplete="new-password"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500"
+                           placeholder="再次輸入新密碼">
+                </div>
+                <div id="reset-error" class="text-red-500 text-sm text-center hidden"></div>
+                <button onclick="submitResetPassword()"
+                        class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 font-semibold transition">
+                    確認重設
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1796,8 +1857,44 @@
                         </div>
                         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <span class="text-gray-600">Email</span>
-                            <span class="font-semibold text-gray-800" id="user-email-display">-</span>
+                            <span class="font-semibold text-gray-800 text-sm" id="user-email-display">-</span>
                         </div>
+
+                        <!-- 編輯姓名 -->
+                        <div id="edit-name-section" class="hidden p-3 bg-purple-50 rounded-lg space-y-2">
+                            <label class="block text-sm text-gray-600">新姓名</label>
+                            <input type="text" id="edit-name-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入新姓名" maxlength="50">
+                            <div id="edit-name-error" class="text-red-500 text-xs hidden"></div>
+                            <div class="flex gap-2">
+                                <button onclick="saveProfileName()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition">儲存</button>
+                                <button onclick="toggleEditName(false)" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition">取消</button>
+                            </div>
+                        </div>
+
+                        <!-- 修改密碼 -->
+                        <div id="change-password-section" class="hidden p-3 bg-purple-50 rounded-lg space-y-2">
+                            <label class="block text-sm text-gray-600">目前密碼</label>
+                            <input type="password" id="current-password-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入目前密碼" autocomplete="current-password">
+                            <label class="block text-sm text-gray-600">新密碼</label>
+                            <input type="password" id="new-password-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入新密碼" autocomplete="new-password">
+                            <label class="block text-sm text-gray-600">確認新密碼</label>
+                            <input type="password" id="confirm-password-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="再次輸入新密碼" autocomplete="new-password">
+                            <div id="change-password-error" class="text-red-500 text-xs hidden"></div>
+                            <div class="flex gap-2">
+                                <button onclick="saveNewPassword()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition">儲存</button>
+                                <button onclick="toggleChangePassword(false)" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition">取消</button>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="toggleEditName(true)" class="flex-1 bg-purple-100 text-purple-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-purple-200 transition flex items-center justify-center gap-1">
+                                <i class="fas fa-user-edit"></i>修改姓名
+                            </button>
+                            <button onclick="toggleChangePassword(true)" class="flex-1 bg-purple-100 text-purple-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-purple-200 transition flex items-center justify-center gap-1">
+                                <i class="fas fa-key"></i>修改密碼
+                            </button>
+                        </div>
+
                         <button onclick="handleLogout()" class="w-full bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 font-semibold transition shadow-md hover:shadow-lg flex items-center justify-center">
                             <i class="fas fa-sign-out-alt mr-2"></i>登出
                         </button>
@@ -2266,11 +2363,89 @@
         const registerError = document.getElementById('register-error');
         const mainContent = document.getElementById('main-content');
 
+        function showForgotPasswordModal() {
+            loginModal.classList.add('hidden');
+            registerModal.classList.add('hidden');
+            document.getElementById('reset-password-modal').classList.add('hidden');
+            document.getElementById('forgot-email').value = '';
+            document.getElementById('forgot-error').classList.add('hidden');
+            document.getElementById('forgot-success').classList.add('hidden');
+            document.getElementById('forgot-password-modal').classList.remove('hidden');
+        }
+
+        async function submitForgotPassword() {
+            const email = document.getElementById('forgot-email').value.trim();
+            const errEl = document.getElementById('forgot-error');
+            const successEl = document.getElementById('forgot-success');
+            errEl.classList.add('hidden');
+            successEl.classList.add('hidden');
+
+            if (!email) {
+                errEl.textContent = '請輸入 Email';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            try {
+                const resp = await fetch(`${backendUrl}/api/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await resp.json();
+                successEl.textContent = data.message || '重設連結已寄出';
+                successEl.classList.remove('hidden');
+            } catch (e) {
+                errEl.textContent = '網路錯誤，請稍後再試';
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        let _resetToken = null;
+
+        async function submitResetPassword() {
+            const newPassword = document.getElementById('reset-new-password').value;
+            const confirmPassword = document.getElementById('reset-confirm-password').value;
+            const errEl = document.getElementById('reset-error');
+            errEl.classList.add('hidden');
+
+            if (!newPassword || !confirmPassword) {
+                errEl.textContent = '請填寫所有欄位';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                errEl.textContent = '兩次密碼不一致';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            try {
+                const resp = await fetch(`${backendUrl}/api/auth/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: _resetToken, new_password: newPassword })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    document.getElementById('reset-password-modal').classList.add('hidden');
+                    showLoginModal();
+                    showToast(data.message || '密碼已重設，請重新登入', 'success', 4000);
+                } else {
+                    errEl.textContent = data.error || '重設失敗';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                errEl.textContent = '網路錯誤，請稍後再試';
+                errEl.classList.remove('hidden');
+            }
+        }
+
         function showLoginModal() {
             // 若 modal 已經顯示中，不重置表單（避免清掉使用者正在輸入的密碼）
             const alreadyVisible = !loginModal.classList.contains('hidden');
             loginModal.classList.remove('hidden');
             registerModal.classList.add('hidden');
+            document.getElementById('forgot-password-modal').classList.add('hidden');
+            document.getElementById('reset-password-modal').classList.add('hidden');
             loginError.classList.add('hidden');
 
             if (!alreadyVisible) {
@@ -2295,6 +2470,8 @@
         function hideAuthModals() {
             loginModal.classList.add('hidden');
             registerModal.classList.add('hidden');
+            document.getElementById('forgot-password-modal').classList.add('hidden');
+            document.getElementById('reset-password-modal').classList.add('hidden');
         }
 
         // 更新用戶顯示
@@ -2306,6 +2483,104 @@
 
                 if (nameDisplay) nameDisplay.textContent = user.name || '-';
                 if (emailDisplay) emailDisplay.textContent = user.email || '-';
+            }
+        }
+
+        // --- 個人資料 / 修改密碼 ---
+        function toggleEditName(show) {
+            const section = document.getElementById('edit-name-section');
+            const errEl = document.getElementById('edit-name-error');
+            if (show) {
+                toggleChangePassword(false);
+                const user = getUserData();
+                document.getElementById('edit-name-input').value = user ? (user.name || '') : '';
+                errEl.classList.add('hidden');
+                section.classList.remove('hidden');
+            } else {
+                section.classList.add('hidden');
+            }
+        }
+
+        function toggleChangePassword(show) {
+            const section = document.getElementById('change-password-section');
+            const errEl = document.getElementById('change-password-error');
+            if (show) {
+                toggleEditName(false);
+                document.getElementById('current-password-input').value = '';
+                document.getElementById('new-password-input').value = '';
+                document.getElementById('confirm-password-input').value = '';
+                errEl.classList.add('hidden');
+                section.classList.remove('hidden');
+            } else {
+                section.classList.add('hidden');
+            }
+        }
+
+        async function saveProfileName() {
+            const name = document.getElementById('edit-name-input').value.trim();
+            const errEl = document.getElementById('edit-name-error');
+            if (!name) {
+                errEl.textContent = '姓名不能為空';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            try {
+                const data = await apiCall(`${backendUrl}/api/user/profile`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (data && !data.error) {
+                    const userData = getUserData();
+                    if (userData) {
+                        userData.name = name;
+                        setUserData(userData);
+                    }
+                    updateUserDisplay();
+                    toggleEditName(false);
+                    showToast('姓名已更新', 'success');
+                } else {
+                    errEl.textContent = data.error || '更新失敗';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                errEl.textContent = '網路錯誤，請稍後再試';
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        async function saveNewPassword() {
+            const currentPassword = document.getElementById('current-password-input').value;
+            const newPassword = document.getElementById('new-password-input').value;
+            const confirmPassword = document.getElementById('confirm-password-input').value;
+            const errEl = document.getElementById('change-password-error');
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                errEl.textContent = '請填寫所有欄位';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                errEl.textContent = '新密碼與確認密碼不一致';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            try {
+                const data = await apiCall(`${backendUrl}/api/user/change-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+                });
+                if (data && !data.error) {
+                    toggleChangePassword(false);
+                    showToast('密碼已更新', 'success');
+                } else {
+                    errEl.textContent = data.error || '更新失敗';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                errEl.textContent = '網路錯誤，請稍後再試';
+                errEl.classList.remove('hidden');
             }
         }
 
@@ -3337,6 +3612,20 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // 初始化篩選器分類選項
             initializeFilterCategories();
+
+            // 偵測 URL 中的 reset_token（忘記密碼連結）
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetToken = urlParams.get('reset_token');
+            if (resetToken) {
+                _resetToken = resetToken;
+                // 清除 URL 中的 token（避免重新整理後重複顯示）
+                window.history.replaceState({}, '', window.location.pathname);
+                document.getElementById('reset-new-password').value = '';
+                document.getElementById('reset-confirm-password').value = '';
+                document.getElementById('reset-error').classList.add('hidden');
+                document.getElementById('reset-password-modal').classList.remove('hidden');
+                return; // 不繼續驗證登入
+            }
 
             // 檢查是否已登入（驗證token）
             const isLoggedIn = await verifyToken();
