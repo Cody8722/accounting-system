@@ -63,7 +63,7 @@ CORS(
     app,
     origins=FRONTEND_URLS,
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization", "X-Admin-Secret"],
+    allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
 
@@ -117,7 +117,6 @@ limiter = Limiter(
 
 # 環境變數
 MONGO_URI = os.getenv("MONGO_URI")
-ADMIN_SECRET = os.getenv("ADMIN_SECRET")
 
 # MongoDB 連線
 client = None
@@ -202,18 +201,13 @@ else:
 
 def require_auth(f):
     """
-    認證裝飾器：驗證 JWT token 或 X-Admin-Secret header（向後兼容）
+    認證裝飾器：驗證 JWT token
 
-    優先順序：
-    1. 檢查 Authorization: Bearer <token> (JWT)
-    2. 檢查 X-Admin-Secret (舊版認證，向後兼容)
-
-    JWT 驗證成功後會在 request 中注入 user_id 和 email
+    驗證成功後會在 request 中注入 user_id、email、name
     """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 方法 1: JWT 認證 (優先)
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             # 安全地解析 token，防止 IndexError
@@ -233,21 +227,6 @@ def require_auth(f):
             else:
                 return jsonify({"error": "Authorization header 格式錯誤"}), 401
 
-        # 方法 2: 舊版 ADMIN_SECRET 認證 (向後兼容)
-        admin_secret = request.headers.get("X-Admin-Secret")
-        # 使用 secrets.compare_digest 防止時序攻擊
-        if (
-            admin_secret
-            and ADMIN_SECRET
-            and secrets.compare_digest(admin_secret, ADMIN_SECRET)
-        ):
-            # 舊版認證成功，設定為管理員模式
-            request.user_id = None  # None 表示管理員（可訪問所有數據）
-            request.email = "admin"
-            request.name = "Administrator"
-            return f(*args, **kwargs)
-
-        # 兩種方法都失敗
         return jsonify({"error": "未授權"}), 401
 
     return decorated_function
@@ -381,11 +360,8 @@ def get_accounting_records():
         # 建立查詢條件
         query = {}
 
-        # 用戶數據隔離：JWT 用戶只能查看自己的數據，管理員可查看所有數據
-        if request.user_id:
-            # JWT 用戶：只查詢有 user_id 且匹配的記錄
-            query["user_id"] = ObjectId(request.user_id)
-        # 管理員模式（ADMIN_SECRET）：查看所有記錄（包括沒有 user_id 的舊記錄）
+        # 用戶數據隔離：只能查看自己的記錄
+        query["user_id"] = ObjectId(request.user_id)
 
         if start_date and end_date:
             # 驗證日期格式
@@ -478,9 +454,7 @@ def add_accounting_record():
             "created_at": datetime.now(),
         }
 
-        # 用戶數據隔離：JWT 用戶記錄添加 user_id
-        if request.user_id:
-            record["user_id"] = ObjectId(request.user_id)
+        record["user_id"] = ObjectId(request.user_id)
 
         result = accounting_records_collection.insert_one(record)
         logger.info(f"新增記帳記錄: {result.inserted_id} (user: {request.email})")
@@ -506,14 +480,11 @@ def update_accounting_record(record_id):
         return jsonify({"error": "無效的記錄 ID"}), 400
 
     try:
-        # 用戶數據隔離：驗證記錄所有權
-        query = {"_id": ObjectId(record_id)}
-        if request.user_id:
-            # JWT 用戶可以更新：1) 自己的記錄 或 2) 沒有 user_id 的舊記錄
-            query["$or"] = [
-                {"user_id": ObjectId(request.user_id)},
-                {"user_id": {"$exists": False}},
-            ]
+        # 用戶數據隔離：只能修改自己的記錄
+        query = {
+            "_id": ObjectId(record_id),
+            "user_id": ObjectId(request.user_id),
+        }
 
         # 先檢查記錄是否存在且屬於當前用戶
         existing_record = accounting_records_collection.find_one(query)
@@ -596,14 +567,11 @@ def delete_accounting_record(record_id):
         return jsonify({"error": "無效的記錄 ID"}), 400
 
     try:
-        # 用戶數據隔離：驗證記錄所有權
-        query = {"_id": ObjectId(record_id)}
-        if request.user_id:
-            # JWT 用戶可以刪除：1) 自己的記錄 或 2) 沒有 user_id 的舊記錄
-            query["$or"] = [
-                {"user_id": ObjectId(request.user_id)},
-                {"user_id": {"$exists": False}},
-            ]
+        # 用戶數據隔離：只能刪除自己的記錄
+        query = {
+            "_id": ObjectId(record_id),
+            "user_id": ObjectId(request.user_id),
+        }
 
         result = accounting_records_collection.delete_one(query)
 
@@ -632,9 +600,7 @@ def get_accounting_stats():
 
         query = {}
 
-        # 用戶數據隔離：JWT 用戶只能查看自己的統計
-        if request.user_id:
-            query["user_id"] = ObjectId(request.user_id)
+        query["user_id"] = ObjectId(request.user_id)
 
         if start_date and end_date:
             # 驗證日期格式
@@ -698,9 +664,7 @@ def get_accounting_budget():
         current_month = datetime.now().strftime("%Y-%m")
         query = {"month": current_month}
 
-        # 用戶數據隔離：JWT 用戶只能查看自己的預算
-        if request.user_id:
-            query["user_id"] = ObjectId(request.user_id)
+        query["user_id"] = ObjectId(request.user_id)
 
         budget_doc = accounting_budget_collection.find_one(query)
 
@@ -739,10 +703,8 @@ def set_accounting_budget():
         # 建立更新資料
         update_data = {"budget": data["budget"], "updated_at": datetime.now()}
 
-        # 用戶數據隔離：JWT 用戶設定自己的預算
-        if request.user_id:
-            query["user_id"] = ObjectId(request.user_id)
-            update_data["user_id"] = ObjectId(request.user_id)
+        query["user_id"] = ObjectId(request.user_id)
+        update_data["user_id"] = ObjectId(request.user_id)
 
         # 更新或新增預算
         accounting_budget_collection.update_one(
@@ -984,23 +946,6 @@ def verify_token():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        # request.user_id 由 require_auth 裝飾器注入
-        if not request.user_id:
-            # 舊版 ADMIN_SECRET 認證
-            return (
-                jsonify(
-                    {
-                        "valid": True,
-                        "user": {
-                            "id": "admin",
-                            "email": "admin",
-                            "name": "Administrator",
-                        },
-                    }
-                ),
-                200,
-            )
-
         user = users_collection.find_one({"_id": ObjectId(request.user_id)})
         if not user:
             return jsonify({"error": "用戶不存在"}), 404
@@ -1046,9 +991,6 @@ def get_profile():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        if not request.user_id:
-            return jsonify({"error": "管理員模式無個人資料"}), 400
-
         user = users_collection.find_one({"_id": ObjectId(request.user_id)})
         if not user:
             return jsonify({"error": "用戶不存在"}), 404
@@ -1092,9 +1034,6 @@ def update_profile():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        if not request.user_id:
-            return jsonify({"error": "管理員模式無法更新資料"}), 400
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
@@ -1156,9 +1095,6 @@ def change_password():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        if not request.user_id:
-            return jsonify({"error": "管理員模式無法修改密碼"}), 400
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400

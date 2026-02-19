@@ -106,7 +106,6 @@ FRONTEND_URLS=http://localhost:8080
 | `MONGO_URI` | ✅ | 無 | MongoDB 連線字串。本地測試可用 `mongodb://localhost:27017/accounting_db` |
 | `JWT_SECRET` | ✅ | 無 | JWT 簽名金鑰。使用下方指令產生：`python -c "import secrets; print(secrets.token_hex(32))"` |
 | `FRONTEND_URLS` | | `http://localhost:8080,https://accounting-system.zeabur.app` | 允許跨域的前端網址（逗號分隔）。本地開發使用預設值即可 |
-| `ADMIN_SECRET` | | 無 | 舊版管理員密碼（向後相容）。使用此 header 可以查看**所有用戶**的資料，供資料庫維護使用。新部署建議留空不設定 |
 
 > **注意**：`.env` 檔案不應提交到 Git。請確認 `.gitignore` 已包含 `.env`。
 
@@ -304,10 +303,9 @@ Token 有效期：**7 天**。過期後需重新登入。
 ## 安全建議
 
 1. **JWT_SECRET**：使用 32 字元以上的隨機字串，不要使用可預測的值。金鑰洩漏後需立即更換（所有用戶會被強制登出）
-2. **ADMIN_SECRET**：如非必要，不建議設定此變數。設定後等同開放一個可查看所有用戶資料的後門
-3. **HTTPS**：生產環境務必使用 HTTPS（Zeabur 自動提供）
-4. **MongoDB**：不要使用擁有過多權限的資料庫帳號；定期備份資料
-5. **`.env` 檔案**：確認 `.gitignore` 已包含 `.env`，不要將金鑰提交到 Git
+2. **HTTPS**：生產環境務必使用 HTTPS（Zeabur 自動提供）
+3. **MongoDB**：不要使用擁有過多權限的資料庫帳號；定期備份資料
+4. **`.env` 檔案**：確認 `.gitignore` 已包含 `.env`，不要將金鑰提交到 Git
 
 ---
 

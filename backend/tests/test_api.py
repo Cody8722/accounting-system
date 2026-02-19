@@ -10,13 +10,13 @@ from datetime import datetime
 
 # Set environment variables before importing main
 os.environ["TESTING"] = "true"
-TEST_ADMIN_SECRET = "test-secret-key-123"
-os.environ["ADMIN_SECRET"] = TEST_ADMIN_SECRET
+os.environ["JWT_SECRET"] = "test-jwt-secret-key-for-testing-only"
 
 # 添加父目录到 Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from main import app
+import auth as auth_module
 
 
 @pytest.fixture
@@ -32,8 +32,11 @@ def client():
 
 @pytest.fixture
 def auth_headers():
-    """返回包含认证信息的 headers"""
-    return {"X-Admin-Secret": TEST_ADMIN_SECRET}
+    """返回包含 JWT 認證的 headers（使用固定 test user_id）"""
+    # 使用固定的 test ObjectId（24 位 hex）
+    test_user_id = "000000000000000000000001"
+    token = auth_module.generate_jwt(test_user_id, "test@example.com", "Test User")
+    return {"Authorization": f"Bearer {token}"}
 
 
 class TestAuthentication:
@@ -47,8 +50,8 @@ class TestAuthentication:
         assert "error" in data
 
     def test_status_with_invalid_auth(self, client):
-        """测试错误密码访问"""
-        response = client.get("/status", headers={"X-Admin-Secret": "wrong-password"})
+        """测试无效 Token 访问"""
+        response = client.get("/status", headers={"Authorization": "Bearer invalid-token"})
         assert response.status_code in [401, 403]
 
     def test_records_without_auth(self, client):
