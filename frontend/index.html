@@ -326,9 +326,11 @@
             }
         }
 
-        /* 登入/註冊對話框樣式 */
+        /* 登入/註冊/忘記密碼/重設密碼對話框樣式 */
         #login-modal,
-        #register-modal {
+        #register-modal,
+        #forgot-password-modal,
+        #reset-password-modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -346,7 +348,9 @@
             padding-bottom: env(safe-area-inset-bottom);
         }
         #login-modal.hidden,
-        #register-modal.hidden {
+        #register-modal.hidden,
+        #forgot-password-modal.hidden,
+        #reset-password-modal.hidden {
             display: none;
         }
 
