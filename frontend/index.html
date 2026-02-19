@@ -1263,20 +1263,20 @@
     </aside>
 
     <!-- Android PWA 安裝提示 -->
-    <div id="android-install-prompt" class="hidden fixed bottom-0 left-0 right-0 shadow-2xl rounded-t-3xl p-6 z-50" style="background-color: #ffffff; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937;">
-        <button onclick="dismissAndroidPrompt()" class="absolute top-4 right-4 hover:opacity-70 transition" style="color: #9ca3af;">
-            <i class="fas fa-times text-xl"></i>
+    <div id="android-install-prompt" class="hidden fixed bottom-0 left-0 right-0 rounded-t-3xl p-6 z-50" style="background-color: #ffffff !important; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937 !important;">
+        <button onclick="dismissAndroidPrompt()" class="absolute top-4 right-4" style="color: #9ca3af; background: none; border: none; cursor: pointer;">
+            <i class="fas fa-times" style="font-size: 1.25rem;"></i>
         </button>
-        <div class="flex items-start gap-4">
-            <div class="text-5xl">📱</div>
-            <div class="flex-1">
-                <h3 class="text-lg font-bold mb-2" style="color: #1f2937;">安裝記帳本到主畫面</h3>
-                <p class="text-sm mb-4" style="color: #4b5563;">輕鬆快速開啟，像原生 App 一樣使用</p>
-                <div class="flex gap-3">
-                    <button onclick="triggerAndroidInstall()" class="flex-1 py-2 px-4 rounded-lg font-medium transition" style="background: linear-gradient(to right, #8b5cf6, #7c3aed); color: white;">
+        <div style="display: flex; align-items: flex-start; gap: 1rem;">
+            <div style="font-size: 3rem;">📱</div>
+            <div style="flex: 1;">
+                <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem; color: #1f2937 !important;">安裝記帳本到主畫面</h3>
+                <p style="font-size: 0.875rem; margin-bottom: 1rem; color: #4b5563 !important;">輕鬆快速開啟，像原生 App 一樣使用</p>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button onclick="triggerAndroidInstall()" style="flex: 1; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; background: linear-gradient(to right, #8b5cf6, #7c3aed); color: white !important; border: none; cursor: pointer;">
                         立即安裝
                     </button>
-                    <button onclick="dismissAndroidPrompt()" class="py-2 px-4 rounded-lg font-medium transition" style="background-color: #f3f4f6; color: #6b7280;">
+                    <button onclick="dismissAndroidPrompt()" style="padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; background-color: #f3f4f6 !important; color: #6b7280 !important; border: none; cursor: pointer;">
                         稍後再說
                     </button>
                 </div>
