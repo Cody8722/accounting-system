@@ -1267,22 +1267,24 @@
     </aside>
 
     <!-- Android PWA 安裝提示 -->
-    <div id="android-install-prompt" class="hidden fixed bottom-0 left-0 right-0 rounded-t-3xl p-6 z-50" style="background-color: #ffffff !important; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937 !important;">
-        <button onclick="dismissAndroidPrompt()" class="absolute top-4 right-4" style="color: #9ca3af; background: none; border: none; cursor: pointer;">
-            <i class="fas fa-times" style="font-size: 1.25rem;"></i>
-        </button>
-        <div style="display: flex; align-items: flex-start; gap: 1rem;">
-            <div style="font-size: 3rem;">📱</div>
-            <div style="flex: 1;">
-                <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem; color: #1f2937 !important;">安裝記帳本到主畫面</h3>
-                <p style="font-size: 0.875rem; margin-bottom: 1rem; color: #4b5563 !important;">輕鬆快速開啟，像原生 App 一樣使用</p>
-                <div style="display: flex; gap: 0.75rem;">
-                    <button onclick="triggerAndroidInstall()" style="flex: 1; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; background: linear-gradient(to right, #8b5cf6, #7c3aed); color: white !important; border: none; cursor: pointer;">
-                        立即安裝
-                    </button>
-                    <button onclick="dismissAndroidPrompt()" style="padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; background-color: #f3f4f6 !important; color: #6b7280 !important; border: none; cursor: pointer;">
-                        稍後再說
-                    </button>
+    <div id="android-install-prompt" class="hidden fixed bottom-0 left-0 right-0 rounded-t-3xl z-50" style="background-color: #ffffff !important; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937 !important;">
+        <div style="max-width: 480px; margin: 0 auto; padding: 1.5rem; position: relative;">
+            <button onclick="dismissAndroidPrompt()" style="position: absolute; top: 1rem; right: 1rem; color: #9ca3af; background: none; border: none; cursor: pointer;">
+                <i class="fas fa-times" style="font-size: 1.25rem;"></i>
+            </button>
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                <div style="font-size: 3rem;">📱</div>
+                <div style="flex: 1;">
+                    <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 0.5rem; color: #1f2937 !important;">安裝記帳本到主畫面</h3>
+                    <p style="font-size: 0.875rem; margin-bottom: 1rem; color: #4b5563 !important;">輕鬆快速開啟，像原生 App 一樣使用</p>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button onclick="triggerAndroidInstall()" style="flex: 1; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; background: linear-gradient(to right, #8b5cf6, #7c3aed); color: white !important; border: none; cursor: pointer;">
+                            立即安裝
+                        </button>
+                        <button onclick="dismissAndroidPrompt()" style="padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; background-color: #f3f4f6 !important; color: #6b7280 !important; border: none; cursor: pointer;">
+                            稍後再說
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2298,13 +2300,13 @@
                 const overlay = document.createElement('div');
                 overlay.style.cssText = [
                     'position:fixed', 'inset:0', 'background:rgba(0,0,0,0.5)',
-                    'z-index:99998', 'display:flex', 'align-items:flex-end',
+                    'z-index:99998', 'display:flex', 'align-items:center',
                     'justify-content:center',
-                    `padding-bottom:env(safe-area-inset-bottom)`
+                    'padding:16px'
                 ].join(';');
                 const confirmColor = danger ? '#ef4444' : '#667eea';
                 overlay.innerHTML = `
-                    <div style="background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:24px 20px;box-shadow:0 -4px 24px rgba(0,0,0,0.15)">
+                    <div style="background:#fff;width:100%;max-width:400px;border-radius:16px;padding:24px 20px;box-shadow:0 20px 40px rgba(0,0,0,0.2)">
                         <p style="text-align:center;font-size:16px;color:#374151;margin-bottom:20px;line-height:1.5">${message}</p>
                         <div style="display:flex;gap:12px">
                             <button id="sc-cancel" style="flex:1;padding:13px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:15px;color:#6b7280;cursor:pointer">${cancelText}</button>
