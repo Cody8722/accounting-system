@@ -1262,6 +1262,28 @@
         </div>
     </aside>
 
+    <!-- Android PWA 安裝提示 -->
+    <div id="android-install-prompt" class="hidden fixed bottom-0 left-0 right-0 shadow-2xl rounded-t-3xl p-6 z-50" style="background-color: #ffffff; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937;">
+        <button onclick="dismissAndroidPrompt()" class="absolute top-4 right-4 hover:opacity-70 transition" style="color: #9ca3af;">
+            <i class="fas fa-times text-xl"></i>
+        </button>
+        <div class="flex items-start gap-4">
+            <div class="text-5xl">📱</div>
+            <div class="flex-1">
+                <h3 class="text-lg font-bold mb-2" style="color: #1f2937;">安裝記帳本到主畫面</h3>
+                <p class="text-sm mb-4" style="color: #4b5563;">輕鬆快速開啟，像原生 App 一樣使用</p>
+                <div class="flex gap-3">
+                    <button onclick="triggerAndroidInstall()" class="flex-1 py-2 px-4 rounded-lg font-medium transition" style="background: linear-gradient(to right, #8b5cf6, #7c3aed); color: white;">
+                        立即安裝
+                    </button>
+                    <button onclick="dismissAndroidPrompt()" class="py-2 px-4 rounded-lg font-medium transition" style="background-color: #f3f4f6; color: #6b7280;">
+                        稍後再說
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- iOS PWA 安裝提示 -->
     <div id="ios-install-prompt" class="hidden fixed bottom-0 left-0 right-0 shadow-2xl rounded-t-3xl p-6 z-50 animate-slide-up" style="background-color: #ffffff; box-shadow: 0 -10px 40px rgba(0,0,0,0.15); color: #1f2937;">
         <button onclick="dismissIOSPrompt()" class="absolute top-4 right-4 hover:opacity-70 transition" style="color: #9ca3af;">
@@ -2362,6 +2384,10 @@
                     updateAccountingStats(); // 載入當月統計數據
 
                     console.log('✅ 登入成功:', data.user.email);
+
+                    // 顯示安裝提示（iOS / Android）
+                    showIOSInstallPrompt();
+                    showAndroidInstallPrompt();
                 } else {
                     loginError.textContent = data.error || '登入失敗';
                     loginError.classList.remove('text-gray-500');
@@ -3206,6 +3232,54 @@
             await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
         });
 
+        // --- Android PWA 安裝提示 ---
+        let androidInstallPromptEvent = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault(); // 阻止瀏覽器自動顯示
+            androidInstallPromptEvent = e;
+        });
+
+        function shouldShowAndroidPrompt() {
+            if (!androidInstallPromptEvent) return false;
+            if (isInStandaloneMode()) return false;
+            const lastDismissed = localStorage.getItem('androidPromptDismissed');
+            if (lastDismissed) {
+                const parsed = parseInt(lastDismissed, 10);
+                if (!isNaN(parsed) && (Date.now() - parsed) / (1000 * 60 * 60 * 24) < 7) return false;
+            }
+            return true;
+        }
+
+        function showAndroidInstallPrompt() {
+            if (shouldShowAndroidPrompt()) {
+                setTimeout(() => {
+                    const prompt = document.getElementById('android-install-prompt');
+                    if (prompt) prompt.classList.remove('hidden');
+                }, 3000);
+            }
+        }
+
+        function dismissAndroidPrompt() {
+            const prompt = document.getElementById('android-install-prompt');
+            if (prompt) prompt.classList.add('hidden');
+            localStorage.setItem('androidPromptDismissed', Date.now().toString());
+        }
+
+        async function triggerAndroidInstall() {
+            if (!androidInstallPromptEvent) return;
+            dismissAndroidPrompt();
+            androidInstallPromptEvent.prompt();
+            await androidInstallPromptEvent.userChoice;
+            androidInstallPromptEvent = null;
+        }
+
+        window.addEventListener('appinstalled', () => {
+            androidInstallPromptEvent = null;
+            const prompt = document.getElementById('android-install-prompt');
+            if (prompt) prompt.classList.add('hidden');
+        });
+
         // --- iOS PWA 安裝提示 ---
         function isIOS() {
             const userAgent = window.navigator.userAgent.toLowerCase();
@@ -3276,8 +3350,9 @@
                 updateAccountingStats(); // 載入當月統計數據
                 console.log('✅ 已自動登入');
 
-                // 登入後顯示 iOS 安裝提示
+                // 登入後顯示安裝提示（iOS / Android）
                 showIOSInstallPrompt();
+                showAndroidInstallPrompt();
             } else {
                 // 未登入，顯示登入modal
                 showLoginModal();
