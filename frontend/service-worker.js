@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.3.4';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.3.5';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -133,6 +133,10 @@ self.addEventListener('fetch', (event) => {
               const responseClone = response.clone();
               caches.open(CACHE_NAME).then((cache) => {
                 cache.put(request, responseClone);
+              }).catch((err) => {
+                // iOS CacheStorage 空間有限（約 50MB），QuotaExceededError 時靜默忽略
+                // 避免未捕獲的 Promise rejection 在 iOS WebKit 被轉成 402
+                console.warn('Service Worker: 快取寫入失敗（忽略）:', err.name);
               });
             }
             return response;
@@ -188,8 +192,10 @@ self.addEventListener('fetch', (event) => {
     }
   }
 
-  // 其他請求：直接通過
-  event.respondWith(fetch(request));
+  // 其他 GET 請求（如 /api/auth/validate-password 等未列舉端點）：不攔截，讓瀏覽器直接處理
+  // iOS Standalone 模式下，直接呼叫 event.respondWith(fetch(request)) 若失敗會產生合成 402/499
+  // 只要不呼叫 event.respondWith，瀏覽器就會用原生 fetch 處理，避免此問題
+  return;
 });
 
 // 儲存離線請求到 IndexedDB
@@ -265,6 +271,11 @@ async function syncOfflineQueue() {
             // 成功同步，從佇列中刪除
             await deleteFromOfflineQueue(item.timestamp);
             console.log('Service Worker: Synced request:', item.url);
+          } else if (response.status === 401 || response.status === 403) {
+            // Token 已過期或無效，刪除此項目避免無限重試
+            // iOS 上若不刪除，每次連線恢復都會重試，連帶觸發 rate limiter
+            await deleteFromOfflineQueue(item.timestamp);
+            console.warn('Service Worker: 離線請求因 Token 過期被丟棄:', item.url, response.status);
           }
         } catch (error) {
           console.error('Service Worker: Failed to sync request:', item.url, error);

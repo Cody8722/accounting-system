@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import jwt as pyjwt
 from pymongo import MongoClient, ASCENDING
 from bson import json_util, ObjectId
 from bson.errors import InvalidId
@@ -81,10 +82,33 @@ def add_security_headers(response):
 
 
 # 速率限制
+def get_rate_limit_key():
+    """
+    優先用 JWT user_id 作為 rate limit key，讓每個用戶有獨立的 bucket。
+    Zeabur 等雲端平台的 reverse proxy 會讓所有請求共用同一個 REMOTE_ADDR，
+    若用 IP 作 key 會導致所有用戶共享配額，容易觸發 429（iOS 上可能顯示為 402）。
+    未登入的請求（登入、註冊）才 fallback 到 IP。
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        try:
+            jwt_secret = os.getenv("JWT_SECRET")
+            if jwt_secret:
+                payload = pyjwt.decode(token, jwt_secret, algorithms=["HS256"])
+                return f"user:{payload.get('user_id', 'unknown')}"
+        except Exception:
+            pass
+    # 未登入請求（/api/auth/login 等）：用 X-Forwarded-For 或 REMOTE_ADDR
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return get_remote_address()
+
 # Disable rate limiting if TESTING environment variable is set
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
+    key_func=get_rate_limit_key,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
     enabled=os.getenv("TESTING", "false").lower() != "true",
