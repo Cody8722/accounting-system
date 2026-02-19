@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 from datetime import datetime
 import logging
 import re
-import secrets
 
 # 導入認證模組
 import auth
