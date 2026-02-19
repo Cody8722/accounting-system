@@ -1,42 +1,52 @@
-# 💰 個人記帳系統
+# 個人記帳系統
 
-簡單易用的個人記帳應用程式，支援收入支出管理、預算追蹤、重複記帳等功能。
+簡單易用的個人記帳 PWA，支援收入支出管理、預算追蹤、支出類型分類等功能。可安裝到手機主畫面，支援離線使用。
 
-## ✨ 功能特色
+## 功能特色
 
-### 📊 記帳功能
-- **收入/支出記錄**：支援多種分類（早餐、午餐、晚餐、點心、飲料、其他）
+### 記帳功能
+- **收入 / 支出記錄**：支援 12 種預設分類（早餐、午餐、晚餐、點心、飲料、交通、娛樂、購物、醫療、教育、居住、其他），亦可輸入自訂分類
+- **支出類型標記**：可為支出標記固定支出 / 變動支出 / 一次性支出
 - **日期管理**：可選擇任意日期記帳
 - **描述備註**：為每筆記錄添加詳細說明
-- **重複記帳**：支援每日/每週/每月自動重複記帳
 
-### 📈 統計分析
+### 統計分析
 - **本月收入**：即時顯示當月總收入
 - **本月支出**：即時顯示當月總支出
 - **結餘計算**：自動計算收支差額
-- **分類統計**：按分類統計支出金額
+- **分類統計**：按分類統計支出金額，視覺化圖表呈現
 
-### 🎯 預算管理
+### 預算管理
 - 為每個支出分類設定月度預算
 - 追蹤預算執行情況
 
-### 🔍 查詢篩選
+### 查詢篩選
 - 按日期範圍篩選記錄
-- 按類型篩選（收入/支出）
+- 按類型篩選（收入 / 支出）
 - 按分類篩選
 - 最多顯示 500 筆記錄
 
-### 🔐 安全性
-- 管理員密碼保護
-- API 請求速率限制
-- Session 認證機制
+### 安全性
+- **用戶帳號系統**：需先註冊帳號，使用 Email + 密碼登入
+- **JWT 令牌認證**：登入後以 JWT Bearer Token 進行 API 驗證
+- **資料隔離**：每位用戶只能看到自己的記帳資料
+- **API 速率限制**：每用戶每日 200 次、每小時 50 次上限
+- **強密碼要求**：內建嚴格的密碼驗證機制（詳見下方密碼安全策略）
 
-## 🚀 快速開始
+### PWA 功能
+- 可安裝到手機 / 桌面主畫面
+- 離線查看已快取的記錄
+- 離線新增記錄，連線後自動同步
+- iOS / Android 原生體驗（全螢幕、無瀏覽器 UI）
+
+---
+
+## 快速開始
 
 ### 環境需求
 
 - Python 3.8+
-- MongoDB 資料庫
+- MongoDB Atlas 帳號（或本地 MongoDB）
 - 現代瀏覽器（Chrome、Firefox、Safari、Edge）
 
 ### 後端設定
@@ -49,13 +59,16 @@ pip install -r requirements.txt
 
 2. **設定環境變數**
 ```bash
-# 複製環境變數範例檔案
 cp .env.example .env
-
-# 編輯 .env 檔案，填入以下資訊：
-# MONGO_URI=mongodb+srv://your_connection_string
-# ADMIN_SECRET=your_strong_password
+# 編輯 .env，填入以下資訊：
 ```
+
+| 變數名稱 | 必填 | 說明 |
+|---------|------|------|
+| `MONGO_URI` | ✅ | MongoDB 連線字串（如 `mongodb+srv://...`） |
+| `JWT_SECRET` | ✅ | JWT 簽名金鑰，建議使用 32 字元以上隨機字串 |
+| `FRONTEND_URLS` | ✅ | 允許的前端來源，逗號分隔（如 `https://myapp.zeabur.app`） |
+| `ADMIN_SECRET` | 選填 | 舊版管理員密碼，向後相容用，新部署可不設定 |
 
 3. **啟動後端服務**
 ```bash
@@ -66,67 +79,74 @@ python main.py
 
 ### 前端設定
 
-1. **修改後端 URL**
+前端會**自動偵測**後端 URL：
+- 本地開發（`localhost`）→ 自動連到 `http://localhost:5001`
+- Zeabur 標準部署 → 自動對應到後端 URL
 
-編輯 `frontend/index.html`，修改第 8 行的後端 URL：
+如需指定自訂後端網址，編輯 `frontend/index.html` 的 `detectBackendUrl()` 函式即可。
 
-```javascript
-// 本地開發
-window.BACKEND_URL = 'http://localhost:5001';
-
-// 生產環境（替換為您的後端網址）
-window.BACKEND_URL = 'https://your-backend.zeabur.app';
-```
-
-2. **啟動前端**
-
-直接用瀏覽器開啟 `frontend/index.html` 即可使用。
-
-或使用 Python 簡易 HTTP 伺服器：
+**啟動前端：**
 ```bash
 cd frontend
 python -m http.server 8080
+# 然後訪問 http://localhost:8080
 ```
 
-然後訪問 `http://localhost:8080`
+或直接用瀏覽器開啟 `frontend/index.html`。
 
-## 📦 部署到 Zeabur
+---
+
+## 部署到 Zeabur
 
 ### 後端部署
 
-1. 在 Zeabur 建立新服務
-2. 選擇從 Git 部署
-3. 選擇 `backend` 資料夾
-4. 設定環境變數：
-   - `MONGO_URI`：MongoDB 連線字串
-   - `ADMIN_SECRET`：管理員密碼
-5. 部署完成後記下後端 URL
+1. 在 Zeabur 建立新服務，從 Git 部署（選擇 `backend` 資料夾）
+2. 設定環境變數：
+
+| 變數名稱 | 說明 |
+|---------|------|
+| `MONGO_URI` | MongoDB Atlas 連線字串 |
+| `JWT_SECRET` | JWT 簽名金鑰（32 字元以上隨機字串） |
+| `FRONTEND_URLS` | 前端網址，如 `https://accounting-system.zeabur.app` |
+
+3. **重要**：MongoDB Atlas 需開放 `0.0.0.0/0` IP 白名單，因為 Zeabur 的 IP 為動態分配
 
 ### 前端部署
 
-**⚠️ 重要：每次更新前端時，請務必更新 Service Worker 版本號！**
+**⚠️ 每次更新前端時，請務必更新 Service Worker 版本號！**
 
-1. **更新 PWA 版本號**（必須，使用語義化版本控制）
-   - 打開 `frontend/service-worker.js`
-   - 修改第 14 行：`const CACHE_NAME = 'accounting-system-vX.Y.Z';`
-   - 根據變更類型更新版本號：
-     - Bug 修復：`v1.0.0` → `v1.0.1` (PATCH +1)
-     - 新功能：`v1.0.1` → `v1.1.0` (MINOR +1)
-     - 重大更新：`v1.5.3` → `v2.0.0` (MAJOR +1)
-   - 詳細說明請參考 [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md)
+1. 打開 `frontend/service-worker.js`，修改第 14 行：
+   ```js
+   const CACHE_NAME = 'accounting-system-vX.Y.Z';
+   ```
+   根據語義化版本號更新（Bug 修復 +PATCH，新功能 +MINOR，重大更新 +MAJOR）
 
-2. 修改 `frontend/index.html` 的 `BACKEND_URL` 為後端 URL
-3. 在 Zeabur 建立新服務
-4. 選擇靜態網站部署
-5. 選擇 `frontend` 資料夾
-6. 部署完成
+2. 在 Zeabur 建立靜態網站服務，選擇 `frontend` 資料夾部署
 
-**為什麼要更新版本號？**
-- PWA 使用 Service Worker 快取
-- 修改版本號會觸發用戶端更新
-- 用戶才能看到最新版本的功能
+詳細說明請參考 [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) 與 [`frontend/PWA-README.md`](frontend/PWA-README.md)
 
-## 🗄️ 資料庫結構
+---
+
+## 資料庫結構
+
+### accounting_db.users
+
+用戶帳號集合：
+
+```javascript
+{
+  _id: ObjectId,
+  email: String,             // Email（唯一索引）
+  password_hash: String,     // bcrypt 雜湊密碼
+  name: String,              // 顯示名稱
+  created_at: DateTime,      // 建立時間
+  last_login: DateTime,      // 最後登入時間
+  is_active: Boolean,        // 帳號是否啟用
+  email_verified: Boolean,   // Email 是否驗證
+  password_last_updated: DateTime,
+  requires_password_change: Boolean
+}
+```
 
 ### accounting_db.records
 
@@ -135,13 +155,13 @@ python -m http.server 8080
 ```javascript
 {
   _id: ObjectId,
+  user_id: String,           // 所屬用戶 ID（外鍵 → users._id）
   type: String,              // 'income' 或 'expense'
   amount: Number,            // 金額
-  category: String,          // 分類
+  category: String,          // 分類（預設 12 種 + 可自訂）
+  expense_type: String,      // 支出類型：'fixed'｜'variable'｜'onetime'｜null
   date: String,              // 日期 (YYYY-MM-DD)
   description: String,       // 描述
-  is_recurring: Boolean,     // 是否重複
-  recurring_type: String,    // 'daily', 'weekly', 'monthly'
   created_at: DateTime       // 建立時間
 }
 ```
@@ -153,6 +173,7 @@ python -m http.server 8080
 ```javascript
 {
   _id: ObjectId,
+  user_id: String,           // 所屬用戶 ID
   month: String,             // 月份 (YYYY-MM)
   budget: {                  // 各分類預算
     早餐: Number,
@@ -160,410 +181,183 @@ python -m http.server 8080
     晚餐: Number,
     點心: Number,
     飲料: Number,
+    交通: Number,
+    娛樂: Number,
+    購物: Number,
+    醫療: Number,
+    教育: Number,
+    居住: Number,
     其他: Number
   },
-  updated_at: DateTime       // 更新時間
+  updated_at: DateTime
 }
 ```
 
-## 🛠️ API 端點
+---
 
-所有 API 都需要在 Header 中帶入 `X-Admin-Secret`
+## API 端點
+
+### 認證方式
+
+所有 `/admin/api/` 端點需在 Header 帶入 JWT Token：
+
+```
+Authorization: Bearer <token>
+```
+
+Token 在登入後取得。
+
+### 認證端點
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `POST` | `/api/auth/register` | 註冊新帳號 |
+| `POST` | `/api/auth/login` | 登入，回傳 JWT token |
+| `GET` | `/api/auth/verify` | 驗證目前 token 是否有效 |
+| `POST` | `/api/auth/logout` | 登出 |
+| `GET` | `/api/auth/profile` | 取得個人資料 |
+| `PUT` | `/api/auth/profile` | 更新個人資料 |
+| `POST` | `/api/auth/validate-password` | 驗證密碼強度（註冊前檢查） |
+| `GET` | `/api/auth/password-config` | 取得密碼規則設定 |
 
 ### 記帳記錄
 
-- `GET /admin/api/accounting/records` - 查詢記錄
-- `POST /admin/api/accounting/records` - 新增記錄
-- `PUT /admin/api/accounting/records/<id>` - 更新記錄
-- `DELETE /admin/api/accounting/records/<id>` - 刪除記錄
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/admin/api/accounting/records` | 查詢記錄（支援日期、類型、分類篩選） |
+| `POST` | `/admin/api/accounting/records` | 新增記錄 |
+| `PUT` | `/admin/api/accounting/records/<id>` | 更新記錄 |
+| `DELETE` | `/admin/api/accounting/records/<id>` | 刪除記錄 |
 
 ### 統計資料
 
-- `GET /admin/api/accounting/stats` - 取得統計資料
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/admin/api/accounting/stats` | 取得當月統計（收入、支出、結餘、分類統計） |
 
 ### 預算管理
 
-- `GET /admin/api/accounting/budget` - 查詢預算
-- `POST /admin/api/accounting/budget` - 儲存預算
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/admin/api/accounting/budget` | 查詢預算 |
+| `POST` | `/admin/api/accounting/budget` | 儲存預算 |
 
 ### 系統狀態
 
-- `GET /status` - 系統狀態檢查
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/status` | 系統狀態檢查（不需認證） |
 
-## 🔒 安全建議
+---
 
-1. **使用強密碼**：`ADMIN_SECRET` 建議使用 32 字元以上的隨機密碼
-2. **HTTPS**：生產環境務必使用 HTTPS
-3. **定期備份**：定期備份 MongoDB 資料
-4. **環境變數**：不要將 `.env` 檔案提交到版本控制
+## 安全建議
 
-## 🔐 密碼安全策略
+1. **JWT_SECRET**：使用 32 字元以上的隨機字串，不要使用可預測的值
+2. **HTTPS**：生產環境務必使用 HTTPS（Zeabur 自動提供）
+3. **MongoDB 連線**：使用 MongoDB Atlas 時開放 `0.0.0.0/0` 白名單（或具體 IP）
+4. **定期備份**：定期備份 MongoDB 資料
+5. **環境變數**：不要將 `.env` 檔案提交到版本控制
 
-系統內建嚴格的密碼驗證機制，確保用戶帳號安全。
+---
 
-### 📋 預設密碼要求
+## 密碼安全策略
+
+系統內建嚴格的密碼驗證機制，確保帳號安全。
+
+### 預設密碼要求
 
 註冊時，密碼必須符合以下所有條件：
 
 #### 基本要求
-- ✅ **最小長度**: 12 個字元
-- ✅ **大寫字母**: 必須包含 A-Z
-- ✅ **小寫字母**: 必須包含 a-z
-- ✅ **數字**: 必須包含 0-9
-- ✅ **特殊符號**: 必須包含 `!@#$%^&*()` 等
+- **最小長度**：12 個字元
+- **大寫字母**：必須包含 A-Z
+- **小寫字母**：必須包含 a-z
+- **數字**：必須包含 0-9
+- **特殊符號**：必須包含 `!@#$%^&*()` 等
 
 #### 安全檢查
-- ❌ **重複字符**: 不能有 3 個或以上相同字符（如 `aaa`, `111`）
-- ❌ **連續字符**: 不能有 4 個或以上連續字符（如 `abcd`, `1234`, `dcba`）
-- ❌ **鍵盤模式**: 不能使用鍵盤相鄰按鍵（如 `qwer`, `asdf`, `1qaz`）
-- ❌ **常見密碼**: 拒絕 50+ 個常見弱密碼（如 `password123`, `12345678`）
-- ❌ **個人資訊**: 不能包含 Email 地址或姓名
-- ❌ **數學模式**: 不能使用費式數列、平方數（如 `112358`, `1491625`）
-- ❌ **中文拼音**: 不能使用常見拼音（如 `woaini`, `zhongguo`）
-- ✅ **複雜度**: 熵值需達到 50 bits 以上
+- 不能有 3 個或以上相同字符（如 `aaa`, `111`）
+- 不能有 4 個或以上連續字符（如 `abcd`, `1234`, `dcba`）
+- 不能使用鍵盤相鄰按鍵（如 `qwer`, `asdf`, `1qaz`）
+- 拒絕 50+ 個常見弱密碼（如 `password123`, `12345678`）
+- 不能包含 Email 地址或姓名
+- 不能使用費式數列、平方數等數學模式
+- 不能使用常見中文拼音（如 `woaini`, `zhongguo`）
+- 熵值需達到 50 bits 以上
 
-### 💻 即時密碼強度顯示
+### 即時密碼強度顯示
 
-用戶註冊時會看到：
-- 實時密碼強度評級（弱/中/強/非常強）
-- 彩色進度條（🔴紅/🟡黃/🔵藍/🟢綠）
-- 所有 13 個規則的通過/未通過狀態
-- 具體的錯誤提示
+用戶註冊時會看到實時密碼強度評級（弱 / 中 / 強 / 非常強）及所有規則通過狀態。
 
-![密碼強度檢查器示意]
-```
-密碼要求：
-✅ 至少 12 個字元
-✅ 包含大寫字母 (A-Z)
-✅ 包含小寫字母 (a-z)
-✅ 包含數字 (0-9)
-❌ 包含特殊符號 (!@#$%^&* 等)  ← 未通過
-✅ 無重複字符
-✅ 無連續字符
-...
-強度：強 ███████████░░░ 85%
-```
+### 修改密碼規則
 
-### ⚙️ 修改密碼規則
-
-所有密碼規則都可以通過**環境變數**進行配置。
-
-#### 方法 1：本地開發（.env 文件）
-
-編輯 `backend/.env` 文件：
+所有密碼規則可透過環境變數設定：
 
 ```bash
 # 基本要求
-PASSWORD_MIN_LENGTH=16                   # 提高到 16 字元
-PASSWORD_REQUIRE_UPPERCASE=true          # 需要大寫字母
-PASSWORD_REQUIRE_LOWERCASE=true          # 需要小寫字母
-PASSWORD_REQUIRE_DIGIT=true              # 需要數字
-PASSWORD_REQUIRE_SPECIAL=false           # ❌ 禁用特殊符號要求
-
-# 模式檢查
-PASSWORD_CHECK_REPEATING=true            # 檢查重複字符
-PASSWORD_CHECK_SEQUENTIAL=true           # 檢查連續字符
-PASSWORD_CHECK_KEYBOARD_PATTERN=true     # 檢查鍵盤模式
-PASSWORD_CHECK_COMMON_PASSWORDS=true     # 檢查常見密碼
-PASSWORD_CHECK_PERSONAL_INFO=true        # 檢查個人資訊
-PASSWORD_CHECK_MATH_PATTERNS=true        # 檢查數學模式
-PASSWORD_CHECK_CHINESE_PINYIN=false      # ❌ 禁用中文拼音檢查
-
-# 限制參數
-PASSWORD_MAX_REPEATING=2                 # 最大允許重複 2 次（3個以上拒絕）
-PASSWORD_MAX_SEQUENTIAL=3                # 最大允許連續 3 次（4個以上拒絕）
-PASSWORD_MIN_ENTROPY=60                  # 提高複雜度要求到 60 bits
-```
-
-**修改後需要重啟後端服務：**
-```bash
-cd backend
-python main.py
-```
-
-#### 方法 2：Zeabur 部署
-
-在 Zeabur 後端服務的「環境變數」設定中添加：
-
-| 變數名稱 | 值 | 說明 |
-|---------|-----|------|
-| `PASSWORD_MIN_LENGTH` | `16` | 最小長度 16 字元 |
-| `PASSWORD_REQUIRE_SPECIAL` | `false` | 不強制特殊符號 |
-| `PASSWORD_CHECK_CHINESE_PINYIN` | `false` | 不檢查中文拼音 |
-| `PASSWORD_MIN_ENTROPY` | `60` | 提高複雜度要求 |
-
-**修改後需要重新部署後端服務。**
-
-#### 方法 3：Docker 部署
-
-在 `docker-compose.yml` 中設定：
-
-```yaml
-services:
-  backend:
-    environment:
-      - PASSWORD_MIN_LENGTH=16
-      - PASSWORD_REQUIRE_SPECIAL=false
-      - PASSWORD_MIN_ENTROPY=60
-```
-
-### 🛠️ 密碼規則管理命令
-
-系統提供管理命令工具，方便查看和管理密碼規則。
-
-#### 查看當前配置
-
-```bash
-cd backend
-python manage_password_rules.py show
-```
-
-**輸出範例：**
-```
-============================================================
-📋 當前密碼規則配置
-============================================================
-min_length                | 📊 12       | 最小密碼長度
-require_uppercase         | ✅ 啟用     | 需要大寫字母
-require_lowercase         | ✅ 啟用     | 需要小寫字母
-require_digit             | ✅ 啟用     | 需要數字
-require_special           | ✅ 啟用     | 需要特殊符號
-check_repeating           | ✅ 啟用     | 檢查重複字符
-check_sequential          | ✅ 啟用     | 檢查連續字符
-check_keyboard_pattern    | ✅ 啟用     | 檢查鍵盤模式
-check_common_passwords    | ✅ 啟用     | 檢查常見密碼
-check_personal_info       | ✅ 啟用     | 檢查個人資訊
-check_math_patterns       | ✅ 啟用     | 檢查數學模式
-check_chinese_pinyin      | ✅ 啟用     | 檢查中文拼音
-min_entropy               | 📊 50       | 最小熵值（複雜度）
-max_repeating             | 📊 2        | 最大允許重複次數
-max_sequential            | 📊 3        | 最大允許連續次數
-============================================================
-
-👥 用戶統計:
-   總用戶數: 5
-   需要更新密碼: 0
-```
-
-#### 啟用/禁用規則
-
-```bash
-# 查看可用規則
-python manage_password_rules.py show
-
-# 提示啟用規則（需手動編輯 .env）
-python manage_password_rules.py enable require_special
-
-# 提示禁用規則（需手動編輯 .env）
-python manage_password_rules.py disable check_chinese_pinyin
-```
-
-**注意：** 命令會提示你如何在 `.env` 中設定，修改後需要重啟後端服務。
-
-#### 強制用戶更新密碼
-
-當密碼規則變更後（例如提高安全要求），可以強制所有現有用戶更新密碼：
-
-```bash
-python manage_password_rules.py force-update
-```
-
-**確認提示：**
-```
-⚠️  警告：這將標記所有用戶需要更新密碼
-確定要繼續嗎？(yes/no): yes
-✅ 成功標記 5 個用戶需要更新密碼
-📝 用戶下次登入時將被要求更改密碼
-```
-
-用戶下次登入時會被要求更改密碼以符合新規則。
-
-#### 取消強制更新
-
-```bash
-python manage_password_rules.py reset-force
-```
-
-### 🎯 實際應用場景
-
-#### 場景 1：降低密碼要求（開發測試）
-
-開發階段可能想要降低密碼要求以方便測試：
-
-```bash
-# 編輯 backend/.env
-PASSWORD_MIN_LENGTH=8
-PASSWORD_REQUIRE_SPECIAL=false
-PASSWORD_CHECK_KEYBOARD_PATTERN=false
-PASSWORD_CHECK_MATH_PATTERNS=false
-PASSWORD_CHECK_CHINESE_PINYIN=false
-PASSWORD_MIN_ENTROPY=30
-
-# 重啟後端
-cd backend
-python main.py
-```
-
-**現在可以使用簡單密碼：** `Test1234` ✅
-
-#### 場景 2：提高安全性（正式環境）
-
-正式環境建議使用嚴格的密碼要求：
-
-```bash
-# 在 Zeabur 環境變數設定
-PASSWORD_MIN_LENGTH=16
+PASSWORD_MIN_LENGTH=12
+PASSWORD_REQUIRE_UPPERCASE=true
+PASSWORD_REQUIRE_LOWERCASE=true
+PASSWORD_REQUIRE_DIGIT=true
 PASSWORD_REQUIRE_SPECIAL=true
-PASSWORD_MIN_ENTROPY=60
-
-# 重新部署後端
-```
-
-**需要更強密碼：** `mK9#vL2$wN5pRt8X` ✅
-
-#### 場景 3：規則升級後強制更新
-
-當你提高密碼要求後，希望現有用戶也更新密碼：
-
-```bash
-# 1. 修改規則（提高要求）
-# 在 .env 中：PASSWORD_MIN_LENGTH=16
-
-# 2. 重啟後端
-python main.py
-
-# 3. 強制所有用戶更新密碼
-python manage_password_rules.py force-update
-
-# 4. 查看狀態
-python manage_password_rules.py show
-```
-
-**輸出：**
-```
-👥 用戶統計:
-   總用戶數: 5
-   需要更新密碼: 5  ← 所有用戶都需要更新
-```
-
-現有用戶下次登入時會被要求更改密碼。
-
-#### 場景 4：針對中文用戶調整
-
-如果用戶主要是中文使用者，可以啟用中文拼音檢查：
-
-```bash
-PASSWORD_CHECK_CHINESE_PINYIN=true   # 啟用
-```
-
-這樣會拒絕 `woaini123`, `zhongguo`, `beijing` 等常見拼音密碼。
-
-如果用戶不是中文使用者，可以禁用以避免誤判：
-
-```bash
-PASSWORD_CHECK_CHINESE_PINYIN=false  # 禁用
-```
-
-### 💡 密碼範例
-
-#### ❌ 不安全的密碼（會被拒絕）
-
-```
-password123       # 常見密碼
-12345678         # 純數字，太短
-abcd1234         # 連續字符
-qwer@1234        # 鍵盤模式
-john@2024        # 包含Email（如果 Email 是 john@xxx.com）
-woaini123        # 中文拼音
-11235813         # 費式數列
-Password1        # 太短（<12字元），無特殊符號
-P@ssw0rd!        # 太短，常見模式
-MyName123!       # 包含姓名（如果姓名是 MyName）
-```
-
-#### ✅ 安全的密碼（符合所有要求）
-
-```
-mK9#vL2$wN5p     # 隨機字符組合，長度 12
-Tr!umph@2024Zx   # 長度 14，包含所有字符類型
-G7$mX#Qp2Wn5Rt   # 長度 14，無明顯模式
-bL9!kP#3Rt8Mx    # 長度 13，高熵值
-Sky7@Blue$Moon3  # 長度 15，混合單字+符號+數字
-```
-
-### 🔧 完整配置參考
-
-所有可用的環境變數（預設值）：
-
-```bash
-# 基本要求
-PASSWORD_MIN_LENGTH=12                      # 最小密碼長度
-PASSWORD_REQUIRE_UPPERCASE=true             # 需要大寫字母
-PASSWORD_REQUIRE_LOWERCASE=true             # 需要小寫字母
-PASSWORD_REQUIRE_DIGIT=true                 # 需要數字
-PASSWORD_REQUIRE_SPECIAL=true               # 需要特殊符號
 
 # 模式檢查
-PASSWORD_CHECK_REPEATING=true               # 檢查重複字符
-PASSWORD_CHECK_SEQUENTIAL=true              # 檢查連續字符
-PASSWORD_CHECK_KEYBOARD_PATTERN=true        # 檢查鍵盤模式
-PASSWORD_CHECK_COMMON_PASSWORDS=true        # 檢查常見密碼
-PASSWORD_CHECK_PERSONAL_INFO=true           # 檢查個人資訊
-PASSWORD_CHECK_MATH_PATTERNS=true           # 檢查數學模式
-PASSWORD_CHECK_CHINESE_PINYIN=true          # 檢查中文拼音
+PASSWORD_CHECK_REPEATING=true
+PASSWORD_CHECK_SEQUENTIAL=true
+PASSWORD_CHECK_KEYBOARD_PATTERN=true
+PASSWORD_CHECK_COMMON_PASSWORDS=true
+PASSWORD_CHECK_PERSONAL_INFO=true
+PASSWORD_CHECK_MATH_PATTERNS=true
+PASSWORD_CHECK_CHINESE_PINYIN=true
 
 # 限制參數
-PASSWORD_MAX_REPEATING=2                    # 最大允許重複次數
-PASSWORD_MAX_SEQUENTIAL=3                   # 最大允許連續次數
-PASSWORD_MIN_ENTROPY=50                     # 最小熵值（bits）
+PASSWORD_MAX_REPEATING=2
+PASSWORD_MAX_SEQUENTIAL=3
+PASSWORD_MIN_ENTROPY=50
 ```
-
-### 📚 詳細文檔
 
 完整的密碼策略文檔請參考：[`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md)
 
-包含：
-- 詳細的驗證規則說明
-- API 端點文檔
-- 密碼生成建議
-- FAQ 常見問題
-- 安全最佳實踐
+---
 
-## 📝 使用說明
+## 使用說明
 
-1. **登入**：首次使用需輸入管理員密碼（ADMIN_SECRET）
-2. **新增記帳**：填寫表單後點擊「新增記帳」
-3. **查詢記錄**：設定篩選條件後點擊「查詢」
-4. **設定預算**：在右側輸入各分類預算金額後點擊「儲存預算」
-5. **刪除記錄**：在記錄列表中點擊「刪除」按鈕
+1. **註冊**：首次使用需建立帳號（Email + 密碼）
+2. **登入**：輸入 Email 與密碼
+3. **新增記帳**：填寫金額、分類、日期、描述，選擇支出類型後點擊「新增記帳」
+4. **查詢記錄**：設定篩選條件後點擊「查詢」
+5. **設定預算**：在設定頁面輸入各分類預算金額後點擊「儲存」
+6. **刪除記錄**：在記錄列表中滑動或長按記錄可刪除
 
-## 🎨 技術棧
+---
+
+## 技術棧
 
 ### 後端
 - Flask 3.0+
-- PyMongo
+- PyMongo 4.6+
+- PyJWT 2.8+
+- passlib（bcrypt 密碼雜湊）
 - Flask-CORS
 - Flask-Limiter
-- Python-dotenv
+- python-dotenv
 - Gunicorn
 
 ### 前端
-- HTML5
-- Tailwind CSS
-- Vanilla JavaScript
+- HTML5 + Vanilla JavaScript
+- Tailwind CSS（CDN）
 - Fetch API
+- Service Worker（PWA / 離線功能）
+- IndexedDB（離線佇列）
 
 ### 資料庫
-- MongoDB
+- MongoDB（建議使用 MongoDB Atlas）
 
-## 📄 授權
+### 部署
+- Zeabur（後端 + 前端靜態托管）
+
+---
+
+## 授權
 
 MIT License
-
-## 🤝 貢獻
-
-歡迎提交 Issue 和 Pull Request！
-
-## 📧 聯絡方式
-
-如有問題或建議，歡迎聯繫。
