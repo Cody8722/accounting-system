@@ -367,5 +367,78 @@ class TestAuthenticatedEndpoints:
         assert response.status_code in [200, 400, 401, 500]
 
 
+class TestForgotPassword:
+    """忘記密碼端點測試"""
+
+    def test_forgot_password_missing_email(self, client):
+        """缺少 email 應返回 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_empty_email(self, client):
+        """空 email 應返回 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": ""},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_nonexistent_email(self, client):
+        """不存在的 email 也應返回 200（防止用戶枚舉）"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": "notexist@example.com"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "message" in data
+
+    def test_forgot_password_no_body(self, client):
+        """沒有 body 應返回 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+
+class TestResetPassword:
+    """重設密碼端點測試"""
+
+    def test_reset_password_missing_fields(self, client):
+        """缺少欄位應返回 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_reset_password_invalid_token(self, client):
+        """無效 token 應返回 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": "invalid-token-xyz", "new_password": "MyN3wP@ss!XyZ99"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_reset_password_no_body(self, client):
+        """沒有 body 應返回 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

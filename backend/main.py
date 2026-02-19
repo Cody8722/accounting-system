@@ -1199,7 +1199,7 @@ def forgot_password():
         if users_collection is None:
             return jsonify({"error": "資料庫未連線"}), 503
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "請提供 Email"}), 400
 
@@ -1248,7 +1248,7 @@ def reset_password():
         if users_collection is None:
             return jsonify({"error": "資料庫未連線"}), 503
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "請提供 token 和新密碼"}), 400
 
