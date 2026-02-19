@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.3.5';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.3.6';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
@@ -104,8 +104,8 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // 本地靜態資源：Cache First 策略
-    if (STATIC_ASSETS.some(asset => request.url.includes(asset))) {
+    // 本地靜態資源：Cache First 策略（使用 pathname 精確比對，避免 '/' 匹配所有 URL）
+    if (STATIC_ASSETS.includes(url.pathname)) {
       event.respondWith(
         caches.match(request)
           .then((response) => {

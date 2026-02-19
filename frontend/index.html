@@ -3653,6 +3653,45 @@
         // 暴露 router 到全局，方便其他地方使用
         window.appRouter = router;
 
+        // ===== iOS PWA：BFCache 恢復與 App 重新可見時刷新資料 =====
+
+        // pageshow：iOS 從 BFCache 恢復時 DOMContentLoaded 不會再觸發，
+        // 但 pageshow 會，且 event.persisted === true 表示是從 BFCache 恢復
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted && isAuthenticated) {
+                console.log('iOS: 從 BFCache 恢復，刷新當前頁面資料');
+                const currentPage = window.appRouter && window.appRouter.currentPage;
+                if (currentPage === 'records') {
+                    loadAccountingRecords();
+                } else if (currentPage === 'add') {
+                    updateAccountingStats(false);
+                } else if (currentPage === 'analytics') {
+                    updateAccountingStats(true);
+                    setTimeout(() => loadAccountingRecords(), 100);
+                }
+            }
+        });
+
+        // visibilitychange：App 從背景切換回前景時刷新資料
+        // 只有在背景超過 60 秒才重新載入，避免短暫切換也觸發
+        let _lastHiddenTime = 0;
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                _lastHiddenTime = Date.now();
+            } else if (isAuthenticated) {
+                const hiddenDuration = Date.now() - _lastHiddenTime;
+                if (_lastHiddenTime > 0 && hiddenDuration > 60000) {
+                    console.log('iOS: App 重新可見（背景超過 60 秒），刷新資料');
+                    const currentPage = window.appRouter && window.appRouter.currentPage;
+                    if (currentPage === 'records') {
+                        loadAccountingRecords(false);
+                    } else if (currentPage === 'add') {
+                        updateAccountingStats(false);
+                    }
+                }
+            }
+        });
+
         // ===== 自訂數字鍵盤類別 =====
         class CustomKeyboard {
             constructor() {
