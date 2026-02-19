@@ -51,7 +51,9 @@ class TestAuthentication:
 
     def test_status_with_invalid_auth(self, client):
         """测试无效 Token 访问"""
-        response = client.get("/status", headers={"Authorization": "Bearer invalid-token"})
+        response = client.get(
+            "/status", headers={"Authorization": "Bearer invalid-token"}
+        )
         assert response.status_code in [401, 403]
 
     def test_records_without_auth(self, client):
