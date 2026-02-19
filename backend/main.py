@@ -105,6 +105,7 @@ def get_rate_limit_key():
         return forwarded_for.split(",")[0].strip()
     return get_remote_address()
 
+
 # Disable rate limiting if TESTING environment variable is set
 limiter = Limiter(
     app=app,
