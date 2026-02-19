@@ -1997,6 +1997,74 @@
                             <input type="password" id="current-password-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入目前密碼" autocomplete="current-password">
                             <label class="block text-sm text-gray-600">新密碼</label>
                             <input type="password" id="new-password-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入新密碼" autocomplete="new-password">
+
+                            <!-- 新密碼強度檢查器 -->
+                            <div id="change-password-strength-checker" class="mt-2 p-2 bg-gray-50 rounded text-xs hidden">
+                                <div class="font-semibold mb-1.5">密碼要求：</div>
+                                <div class="space-y-1">
+                                    <div id="change-check-length" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>至少 12 個字元</span>
+                                    </div>
+                                    <div id="change-check-uppercase" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>包含大寫字母</span>
+                                    </div>
+                                    <div id="change-check-lowercase" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>包含小寫字母</span>
+                                    </div>
+                                    <div id="change-check-digit" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>包含數字</span>
+                                    </div>
+                                    <div id="change-check-special" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>包含特殊符號</span>
+                                    </div>
+                                    <div id="change-check-repeating" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>無重複字符</span>
+                                    </div>
+                                    <div id="change-check-sequential" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>無連續字符</span>
+                                    </div>
+                                    <div id="change-check-keyboard" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>無鍵盤模式</span>
+                                    </div>
+                                    <div id="change-check-common" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>非常見密碼</span>
+                                    </div>
+                                    <div id="change-check-personal" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>不含個人資訊</span>
+                                    </div>
+                                    <div id="change-check-pinyin" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>不含常見拼音</span>
+                                    </div>
+                                    <div id="change-check-math" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>無數學模式</span>
+                                    </div>
+                                    <div id="change-check-entropy" class="password-check">
+                                        <i class="fas fa-circle text-gray-400 mr-1.5"></i>
+                                        <span>複雜度足夠</span>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 h-1.5 bg-gray-300 rounded-full overflow-hidden">
+                                            <div id="change-strength-progress" class="h-full bg-gray-400 transition-all duration-300" style="width: 0%"></div>
+                                        </div>
+                                        <span id="change-strength-text" class="text-xs font-semibold">--</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <label class="block text-sm text-gray-600">確認新密碼</label>
                             <input type="password" id="confirm-password-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="再次輸入新密碼" autocomplete="new-password">
                             <div id="change-password-error" class="text-red-500 text-xs hidden"></div>
@@ -2901,11 +2969,101 @@
             }
         }
 
+        // 修改密碼時的密碼強度驗證（即時）
+        let changePasswordValidationTimeout;
+        async function validateChangePasswordRealtime() {
+            const password = document.getElementById('new-password-input').value;
+            const checker = document.getElementById('change-password-strength-checker');
+
+            // 如果密碼為空，隱藏檢查器
+            if (!password) {
+                checker.classList.add('hidden');
+                return;
+            }
+
+            // 顯示檢查器
+            checker.classList.remove('hidden');
+
+            // 從當前用戶資料獲取 email 和 name
+            const email = document.getElementById('user-email-display').textContent || '';
+            const name = document.getElementById('user-name-display').textContent || '';
+
+            try {
+                const response = await fetch(`${backendUrl}/api/auth/validate-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password, email, name })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    updateChangePasswordStrengthUI(result);
+                }
+            } catch (error) {
+                console.error('密碼驗證失敗:', error);
+            }
+        }
+
+        function updateChangePasswordStrengthUI(result) {
+            const checks = result.checks;
+            const passedCount = Object.values(checks).filter(c => c.passed).length;
+            const totalCount = Object.keys(checks).length;
+            const percentage = Math.round((passedCount / totalCount) * 100);
+
+            // 更新各個檢查項目
+            updateCheck('change-check-length', checks.length);
+            updateCheck('change-check-uppercase', checks.uppercase);
+            updateCheck('change-check-lowercase', checks.lowercase);
+            updateCheck('change-check-digit', checks.digit);
+            updateCheck('change-check-special', checks.special);
+            updateCheck('change-check-repeating', checks.repeating);
+            updateCheck('change-check-sequential', checks.sequential);
+            updateCheck('change-check-keyboard', checks.keyboard_pattern);
+            updateCheck('change-check-common', checks.common_password);
+            updateCheck('change-check-personal', checks.personal_info);
+            updateCheck('change-check-pinyin', checks.chinese_pinyin);
+            updateCheck('change-check-math', checks.math_pattern);
+            updateCheck('change-check-entropy', checks.entropy);
+
+            // 更新進度條
+            const progressBar = document.getElementById('change-strength-progress');
+            const strengthText = document.getElementById('change-strength-text');
+
+            progressBar.style.width = percentage + '%';
+
+            // 根據通過百分比設置顏色和文字
+            if (percentage < 40) {
+                progressBar.className = 'h-full bg-red-500 transition-all duration-300';
+                strengthText.textContent = '弱';
+                strengthText.className = 'text-xs font-semibold text-red-600';
+            } else if (percentage < 70) {
+                progressBar.className = 'h-full bg-yellow-500 transition-all duration-300';
+                strengthText.textContent = '中';
+                strengthText.className = 'text-xs font-semibold text-yellow-600';
+            } else if (percentage < 90) {
+                progressBar.className = 'h-full bg-blue-500 transition-all duration-300';
+                strengthText.textContent = '強';
+                strengthText.className = 'text-xs font-semibold text-blue-600';
+            } else {
+                progressBar.className = 'h-full bg-green-500 transition-all duration-300';
+                strengthText.textContent = '非常強';
+                strengthText.className = 'text-xs font-semibold text-green-600';
+            }
+        }
+
         // 密碼輸入框事件監聽
         const registerPasswordInput = document.getElementById('register-password');
         registerPasswordInput.addEventListener('input', () => {
             clearTimeout(passwordValidationTimeout);
             passwordValidationTimeout = setTimeout(validatePasswordRealtime, 300); // 300ms 延遲
+        });
+
+        // 修改密碼輸入框事件監聽
+        const newPasswordInput = document.getElementById('new-password-input');
+        newPasswordInput.addEventListener('input', () => {
+            clearTimeout(changePasswordValidationTimeout);
+            changePasswordValidationTimeout = setTimeout(validateChangePasswordRealtime, 300);
         });
 
         // Email 和 Name 輸入框也要觸發驗證（用於個人資訊檢查）
