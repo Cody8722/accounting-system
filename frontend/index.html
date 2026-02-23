@@ -3485,10 +3485,16 @@
             // Destroy existing chart if it exists
             if (expenseChart) {
                 expenseChart.destroy();
+                expenseChart = null;
             }
+
+            // 清除「暫無支出數據」提示（如果有的話）
+            const emptyMsg = canvasEl.parentElement.querySelector('.chart-empty-msg');
+            if (emptyMsg) emptyMsg.remove();
 
             // Create new chart
             if (categories.length > 0) {
+                canvasEl.style.display = '';
                 // 檢測是否為手機版
                 const isMobile = window.innerWidth <= 768;
 
@@ -3533,11 +3539,15 @@
                     }
                 });
             } else {
-                // Show empty state
-                ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+                // Show empty state — 隱藏 canvas，插入提示文字
+                canvasEl.style.display = 'none';
                 const parent = canvasEl.parentElement;
-                parent.innerHTML = '<p class="text-center text-gray-700 py-8">暫無支出數據</p><canvas id="expenseChart"></canvas>';
-                expenseChart = null;
+                if (!parent.querySelector('.chart-empty-msg')) {
+                    const msg = document.createElement('p');
+                    msg.className = 'chart-empty-msg text-center text-gray-700 py-8';
+                    msg.textContent = '暫無支出數據';
+                    parent.insertBefore(msg, canvasEl);
+                }
             }
         }
 
