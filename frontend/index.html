@@ -1960,6 +1960,17 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 預算使用情況 -->
+                <div id="budget-usage-section" class="bg-white p-6 rounded-xl shadow-lg mt-6 hidden">
+                    <h2 class="text-xl font-bold mb-4 flex items-center text-gray-800">
+                        <i class="fas fa-bullseye text-2xl mr-2 text-purple-600"></i>
+                        本月預算使用情況
+                    </h2>
+                    <div id="budget-usage-list" class="space-y-3">
+                        <!-- 動態填充預算使用情況 -->
+                    </div>
+                </div>
             </div>
 
             <!-- 設定頁 -->
@@ -3690,8 +3701,104 @@
                     animateNumber(compactBalance, stats.balance.toFixed(2), 1000, forceAnimate);
                     compactBalance.style.color = stats.balance >= 0 ? '#1d4ed8' : '#b91c1c';
                 }
+
+                // 更新預算使用情況
+                if (stats.category_stats) {
+                    await updateBudgetUsage(stats.category_stats);
+                }
             } catch (error) {
                 console.error('更新統計失敗:', error);
+            }
+        }
+
+        // 更新預算使用情況顯示
+        async function updateBudgetUsage(categoryStats) {
+            try {
+                // 載入預算數據
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/budget`);
+                const result = await response.json();
+
+                if (!response.ok || !result.budget) {
+                    document.getElementById('budget-usage-section').classList.add('hidden');
+                    return;
+                }
+
+                const budget = result.budget;
+                const budgetUsageList = document.getElementById('budget-usage-list');
+
+                // 建立分類支出 map
+                const categorySpending = {};
+                categoryStats.forEach(stat => {
+                    categorySpending[stat._id] = stat.total;
+                });
+
+                // 生成預算使用情況 HTML
+                let hasAnyBudget = false;
+                const items = [];
+
+                for (const [category, budgetAmount] of Object.entries(budget)) {
+                    if (budgetAmount > 0) {
+                        hasAnyBudget = true;
+                        const spent = categorySpending[category] || 0;
+                        const percentage = (spent / budgetAmount) * 100;
+                        const remaining = budgetAmount - spent;
+
+                        // 決定狀態和樣式
+                        let statusClass, statusIcon, statusText, progressColor;
+                        if (percentage >= 100) {
+                            statusClass = 'text-red-600';
+                            statusIcon = 'fa-exclamation-triangle';
+                            statusText = '超出預算';
+                            progressColor = 'bg-red-500';
+                        } else if (percentage >= 80) {
+                            statusClass = 'text-yellow-600';
+                            statusIcon = 'fa-exclamation-circle';
+                            statusText = '接近上限';
+                            progressColor = 'bg-yellow-500';
+                        } else {
+                            statusClass = 'text-green-600';
+                            statusIcon = 'fa-check-circle';
+                            statusText = '正常';
+                            progressColor = 'bg-green-500';
+                        }
+
+                        items.push(`
+                            <div class="p-4 bg-gray-50 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-semibold text-gray-800">${category}</span>
+                                        <span class="${statusClass} text-xs flex items-center gap-1">
+                                            <i class="fas ${statusIcon}"></i>
+                                            ${statusText}
+                                        </span>
+                                    </div>
+                                    <span class="text-sm text-gray-600">
+                                        $${spent.toFixed(2)} / $${budgetAmount.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                                    <div class="${progressColor} h-2.5 rounded-full transition-all duration-500" style="width: ${Math.min(percentage, 100).toFixed(1)}%"></div>
+                                </div>
+                                <div class="flex justify-between text-xs text-gray-600">
+                                    <span>${percentage.toFixed(1)}% 已使用</span>
+                                    <span class="${remaining >= 0 ? 'text-green-600' : 'text-red-600'}">
+                                        剩餘 $${Math.abs(remaining).toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        `);
+                    }
+                }
+
+                if (hasAnyBudget) {
+                    budgetUsageList.innerHTML = items.join('');
+                    document.getElementById('budget-usage-section').classList.remove('hidden');
+                } else {
+                    document.getElementById('budget-usage-section').classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('更新預算使用情況失敗:', error);
+                document.getElementById('budget-usage-section').classList.add('hidden');
             }
         }
 
@@ -3785,6 +3892,10 @@
                 if (!response.ok) throw new Error(result.error || '儲存失敗');
 
                 saveBudgetBtn.innerHTML = '<i class="fas fa-check mr-2"></i>已儲存';
+
+                // 儲存成功後，更新統計數據和預算使用情況
+                await updateAccountingStats();
+
                 setTimeout(() => {
                     saveBudgetBtn.innerHTML = '<i class="fas fa-save mr-2"></i>儲存預算';
                     saveBudgetBtn.disabled = false;
