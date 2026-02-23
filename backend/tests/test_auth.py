@@ -94,7 +94,7 @@ class TestPasswordValidation:
         assert not result["checks"]["personal_info"]["passed"]
 
     def test_password_contains_name(self):
-        """測試密碼包含姓名"""
+        """測試密碼包含使用者名稱"""
         result = auth.validate_password_strength_detailed(
             "Alice123!@#ABC", "test@example.com", "Alice"
         )
@@ -216,7 +216,7 @@ class TestRegistration:
         assert response.status_code in [400, 429, 500]
 
     def test_register_empty_name(self, client):
-        """測試空姓名"""
+        """測試空使用者名稱"""
         data = {
             "email": "test@example.com",
             "password": "MyS3cur3P@ssw0rd!XyZ",

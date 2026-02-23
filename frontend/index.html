@@ -1547,11 +1547,11 @@
             </div>
             <form id="register-form" class="space-y-4" autocomplete="on">
                 <div>
-                    <label for="register-name" class="block text-sm font-medium mb-1">姓名</label>
+                    <label for="register-name" class="block text-sm font-medium mb-1">使用者名稱</label>
                     <input type="text" id="register-name" name="name"
                            autocomplete="name"
                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                           placeholder="你的名字"
+                           placeholder="你的使用者名稱"
                            required>
                 </div>
                 <div>
@@ -1612,7 +1612,7 @@
                             </div>
                             <div id="check-personal" class="password-check">
                                 <i class="fas fa-circle text-gray-400 mr-2"></i>
-                                <span>不含個人資訊（Email、姓名）</span>
+                                <span>不含個人資訊（Email、使用者名稱）</span>
                             </div>
                             <div id="check-pinyin" class="password-check">
                                 <i class="fas fa-circle text-gray-400 mr-2"></i>
@@ -1972,7 +1972,7 @@
                     </h2>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span class="text-gray-600">姓名</span>
+                            <span class="text-gray-600">使用者名稱</span>
                             <span class="font-semibold text-gray-800" id="user-name-display">-</span>
                         </div>
                         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -1980,10 +1980,10 @@
                             <span class="font-semibold text-gray-800 text-sm" id="user-email-display">-</span>
                         </div>
 
-                        <!-- 編輯姓名 -->
+                        <!-- 編輯使用者名稱 -->
                         <div id="edit-name-section" class="hidden p-3 bg-purple-50 rounded-lg space-y-2">
-                            <label class="block text-sm text-gray-600">新姓名</label>
-                            <input type="text" id="edit-name-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入新姓名" maxlength="50">
+                            <label class="block text-sm text-gray-600">新使用者名稱</label>
+                            <input type="text" id="edit-name-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" placeholder="輸入新使用者名稱" maxlength="50">
                             <div id="edit-name-error" class="text-red-500 text-xs hidden"></div>
                             <div class="flex gap-2">
                                 <button onclick="saveProfileName()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition">儲存</button>
@@ -2076,7 +2076,7 @@
 
                         <div class="flex gap-2">
                             <button onclick="toggleEditName(true)" class="flex-1 bg-purple-100 text-purple-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-purple-200 transition flex items-center justify-center gap-1">
-                                <i class="fas fa-user-edit"></i>修改姓名
+                                <i class="fas fa-user-edit"></i>修改使用者名稱
                             </button>
                             <button onclick="toggleChangePassword(true)" class="flex-1 bg-purple-100 text-purple-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-purple-200 transition flex items-center justify-center gap-1">
                                 <i class="fas fa-key"></i>修改密碼
@@ -2714,7 +2714,7 @@
             const name = document.getElementById('edit-name-input').value.trim();
             const errEl = document.getElementById('edit-name-error');
             if (!name) {
-                errEl.textContent = '姓名不能為空';
+                errEl.textContent = '使用者名稱不能為空';
                 errEl.classList.remove('hidden');
                 return;
             }
@@ -2732,7 +2732,7 @@
                     }
                     updateUserDisplay();
                     toggleEditName(false);
-                    showToast('姓名已更新', 'success');
+                    showToast('使用者名稱已更新', 'success');
                 } else {
                     errEl.textContent = data.error || '更新失敗';
                     errEl.classList.remove('hidden');
