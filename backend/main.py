@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 import logging
 import re
+import csv
+from io import StringIO
 
 # 導入認證模組
 import auth
@@ -717,6 +719,224 @@ def set_accounting_budget():
     except Exception as e:
         logger.error(f"儲存預算失敗: {e}")
         return jsonify({"error": "儲存預算失敗"}), 500
+
+
+@app.route("/admin/api/accounting/export", methods=["GET"])
+@limiter.limit("10 per hour")
+@require_auth
+def export_accounting_records():
+    """
+    匯出記帳記錄為 CSV 檔案
+
+    Query Parameters:
+        start_date: 開始日期 (YYYY-MM-DD, 可選)
+        end_date: 結束日期 (YYYY-MM-DD, 可選)
+        type: 記錄類型 (income/expense, 可選)
+
+    Returns:
+        CSV file download
+    """
+    if accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    try:
+        # 獲取查詢參數
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        record_type = request.args.get("type")
+
+        # 建立查詢條件
+        query = {}
+
+        # 用戶數據隔離：只能匯出自己的記錄
+        query["user_id"] = ObjectId(request.user_id)
+
+        # 日期範圍過濾
+        if start_date and end_date:
+            valid_start, _ = validate_date(start_date)
+            valid_end, _ = validate_date(end_date)
+            if valid_start and valid_end:
+                query["date"] = {"$gte": start_date, "$lte": end_date}
+
+        # 記錄類型過濾
+        if record_type:
+            valid, _ = validate_record_type(record_type)
+            if valid:
+                query["type"] = record_type
+
+        # 查詢記錄，按日期降冪排序
+        records = list(
+            accounting_records_collection.find(query)
+            .sort("date", -1)
+            .limit(MAX_RECORDS_LIMIT)
+        )
+
+        # 建立 CSV
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # 寫入標題列
+        writer.writerow([
+            "日期",
+            "類型",
+            "分類",
+            "金額",
+            "描述",
+            "支出類型"
+        ])
+
+        # 寫入資料列
+        for record in records:
+            # 類型轉換為中文
+            type_zh = "收入" if record.get("type") == "income" else "支出"
+
+            # 支出類型轉換為中文
+            expense_type = record.get("expense_type", "")
+            expense_type_zh = ""
+            if expense_type == "fixed":
+                expense_type_zh = "固定支出"
+            elif expense_type == "variable":
+                expense_type_zh = "變動支出"
+            elif expense_type == "onetime":
+                expense_type_zh = "一次性支出"
+
+            writer.writerow([
+                record.get("date", ""),
+                type_zh,
+                record.get("category", ""),
+                record.get("amount", 0),
+                record.get("description", ""),
+                expense_type_zh
+            ])
+
+        # 準備檔案名稱
+        filename = "記帳記錄"
+        if start_date and end_date:
+            filename += f"_{start_date}_至_{end_date}"
+        else:
+            filename += f"_{datetime.now().strftime('%Y%m%d')}"
+        filename += ".csv"
+
+        # 建立 Response
+        output.seek(0)
+        response = Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "text/csv; charset=utf-8-sig"  # BOM for Excel
+            }
+        )
+
+        # 添加 BOM 以支援 Excel 正確顯示中文
+        bom_output = "\ufeff" + output.getvalue()
+        response.set_data(bom_output.encode('utf-8'))
+
+        logger.info(f"匯出 {len(records)} 筆記帳記錄 (user: {request.email})")
+        return response
+
+    except Exception as e:
+        logger.error(f"匯出記帳記錄失敗: {e}")
+        return jsonify({"error": "匯出失敗"}), 500
+
+
+@app.route("/admin/api/accounting/trends", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_monthly_trends():
+    """
+    取得月度趨勢資料（收入與支出）
+
+    Query Parameters:
+        months: 顯示最近幾個月 (預設 6 個月)
+
+    Returns:
+        {
+            "months": ["2024-01", "2024-02", ...],
+            "income": [1000, 2000, ...],
+            "expense": [800, 1500, ...]
+        }
+    """
+    if accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    try:
+        # 獲取參數
+        months_count = int(request.args.get("months", 6))
+        if months_count > 24:  # 限制最多 24 個月
+            months_count = 24
+
+        # 用戶數據隔離
+        base_query = {"user_id": ObjectId(request.user_id)}
+
+        # 按月份分組統計收入
+        income_pipeline = [
+            {"$match": {**base_query, "type": "income"}},
+            {
+                "$group": {
+                    "_id": {"$substr": ["$date", 0, 7]},  # 擷取 YYYY-MM
+                    "total": {"$sum": "$amount"},
+                }
+            },
+            {"$sort": {"_id": 1}},  # 按月份升冪排序
+            {"$limit": months_count},
+        ]
+
+        # 按月份分組統計支出
+        expense_pipeline = [
+            {"$match": {**base_query, "type": "expense"}},
+            {
+                "$group": {
+                    "_id": {"$substr": ["$date", 0, 7]},  # 擷取 YYYY-MM
+                    "total": {"$sum": "$amount"},
+                }
+            },
+            {"$sort": {"_id": 1}},  # 按月份升冪排序
+            {"$limit": months_count},
+        ]
+
+        income_data = list(accounting_records_collection.aggregate(income_pipeline))
+        expense_data = list(accounting_records_collection.aggregate(expense_pipeline))
+
+        # 整理資料為字典格式
+        income_dict = {item["_id"]: item["total"] for item in income_data}
+        expense_dict = {item["_id"]: item["total"] for item in expense_data}
+
+        # 取得所有出現過的月份
+        all_months = sorted(set(income_dict.keys()) | set(expense_dict.keys()))
+
+        # 如果資料不足，補充最近幾個月
+        if len(all_months) < months_count:
+            current = datetime.now()
+            for i in range(months_count):
+                # 計算月份（使用簡單的月份減法）
+                year = current.year
+                month = current.month - i
+                while month <= 0:
+                    month += 12
+                    year -= 1
+                month_str = f"{year:04d}-{month:02d}"
+                if month_str not in all_months:
+                    all_months.append(month_str)
+
+            all_months = sorted(list(set(all_months)))
+
+        # 限制月份數量
+        all_months = all_months[-months_count:]
+
+        # 建立回應資料
+        response_data = {
+            "months": all_months,
+            "income": [income_dict.get(month, 0) for month in all_months],
+            "expense": [expense_dict.get(month, 0) for month in all_months],
+        }
+
+        logger.info(f"取得月度趨勢資料: {months_count} 個月 (user: {request.email})")
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        logger.error(f"取得月度趨勢失敗: {e}")
+        return jsonify({"error": "取得趨勢資料失敗"}), 500
 
 
 # ==================== 系統狀態 ====================

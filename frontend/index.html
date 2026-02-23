@@ -1890,6 +1890,9 @@
                         <button id="load-records-btn" class="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 font-semibold transition shadow-md hover:shadow-lg">
                             <i class="fas fa-search mr-2"></i>查詢
                         </button>
+                        <button id="export-records-btn" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 font-semibold transition shadow-md hover:shadow-lg">
+                            <i class="fas fa-download mr-2"></i>匯出 CSV
+                        </button>
                     </div>
                 </div>
 
@@ -1969,6 +1972,17 @@
                     </h2>
                     <div id="budget-usage-list" class="space-y-3">
                         <!-- 動態填充預算使用情況 -->
+                    </div>
+                </div>
+
+                <!-- 月度趨勢圖表 -->
+                <div class="bg-white p-6 rounded-xl shadow-lg mt-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center text-gray-800">
+                        <i class="fas fa-chart-line text-2xl mr-2 text-purple-600"></i>
+                        收入支出趨勢
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="trendsChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -3182,6 +3196,7 @@
         const expenseType = document.getElementById('expense-type');
         const accountingMessage = document.getElementById('accounting-message');
         const loadRecordsBtn = document.getElementById('load-records-btn');
+        const exportRecordsBtn = document.getElementById('export-records-btn');
         const saveBudgetBtn = document.getElementById('save-budget-btn');
         const recordsList = document.getElementById('records-list');
         const totalIncomeEl = document.getElementById('total-income');
@@ -3189,8 +3204,9 @@
         const balanceEl = document.getElementById('balance');
         const amountError = document.getElementById('amount-error');
 
-        // Chart.js instance
+        // Chart.js instances
         let expenseChart = null;
+        let trendsChart = null;
 
         // 設定今天的日期為預設值
         function setTodayAsDefault() {
@@ -3802,6 +3818,84 @@
             }
         }
 
+        // 更新月度趨勢圖表
+        async function updateTrendsChart() {
+            try {
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/trends?months=6`);
+                if (!response.ok) {
+                    console.error('獲取趨勢資料失敗');
+                    return;
+                }
+
+                const data = await response.json();
+                const canvasEl = document.getElementById('trendsChart');
+
+                // 銷毀舊圖表
+                if (trendsChart) {
+                    trendsChart.destroy();
+                    trendsChart = null;
+                }
+
+                // 建立新圖表
+                const ctx = canvasEl.getContext('2d');
+                trendsChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.months,
+                        datasets: [
+                            {
+                                label: '收入',
+                                data: data.income,
+                                borderColor: 'rgb(34, 197, 94)',
+                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                tension: 0.3,
+                                fill: true
+                            },
+                            {
+                                label: '支出',
+                                data: data.expense,
+                                borderColor: 'rgb(239, 68, 68)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                tension: 0.3,
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': $' + context.parsed.y.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('更新趨勢圖表失敗:', error);
+            }
+        }
+
         // 正在刪除中的記錄 ID 集合（防止重複刪除）
         const deletingRecordIds = new Set();
 
@@ -3910,6 +4004,61 @@
         // 查詢按鈕事件
         loadRecordsBtn.addEventListener('click', async () => {
             await Promise.all([loadAccountingRecords(), updateAccountingStats()]);
+        });
+
+        // 匯出記帳記錄
+        exportRecordsBtn.addEventListener('click', async () => {
+            try {
+                // 獲取篩選條件
+                const startDate = document.getElementById('filter-start-date').value;
+                const endDate = document.getElementById('filter-end-date').value;
+                const type = document.getElementById('filter-type').value;
+
+                // 建立查詢參數
+                const params = new URLSearchParams();
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                if (type) params.append('type', type);
+
+                // 呼叫匯出 API
+                const response = await apiCall(`${backendUrl}/admin/api/accounting/export?${params.toString()}`);
+
+                if (response.ok) {
+                    // 獲取檔案內容
+                    const blob = await response.blob();
+
+                    // 從 response headers 獲取檔案名稱
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = '記帳記錄.csv';
+                    if (contentDisposition) {
+                        const matches = /filename=([^;]+)/.exec(contentDisposition);
+                        if (matches && matches[1]) {
+                            filename = matches[1].trim();
+                        }
+                    }
+
+                    // 建立下載連結
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+
+                    // 清理
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    showMessage('匯出成功！', 'success', accountingMessage);
+                } else {
+                    const result = await response.json();
+                    showMessage(result.error || '匯出失敗', 'error', accountingMessage);
+                }
+            } catch (error) {
+                console.error('匯出記錄失敗:', error);
+                showMessage('匯出失敗，請稍後再試', 'error', accountingMessage);
+            }
         });
 
         // --- Android PWA 安裝提示 ---
@@ -4386,6 +4535,9 @@
                     }
                     if (typeof updateAccountingStats === 'function') {
                         updateAccountingStats(true);  // 每次切換都播放動畫
+                    }
+                    if (typeof updateTrendsChart === 'function') {
+                        updateTrendsChart();  // 更新月度趨勢圖表
                     }
                     if (typeof loadAccountingRecords === 'function') {
                         setTimeout(() => loadAccountingRecords(), 100);
