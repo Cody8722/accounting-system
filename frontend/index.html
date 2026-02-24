@@ -50,7 +50,21 @@
         }
 
         window.BACKEND_URL = detectBackendUrl();
-        console.log('🔗 使用後端 URL:', window.BACKEND_URL);
+
+        // 開發模式檢測與條件化日誌輸出
+        const isDevelopment = () => {
+            const hostname = window.location.hostname;
+            return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
+        };
+
+        // 條件化 debugLog（僅在開發環境輸出）
+        window.debugLog = (...args) => {
+            if (isDevelopment()) {
+                debugLog(...args);
+            }
+        };
+
+        debugLog('🔗 使用後端 URL:', window.BACKEND_URL);
     </script>
     <style>
         :root {
@@ -2829,7 +2843,7 @@
             mainContent.style.display = 'none';
             showLoginModal();
 
-            console.log('✅ 已登出');
+            debugLog('✅ 已登出');
         }
 
         // 登入表單處理
@@ -2883,7 +2897,7 @@
                     updateUserDisplay();
                     updateAccountingStats(); // 載入當月統計數據
 
-                    console.log('✅ 登入成功:', data.user.email);
+                    debugLog('✅ 登入成功:', data.user.email);
 
                     // 顯示安裝提示（iOS / Android）
                     showIOSInstallPrompt();
@@ -4197,7 +4211,7 @@
                 loadBudget();
                 updateUserDisplay();
                 updateAccountingStats(); // 載入當月統計數據
-                console.log('✅ 已自動登入');
+                debugLog('✅ 已自動登入');
 
                 // 登入後顯示安裝提示（iOS / Android）
                 showIOSInstallPrompt();
@@ -4216,24 +4230,24 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/service-worker.js')
                     .then((registration) => {
-                        console.log('✅ Service Worker 註冊成功:', registration.scope);
+                        debugLog('✅ Service Worker 註冊成功:', registration.scope);
 
                         // 立即檢查更新（每次開啟 PWA 都檢查）
-                        console.log('🔍 檢查是否有新版本...');
+                        debugLog('🔍 檢查是否有新版本...');
                         registration.update().catch(err => {
-                            console.log('初始更新檢查失敗:', err);
+                            debugLog('初始更新檢查失敗:', err);
                         });
 
                         // 檢查更新
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
-                            console.log('🔄 檢測到新版本，準備更新...');
+                            debugLog('🔄 檢測到新版本，準備更新...');
 
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                                     // 自動更新：不詢問用戶，直接讓新 SW 接管
                                     // 系統不保證向下相容，舊版快取可能解析失敗，強制更新最安全
-                                    console.log('✨ 新版本已就緒，自動更新中...');
+                                    debugLog('✨ 新版本已就緒，自動更新中...');
                                     showToast('正在更新至最新版本...', 'success');
                                     pendingUpdate = true;
                                     newWorker.postMessage({ type: 'SKIP_WAITING' });
@@ -4245,7 +4259,7 @@
                         // 定期檢查更新（每 30 分鐘）
                         setInterval(() => {
                             registration.update().catch(err => {
-                                console.log('更新檢查失敗:', err);
+                                debugLog('更新檢查失敗:', err);
                             });
                         }, 30 * 60 * 1000);
                     })
@@ -4265,7 +4279,7 @@
 
             // 監聽線上/離線狀態
             window.addEventListener('online', () => {
-                console.log('📡 網路連線恢復');
+                debugLog('📡 網路連線恢復');
                 showNetworkStatus('已連線，正在同步記錄...', 'success');
 
                 // 手動觸發同步（iOS Safari 的 MessageChannel 支援不穩定，需 try-catch）
@@ -4274,7 +4288,7 @@
                         const messageChannel = new MessageChannel();
                         messageChannel.port1.onmessage = (event) => {
                             if (event.data.success) {
-                                console.log('✅ 離線記錄同步完成');
+                                debugLog('✅ 離線記錄同步完成');
                                 showNetworkStatus('離線記錄已同步', 'success');
                                 // 重新載入記錄
                                 if (typeof loadAccountingRecords === 'function') {
@@ -4305,12 +4319,12 @@
                         return reg.sync.register('sync-offline-queue');
                     }
                 }).catch((err) => {
-                    console.log('Background Sync 不支援:', err);
+                    debugLog('Background Sync 不支援:', err);
                 });
             });
 
             window.addEventListener('offline', () => {
-                console.log('📴 網路連線中斷');
+                debugLog('📴 網路連線中斷');
                 showNetworkStatus('離線模式：記錄將在連線後同步', 'warning');
             });
 
@@ -4586,7 +4600,7 @@
         // 但 pageshow 會，且 event.persisted === true 表示是從 BFCache 恢復
         window.addEventListener('pageshow', (event) => {
             if (event.persisted && isAuthenticated) {
-                console.log('iOS: 從 BFCache 恢復，刷新當前頁面資料');
+                debugLog('iOS: 從 BFCache 恢復，刷新當前頁面資料');
                 const currentPage = window.appRouter && window.appRouter.currentPage;
                 if (currentPage === 'records') {
                     loadAccountingRecords();
@@ -4608,7 +4622,7 @@
             } else if (isAuthenticated) {
                 const hiddenDuration = Date.now() - _lastHiddenTime;
                 if (_lastHiddenTime > 0 && hiddenDuration > 60000) {
-                    console.log('iOS: App 重新可見（背景超過 60 秒），刷新資料');
+                    debugLog('iOS: App 重新可見（背景超過 60 秒），刷新資料');
                     const currentPage = window.appRouter && window.appRouter.currentPage;
                     if (currentPage === 'records') {
                         loadAccountingRecords(false);
