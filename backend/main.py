@@ -776,14 +776,7 @@ def export_accounting_records():
         writer = csv.writer(output)
 
         # 寫入標題列
-        writer.writerow([
-            "日期",
-            "類型",
-            "分類",
-            "金額",
-            "描述",
-            "支出類型"
-        ])
+        writer.writerow(["日期", "類型", "分類", "金額", "描述", "支出類型"])
 
         # 寫入資料列
         for record in records:
@@ -800,14 +793,16 @@ def export_accounting_records():
             elif expense_type == "onetime":
                 expense_type_zh = "一次性支出"
 
-            writer.writerow([
-                record.get("date", ""),
-                type_zh,
-                record.get("category", ""),
-                record.get("amount", 0),
-                record.get("description", ""),
-                expense_type_zh
-            ])
+            writer.writerow(
+                [
+                    record.get("date", ""),
+                    type_zh,
+                    record.get("category", ""),
+                    record.get("amount", 0),
+                    record.get("description", ""),
+                    expense_type_zh,
+                ]
+            )
 
         # 準備檔案名稱
         filename = "記帳記錄"
@@ -824,13 +819,13 @@ def export_accounting_records():
             mimetype="text/csv",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
-                "Content-Type": "text/csv; charset=utf-8-sig"  # BOM for Excel
-            }
+                "Content-Type": "text/csv; charset=utf-8-sig",  # BOM for Excel
+            },
         )
 
         # 添加 BOM 以支援 Excel 正確顯示中文
         bom_output = "\ufeff" + output.getvalue()
-        response.set_data(bom_output.encode('utf-8'))
+        response.set_data(bom_output.encode("utf-8"))
 
         logger.info(f"匯出 {len(records)} 筆記帳記錄 (user: {request.email})")
         return response
