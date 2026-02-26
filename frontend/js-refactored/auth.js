@@ -119,6 +119,31 @@ export function updateUserDisplay() {
 }
 
 /**
+ * 檢查 token 是否有效
+ * @returns {Promise<boolean>} 是否有效
+ */
+export async function verifyToken() {
+    const token = getAuthToken();
+    if (!token) return false;
+
+    try {
+        const response = await apiCall(`${backendUrl}/api/auth/verify`, {
+            cache: 'no-store'
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            setUserData(data.user);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('驗證token失敗:', error);
+        return false;
+    }
+}
+
+/**
  * 顯示忘記密碼模態框
  */
 export function showForgotPasswordModal() {
