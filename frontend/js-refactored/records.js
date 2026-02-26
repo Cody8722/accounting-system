@@ -383,6 +383,7 @@ function setupFormEventListeners() {
     const expenseType = document.getElementById('expense-type');
     const accountingMessage = document.getElementById('accounting-message');
     const amountError = document.getElementById('amount-error');
+    const loadRecordsBtn = document.getElementById('load-records-btn');
 
     // 根據類型更新分類選項（清空分類輸入框）
     if (recordType) {
@@ -547,6 +548,13 @@ function setupFormEventListeners() {
                     editRecordMessage.classList.remove('hidden');
                 }
             }
+        });
+    }
+
+    // ===== 載入記錄按鈕事件處理 =====
+    if (loadRecordsBtn) {
+        loadRecordsBtn.addEventListener('click', () => {
+            loadRecords(true);
         });
     }
 }
