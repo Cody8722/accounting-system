@@ -15,12 +15,15 @@
   - config.js: 配置和常量
   - utils.js: 工具函數
   - api.js: API 調用
+- Phase 3: 功能模組完成 - 完成 ✅
+  - auth.js: 認證系統 (850+ 行)
+  - components.js: UI 組件 (740+ 行)
+  - categories.js: 分類選擇器 (200+ 行)
 
 ### 🧪 進行中
-- Phase 2: 測試驗證中
+- Phase 3: 測試驗證中
 
 ### ⏳ 待完成
-- Phase 3: 功能模組重構 (auth, components, categories)
 - Phase 4: 核心模組遷移 (records, charts, budget)
 - Phase 5: 路由和其他模組
 
@@ -37,7 +40,10 @@ http://localhost/test-refactored.html
 ### 3. Phase 2: 執行基礎模組測試
 點擊「Phase 2: 基礎模組測試」下的「▶ 執行測試」按鈕。
 
-### 4. 對比測試
+### 4. Phase 3: 執行功能模組測試
+點擊「Phase 3: 功能模組測試」下的「▶ 執行測試」按鈕。
+
+### 5. 對比測試
 - 穩定版本: http://localhost/ (index.html)
 - 測試版本: http://localhost/index-refactored.html
 
@@ -94,11 +100,12 @@ EventBus.on(EVENTS.RECORD_ADDED, (data) => {
 
 ## 當前進度
 
-📊 總體進度: 30%
+📊 總體進度: 50%
 - ✅ Phase 0 完成（測試環境）
 - ✅ Phase 1 完成（事件系統）
 - ✅ Phase 2 完成（基礎模組）
-- ⏳ Phase 3-5 待開始
+- ✅ Phase 3 完成（功能模組）
+- ⏳ Phase 4-5 待開始
 
 ## 注意事項
 

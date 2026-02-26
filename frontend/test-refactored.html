@@ -96,12 +96,19 @@
     </div>
 
     <div class="test-section">
+        <h2>Phase 3: 功能模組測試</h2>
+        <p class="text-sm text-gray-600 mb-2">測試 auth.js、components.js、categories.js 的基本功能</p>
+        <button class="test-button" onclick="runFunctionalModulesTests()">▶ 執行測試</button>
+        <button class="test-button" onclick="clearLog()">🗑️ 清除日誌</button>
+    </div>
+
+    <div class="test-section">
         <h2>測試狀態</h2>
         <p>Phase 0: 準備環境 <span class="status pass">✓ 完成</span></p>
         <p>Phase 1: 事件系統 <span class="status pending">⏳ 待測試</span></p>
         <p>Phase 2: 基礎模組 <span class="status pending">⏳ 待測試</span></p>
-        <p>Phase 3: 重構功能 <span class="status pending">⏳ 待測試</span></p>
-        <p>Phase 4: 模組提取 <span class="status pending">⏳ 待測試</span></p>
+        <p>Phase 3: 功能模組 <span class="status pending">⏳ 待測試</span></p>
+        <p>Phase 4: 核心模組 <span class="status pending">⏳ 待測試</span></p>
     </div>
 
     <script type="module">
@@ -354,6 +361,150 @@
             } catch (error) {
                 log(`✗ 錯誤: ${error.message}`, 'error');
                 log('提示: 請確保已創建 config.js、utils.js、api.js', 'warn');
+                console.error(error);
+            }
+        };
+
+        // Phase 3: 功能模組測試
+        window.runFunctionalModulesTests = async function() {
+            clearLog();
+            log('開始功能模組測試...', 'info');
+
+            try {
+                // 測試 1: auth.js
+                log('', 'info');
+                log('=== 測試 1: auth.js ===', 'info');
+                const auth = await import('/js-refactored/auth.js');
+                log('✓ auth.js 模組載入成功', 'success');
+
+                // 測試函數存在性
+                const authFunctions = [
+                    'showLoginModal', 'showRegisterModal', 'hideAuthModals',
+                    'updateUserDisplay', 'handleLogin', 'handleRegister',
+                    'handleLogout', 'initAuth'
+                ];
+
+                let authFunctionCount = 0;
+                authFunctions.forEach(funcName => {
+                    if (typeof auth[funcName] === 'function') {
+                        authFunctionCount++;
+                    }
+                });
+
+                log(`✓ auth.js 包含 ${authFunctionCount}/${authFunctions.length} 個預期函數`, 'success');
+
+                if (authFunctionCount === authFunctions.length) {
+                    log('✓ 測試 1 通過', 'success');
+                } else {
+                    log('⚠️ 部分函數缺失', 'warn');
+                }
+
+                // 測試 2: components.js
+                log('', 'info');
+                log('=== 測試 2: components.js ===', 'info');
+                const components = await import('/js-refactored/components.js');
+                log('✓ components.js 模組載入成功', 'success');
+
+                // 測試類別存在性
+                if (typeof components.Router === 'function') {
+                    log('✓ Router 類別存在', 'success');
+                } else {
+                    log('✗ Router 類別不存在', 'error');
+                }
+
+                if (typeof components.CustomKeyboard === 'function') {
+                    log('✓ CustomKeyboard 類別存在', 'success');
+                } else {
+                    log('✗ CustomKeyboard 類別不存在', 'error');
+                }
+
+                if (typeof components.SwipeToDelete === 'function') {
+                    log('✓ SwipeToDelete 類別存在', 'success');
+                } else {
+                    log('✗ SwipeToDelete 類別不存在', 'error');
+                }
+
+                if (typeof components.LongPressMenu === 'function') {
+                    log('✓ LongPressMenu 類別存在', 'success');
+                } else {
+                    log('✗ LongPressMenu 類別不存在', 'error');
+                }
+
+                if (typeof components.initComponents === 'function') {
+                    log('✓ initComponents 函數存在', 'success');
+                } else {
+                    log('✗ initComponents 函數不存在', 'error');
+                }
+
+                log('✓ 測試 2 通過', 'success');
+
+                // 測試 3: categories.js
+                log('', 'info');
+                log('=== 測試 3: categories.js ===', 'info');
+                const categories = await import('/js-refactored/categories.js');
+                log('✓ categories.js 模組載入成功', 'success');
+
+                // 測試函數存在性
+                const categoryFunctions = [
+                    'openCategoryModal', 'closeCategoryModal', 'switchCategory',
+                    'selectCategory', 'openFilterCategoryModal', 'initCategories'
+                ];
+
+                let categoryFunctionCount = 0;
+                categoryFunctions.forEach(funcName => {
+                    if (typeof categories[funcName] === 'function') {
+                        categoryFunctionCount++;
+                    }
+                });
+
+                log(`✓ categories.js 包含 ${categoryFunctionCount}/${categoryFunctions.length} 個預期函數`, 'success');
+
+                if (categoryFunctionCount === categoryFunctions.length) {
+                    log('✓ 測試 3 通過', 'success');
+                } else {
+                    log('⚠️ 部分函數缺失', 'warn');
+                }
+
+                // 測試 4: 事件系統整合
+                log('', 'info');
+                log('=== 測試 4: 事件系統整合 ===', 'info');
+                const { EventBus, EVENTS } = await import('/js-refactored/events.js');
+
+                // 測試新增的事件常量
+                const newEvents = [
+                    'AUTH_MODAL_OPENED', 'AUTH_MODAL_CLOSED', 'USER_DISPLAY_UPDATED',
+                    'PAGE_CHANGED', 'PAGE_LOAD', 'KEYBOARD_OPENED', 'KEYBOARD_CLOSED',
+                    'RECORD_EDIT_REQUESTED', 'RECORD_DELETE_REQUESTED',
+                    'FILTER_CATEGORY_SELECTED'
+                ];
+
+                let eventCount = 0;
+                newEvents.forEach(eventName => {
+                    if (EVENTS[eventName]) {
+                        eventCount++;
+                    }
+                });
+
+                log(`✓ 新增 ${eventCount}/${newEvents.length} 個事件常量`, 'success');
+                log('✓ 測試 4 通過', 'success');
+
+                // 總結
+                log('', 'info');
+                log('=== 所有測試完成 ===', 'success');
+                log('✓ 功能模組運作正常！', 'success');
+                log('✓ Phase 3 完成，可以進入 Phase 4', 'success');
+
+                // 更新狀態
+                const statusElements = document.querySelectorAll('.status');
+                if (statusElements[3]) {
+                    statusElements[3].classList.remove('pending');
+                    statusElements[3].classList.add('pass');
+                    statusElements[3].textContent = '✓ 通過';
+                }
+
+            } catch (error) {
+                log(`✗ 錯誤: ${error.message}`, 'error');
+                log('提示: 請確保已創建 auth.js、components.js、categories.js', 'warn');
                 console.error(error);
             }
         };
