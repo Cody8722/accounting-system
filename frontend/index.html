@@ -686,6 +686,30 @@
             display: none;
         }
 
+        /* Filter Category Modal */
+        #filter-category-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease-out;
+            /* iOS 安全區域 */
+            padding-top: env(safe-area-inset-top);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        #filter-category-modal.hidden {
+            display: none;
+        }
+
         /* Category Modal */
         #category-modal {
             position: fixed;
@@ -1778,6 +1802,33 @@
         </div>
     </div>
 
+    <!-- 分類篩選器對話框 -->
+    <div id="filter-category-modal" class="hidden" onclick="event.target === this && closeFilterCategoryModal()">
+        <div class="category-modal-content">
+            <!-- 標題列 -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800">
+                    <i class="fas fa-filter mr-2 text-purple-600"></i>篩選分類
+                </h3>
+                <button onclick="closeFilterCategoryModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 快速選項 -->
+            <div class="p-4 border-b border-gray-200 bg-gray-50">
+                <button onclick="selectFilterCategory('', '全部')" class="px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition font-medium">
+                    <i class="fas fa-list mr-1"></i>全部分類
+                </button>
+            </div>
+
+            <!-- 分類網格 -->
+            <div id="filter-category-items" class="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[60vh] overflow-y-auto">
+                <!-- 分類項目將由 JavaScript 動態生成 -->
+            </div>
+        </div>
+    </div>
+
     <!-- 主內容 -->
     <div class="container mx-auto p-4 sm:p-8" id="main-content" style="display: none;">
         <div class="max-w-7xl mx-auto">
@@ -1903,9 +1954,13 @@
                             <label class="block text-sm font-medium mb-1">
                                 <i class="fas fa-filter mr-1"></i>分類
                             </label>
-                            <select id="filter-category" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
-                                <option value="">全部</option>
-                            </select>
+                            <button type="button" id="filter-category-btn" onclick="openFilterCategoryModal()" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 bg-white hover:bg-gray-50 transition text-left flex items-center justify-between">
+                                <span id="filter-category-display" class="flex items-center gap-2">
+                                    <span class="text-gray-500">全部</span>
+                                </span>
+                                <i class="fas fa-chevron-down text-gray-400"></i>
+                            </button>
+                            <input type="hidden" id="filter-category" value="">
                         </div>
                         <button id="load-records-btn" class="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 font-semibold transition shadow-md hover:shadow-lg">
                             <i class="fas fa-search mr-2"></i>查詢
@@ -2420,28 +2475,79 @@
             return iconMap[item] || '📌';
         }
 
-        // 初始化篩選器分類選項
+        // 初始化篩選器分類選項（不需要預先填充）
         function initializeFilterCategories() {
-            const filterCategory = document.getElementById('filter-category');
+            // 分類將在打開模態框時動態生成
+        }
+
+        // 打開分類篩選器模態框
+        function openFilterCategoryModal() {
+            const modal = document.getElementById('filter-category-modal');
+            const itemsContainer = document.getElementById('filter-category-items');
+
+            if (!modal || !itemsContainer) return;
 
             // 收集所有分類
             const allCategories = new Set();
-
             Object.values(categoryData.expense).forEach(items => {
                 items.forEach(item => allCategories.add(item));
             });
-
             Object.values(categoryData.income).forEach(items => {
                 items.forEach(item => allCategories.add(item));
             });
 
-            // 添加到篩選器
-            Array.from(allCategories).sort().forEach(category => {
-                const option = document.createElement('option');
-                option.value = category;
-                option.textContent = category;
-                filterCategory.appendChild(option);
+            // 清空並重新生成分類項目
+            itemsContainer.innerHTML = '';
+
+            // 按字母順序排序
+            const sortedCategories = Array.from(allCategories).sort();
+
+            // 生成分類卡片
+            sortedCategories.forEach(category => {
+                const icon = getItemIcon(category);
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'category-item flex flex-col items-center justify-center p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition cursor-pointer';
+                card.onclick = () => selectFilterCategory(category, `${icon} ${category}`);
+
+                card.innerHTML = `
+                    <span class="text-3xl mb-1">${icon}</span>
+                    <span class="text-xs text-center text-gray-700 font-medium">${category}</span>
+                `;
+
+                itemsContainer.appendChild(card);
             });
+
+            // 顯示模態框
+            modal.classList.remove('hidden');
+        }
+
+        // 關閉分類篩選器模態框
+        function closeFilterCategoryModal() {
+            const modal = document.getElementById('filter-category-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        // 選擇篩選分類
+        function selectFilterCategory(category, displayText) {
+            const hiddenInput = document.getElementById('filter-category');
+            const displaySpan = document.getElementById('filter-category-display');
+
+            if (hiddenInput) {
+                hiddenInput.value = category;
+            }
+
+            if (displaySpan) {
+                if (category === '') {
+                    displaySpan.innerHTML = '<span class="text-gray-500">全部</span>';
+                } else {
+                    displaySpan.innerHTML = `<span class="text-gray-800">${displayText}</span>`;
+                }
+            }
+
+            closeFilterCategoryModal();
         }
 
         // --- JWT Token 管理 ---
