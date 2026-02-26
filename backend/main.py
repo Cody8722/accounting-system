@@ -814,18 +814,20 @@ def export_accounting_records():
 
         # 建立 Response
         output.seek(0)
+
+        # 添加 BOM 以支援 Excel 正確顯示中文
+        bom_output = "\ufeff" + output.getvalue()
+
         response = Response(
-            output.getvalue(),
+            bom_output.encode("utf-8"),
             mimetype="text/csv",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
                 "Content-Type": "text/csv; charset=utf-8-sig",  # BOM for Excel
+                "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
             },
         )
-
-        # 添加 BOM 以支援 Excel 正確顯示中文
-        bom_output = "\ufeff" + output.getvalue()
-        response.set_data(bom_output.encode("utf-8"))
 
         logger.info(f"匯出 {len(records)} 筆記帳記錄 (user: {request.email})")
         return response

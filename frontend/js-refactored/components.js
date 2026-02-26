@@ -388,6 +388,12 @@ export class SwipeToDelete {
     }
 
     init() {
+        // 檢查元素是否存在
+        if (!this.element) {
+            console.warn('⚠️ [SwipeToDelete] 找不到滑動刪除元素');
+            return;
+        }
+
         // 綁定觸控事件
         this.element.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: true });
         this.element.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
