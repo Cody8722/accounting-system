@@ -23,12 +23,19 @@
   - records.js: 記錄管理 (343 行)
   - charts.js: 圖表渲染 (290+ 行)
   - budget.js: 預算管理 (235+ 行)
+- Phase 5: 整合與附加模組 - 完成 ✅
+  - stats.js: 統計數據 (260+ 行)
+  - export.js: CSV 匯出 (100+ 行)
+  - settings.js: 個人設定 (320+ 行)
+  - pwa.js: PWA 功能 (220+ 行)
+  - main.js: 主程式入口 (150+ 行)
 
 ### 🧪 進行中
-- Phase 4: 測試驗證中
+- Phase 5: 測試驗證中
 
 ### ⏳ 待完成
-- Phase 5: 整合與其他模組 (stats, export, PWA, settings)
+- 創建 index-refactored.html（完整應用頁面）
+- 端到端測試
 
 ## 測試方式
 
@@ -58,10 +65,10 @@ http://localhost/test-refactored.html
 ```
 frontend/
 ├── index.html                    ← 穩定版本（不動！）
-├── index-refactored.html         ← 測試版本
-├── test-refactored.html          ← 測試頁面
+├── index-refactored.html         ← 測試版本（待創建）
+├── test-refactored.html          ← 測試頁面 ✅
 └── js-refactored/                ← 測試模組
-    ├── README.md                 ← 本文件
+    ├── README.md                 ← 本文件 ✅
     ├── events.js                 ← 事件系統 ✅
     ├── config.js                 ← 配置和常量 ✅
     ├── utils.js                  ← 工具函數 ✅
@@ -72,12 +79,11 @@ frontend/
     ├── records.js                ← 記錄管理 ✅
     ├── charts.js                 ← 圖表渲染 ✅
     ├── budget.js                 ← 預算管理 ✅
-    ├── stats.js                  ← 待創建
-    ├── router.js                 ← 待創建
-    ├── settings.js               ← 待創建
-    ├── export.js                 ← 待創建
-    ├── pwa.js                    ← 待創建
-    └── main.js                   ← 待創建
+    ├── stats.js                  ← 統計數據 ✅
+    ├── export.js                 ← CSV 匯出 ✅
+    ├── settings.js               ← 個人設定 ✅
+    ├── pwa.js                    ← PWA 功能 ✅
+    └── main.js                   ← 主程式入口 ✅
 ```
 
 ## 事件系統使用示例
@@ -107,13 +113,14 @@ EventBus.on(EVENTS.RECORD_ADDED, (data) => {
 
 ## 當前進度
 
-📊 總體進度: 80%
+📊 總體進度: 95%
 - ✅ Phase 0 完成（測試環境）
 - ✅ Phase 1 完成（事件系統）
 - ✅ Phase 2 完成（基礎模組：config, utils, api）
 - ✅ Phase 3 完成（功能模組：auth, components, categories）
 - ✅ Phase 4 完成（核心模組：records, charts, budget）
-- ⏳ Phase 5 待開始（整合與其他模組）
+- ✅ Phase 5 完成（統計、匯出、設定、PWA、主程式）
+- ⏳ 創建 index-refactored.html（完整應用頁面）
 
 ## 注意事項
 
