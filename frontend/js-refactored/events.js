@@ -115,6 +115,8 @@ export const EVENTS = {
     RECORD_DELETED: 'record:deleted',       // 記錄刪除完成
     RECORDS_LOADED: 'records:loaded',       // 記錄列表載入完成
     RECORDS_FILTERED: 'records:filtered',   // 記錄篩選完成
+    RECORD_EDIT_REQUESTED: 'record:edit-requested',     // 請求編輯記錄
+    RECORD_DELETE_REQUESTED: 'record:delete-requested', // 請求刪除記錄
 
     // ===== 統計事件 =====
     STATS_UPDATED: 'stats:updated',                 // 統計數據更新完成
@@ -135,16 +137,28 @@ export const EVENTS = {
     AUTH_LOGIN_SUCCESS: 'auth:login-success',       // 登入成功
     AUTH_LOGOUT: 'auth:logout',                     // 登出
     AUTH_TOKEN_INVALID: 'auth:token-invalid',       // Token 無效
+    AUTH_MODAL_OPENED: 'auth:modal-opened',         // 認證模態框打開
+    AUTH_MODAL_CLOSED: 'auth:modal-closed',         // 認證模態框關閉
+    USER_DISPLAY_UPDATED: 'user:display-updated',   // 用戶顯示更新
+    USER_PROFILE_UPDATED: 'user:profile-updated',   // 用戶資料更新
+    USER_PASSWORD_CHANGED: 'user:password-changed', // 密碼已更改
 
     // ===== 分類事件 =====
-    CATEGORY_SELECTED: 'category:selected',         // 分類被選擇
-    CATEGORY_MODAL_OPENED: 'category:modal-opened', // 分類選擇器打開
-    CATEGORY_MODAL_CLOSED: 'category:modal-closed', // 分類選擇器關閉
+    CATEGORY_SELECTED: 'category:selected',                     // 分類被選擇
+    CATEGORY_MODAL_OPENED: 'category:modal-opened',             // 分類選擇器打開
+    CATEGORY_MODAL_CLOSED: 'category:modal-closed',             // 分類選擇器關閉
+    FILTER_CATEGORY_SELECTED: 'filter-category:selected',       // 篩選分類被選擇
+    FILTER_CATEGORY_MODAL_OPENED: 'filter-category:modal-opened', // 篩選器打開
+    FILTER_CATEGORY_MODAL_CLOSED: 'filter-category:modal-closed', // 篩選器關閉
 
     // ===== UI 事件 =====
     UI_SHOW_TOAST: 'ui:show-toast',                 // 顯示 Toast 通知
     UI_SHOW_CONFIRM: 'ui:show-confirm',             // 顯示確認對話框
-    UI_PAGE_CHANGED: 'ui:page-changed',             // 頁面切換
+    UI_PAGE_CHANGED: 'ui:page-changed',             // 頁面切換（舊）
+    PAGE_CHANGED: 'page:changed',                   // 頁面切換
+    PAGE_LOAD: 'page:load',                         // 頁面載入
+    KEYBOARD_OPENED: 'keyboard:opened',             // 鍵盤打開
+    KEYBOARD_CLOSED: 'keyboard:closed',             // 鍵盤關閉
 
     // ===== 導出事件 =====
     EXPORT_CSV_START: 'export:csv-start',           // 開始導出 CSV
