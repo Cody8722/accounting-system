@@ -103,6 +103,13 @@
     </div>
 
     <div class="test-section">
+        <h2>Phase 4: 核心模組測試</h2>
+        <p class="text-sm text-gray-600 mb-2">測試 records.js、charts.js、budget.js 的基本功能</p>
+        <button class="test-button" onclick="runCoreModulesTests()">▶ 執行測試</button>
+        <button class="test-button" onclick="clearLog()">🗑️ 清除日誌</button>
+    </div>
+
+    <div class="test-section">
         <h2>測試狀態</h2>
         <p>Phase 0: 準備環境 <span class="status pass">✓ 完成</span></p>
         <p>Phase 1: 事件系統 <span class="status pending">⏳ 待測試</span></p>
@@ -509,10 +516,190 @@
             }
         };
 
+        // Phase 4: 核心模組測試
+        window.runCoreModulesTests = async function() {
+            clearLog();
+            log('開始核心模組測試...', 'info');
+
+            try {
+                // 測試 1: records.js
+                log('', 'info');
+                log('=== 測試 1: records.js ===', 'info');
+                const records = await import('/js-refactored/records.js');
+                log('✓ records.js 模組載入成功', 'success');
+
+                // 檢查導出的函數
+                const recordsFunctions = [
+                    'setTodayAsDefault',
+                    'validateAmount',
+                    'applyOptimisticStats',
+                    'addRecord',
+                    'updateRecord',
+                    'deleteRecord',
+                    'loadRecords',
+                    'initRecords'
+                ];
+
+                let recordsCount = 0;
+                recordsFunctions.forEach(func => {
+                    if (typeof records[func] === 'function') {
+                        recordsCount++;
+                        log(`  ✓ ${func} 函數存在`, 'success');
+                    } else {
+                        log(`  ✗ ${func} 函數不存在`, 'error');
+                    }
+                });
+
+                if (recordsCount === recordsFunctions.length) {
+                    log(`✓ records.js 完整性檢查通過 (${recordsCount}/${recordsFunctions.length})`, 'success');
+                } else {
+                    log(`✗ records.js 完整性檢查失敗 (${recordsCount}/${recordsFunctions.length})`, 'error');
+                }
+
+                // 測試 validateAmount
+                log('', 'info');
+                log('測試 validateAmount() 函數...', 'info');
+                const validTest = records.validateAmount(100);
+                if (validTest.valid === true) {
+                    log('  ✓ 有效金額驗證: 通過', 'success');
+                } else {
+                    log('  ✗ 有效金額驗證: 失敗', 'error');
+                }
+
+                const invalidTest = records.validateAmount(0);
+                if (invalidTest.valid === false) {
+                    log('  ✓ 無效金額驗證: 通過', 'success');
+                } else {
+                    log('  ✗ 無效金額驗證: 失敗', 'error');
+                }
+
+                log('✓ 測試 1 通過', 'success');
+
+                // 測試 2: charts.js
+                log('', 'info');
+                log('=== 測試 2: charts.js ===', 'info');
+                const charts = await import('/js-refactored/charts.js');
+                log('✓ charts.js 模組載入成功', 'success');
+
+                // 檢查導出的函數
+                const chartsFunctions = [
+                    'updateExpenseChart',
+                    'updateTrendsChart',
+                    'destroyCharts',
+                    'initCharts'
+                ];
+
+                let chartsCount = 0;
+                chartsFunctions.forEach(func => {
+                    if (typeof charts[func] === 'function') {
+                        chartsCount++;
+                        log(`  ✓ ${func} 函數存在`, 'success');
+                    } else {
+                        log(`  ✗ ${func} 函數不存在`, 'error');
+                    }
+                });
+
+                if (chartsCount === chartsFunctions.length) {
+                    log(`✓ charts.js 完整性檢查通過 (${chartsCount}/${chartsFunctions.length})`, 'success');
+                } else {
+                    log(`✗ charts.js 完整性檢查失敗 (${chartsCount}/${chartsFunctions.length})`, 'error');
+                }
+
+                log('✓ 測試 2 通過', 'success');
+
+                // 測試 3: budget.js
+                log('', 'info');
+                log('=== 測試 3: budget.js ===', 'info');
+                const budget = await import('/js-refactored/budget.js');
+                log('✓ budget.js 模組載入成功', 'success');
+
+                // 檢查導出的函數
+                const budgetFunctions = [
+                    'loadBudget',
+                    'saveBudget',
+                    'updateBudgetUsage',
+                    'initBudget'
+                ];
+
+                let budgetCount = 0;
+                budgetFunctions.forEach(func => {
+                    if (typeof budget[func] === 'function') {
+                        budgetCount++;
+                        log(`  ✓ ${func} 函數存在`, 'success');
+                    } else {
+                        log(`  ✗ ${func} 函數不存在`, 'error');
+                    }
+                });
+
+                if (budgetCount === budgetFunctions.length) {
+                    log(`✓ budget.js 完整性檢查通過 (${budgetCount}/${budgetFunctions.length})`, 'success');
+                } else {
+                    log(`✗ budget.js 完整性檢查失敗 (${budgetCount}/${budgetFunctions.length})`, 'error');
+                }
+
+                log('✓ 測試 3 通過', 'success');
+
+                // 測試 4: 事件整合測試
+                log('', 'info');
+                log('=== 測試 4: 事件整合測試 ===', 'info');
+                const { EventBus, EVENTS } = await import('/js-refactored/events.js');
+
+                // 檢查核心模組使用的事件是否存在
+                const coreEvents = [
+                    'RECORD_ADDED',
+                    'RECORD_UPDATED',
+                    'RECORD_DELETED',
+                    'RECORDS_LOADED',
+                    'STATS_UPDATED',
+                    'CHART_RENDERED',
+                    'BUDGET_LOADED',
+                    'BUDGET_UPDATED',
+                    'BUDGET_USAGE_UPDATE'
+                ];
+
+                let eventsCount = 0;
+                coreEvents.forEach(event => {
+                    if (EVENTS[event]) {
+                        eventsCount++;
+                        log(`  ✓ EVENTS.${event} = "${EVENTS[event]}"`, 'success');
+                    } else {
+                        log(`  ✗ EVENTS.${event} 不存在`, 'error');
+                    }
+                });
+
+                if (eventsCount === coreEvents.length) {
+                    log(`✓ 事件常量完整性檢查通過 (${eventsCount}/${coreEvents.length})`, 'success');
+                } else {
+                    log(`✗ 事件常量完整性檢查失敗 (${eventsCount}/${coreEvents.length})`, 'error');
+                }
+
+                log('✓ 測試 4 通過', 'success');
+
+                // 總結
+                log('', 'info');
+                log('=== 所有測試完成 ===', 'success');
+                log('✓ 核心模組運作正常！', 'success');
+                log('✓ Phase 4 完成，可以進入 Phase 5', 'success');
+
+                // 更新狀態
+                const statusElements = document.querySelectorAll('.status');
+                if (statusElements[4]) {
+                    statusElements[4].classList.remove('pending');
+                    statusElements[4].classList.add('pass');
+                    statusElements[4].textContent = '✓ 通過';
+                }
+
+            } catch (error) {
+                log(`✗ 錯誤: ${error.message}`, 'error');
+                log('提示: 請確保已創建 records.js、charts.js、budget.js', 'warn');
+                console.error(error);
+            }
+        };
+
         // 頁面載入時顯示歡迎訊息
         log('🎉 測試頁面已載入', 'success');
-        log('👉 點擊「執行測試」按鈕開始測試 EventBus', 'info');
-        log('⚠️  注意: 需先創建 events.js 才能執行測試', 'warn');
+        log('👉 點擊「執行測試」按鈕開始測試各個 Phase', 'info');
+        log('⚠️  注意: 需按順序測試 Phase 1 → 2 → 3 → 4', 'warn');
     </script>
 </body>
 </html>

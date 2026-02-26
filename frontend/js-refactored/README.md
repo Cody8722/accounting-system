@@ -19,13 +19,16 @@
   - auth.js: 認證系統 (850+ 行)
   - components.js: UI 組件 (740+ 行)
   - categories.js: 分類選擇器 (200+ 行)
+- Phase 4: 核心模組完成 - 完成 ✅
+  - records.js: 記錄管理 (343 行)
+  - charts.js: 圖表渲染 (290+ 行)
+  - budget.js: 預算管理 (235+ 行)
 
 ### 🧪 進行中
-- Phase 3: 測試驗證中
+- Phase 4: 測試驗證中
 
 ### ⏳ 待完成
-- Phase 4: 核心模組遷移 (records, charts, budget)
-- Phase 5: 路由和其他模組
+- Phase 5: 整合與其他模組 (stats, export, PWA, settings)
 
 ## 測試方式
 
@@ -43,7 +46,10 @@ http://localhost/test-refactored.html
 ### 4. Phase 3: 執行功能模組測試
 點擊「Phase 3: 功能模組測試」下的「▶ 執行測試」按鈕。
 
-### 5. 對比測試
+### 5. Phase 4: 執行核心模組測試
+點擊「Phase 4: 核心模組測試」下的「▶ 執行測試」按鈕。
+
+### 6. 對比測試
 - 穩定版本: http://localhost/ (index.html)
 - 測試版本: http://localhost/index-refactored.html
 
@@ -60,12 +66,13 @@ frontend/
     ├── config.js                 ← 配置和常量 ✅
     ├── utils.js                  ← 工具函數 ✅
     ├── api.js                    ← API 調用 ✅
-    ├── auth.js                   ← 待創建
-    ├── components.js             ← 待創建
-    ├── categories.js             ← 待創建
-    ├── records.js                ← 待創建
-    ├── charts.js                 ← 待創建
-    ├── budget.js                 ← 待創建
+    ├── auth.js                   ← 認證系統 ✅
+    ├── components.js             ← UI 組件 ✅
+    ├── categories.js             ← 分類選擇器 ✅
+    ├── records.js                ← 記錄管理 ✅
+    ├── charts.js                 ← 圖表渲染 ✅
+    ├── budget.js                 ← 預算管理 ✅
+    ├── stats.js                  ← 待創建
     ├── router.js                 ← 待創建
     ├── settings.js               ← 待創建
     ├── export.js                 ← 待創建
@@ -100,12 +107,13 @@ EventBus.on(EVENTS.RECORD_ADDED, (data) => {
 
 ## 當前進度
 
-📊 總體進度: 50%
+📊 總體進度: 80%
 - ✅ Phase 0 完成（測試環境）
 - ✅ Phase 1 完成（事件系統）
-- ✅ Phase 2 完成（基礎模組）
-- ✅ Phase 3 完成（功能模組）
-- ⏳ Phase 4-5 待開始
+- ✅ Phase 2 完成（基礎模組：config, utils, api）
+- ✅ Phase 3 完成（功能模組：auth, components, categories）
+- ✅ Phase 4 完成（核心模組：records, charts, budget）
+- ⏳ Phase 5 待開始（整合與其他模組）
 
 ## 注意事項
 
