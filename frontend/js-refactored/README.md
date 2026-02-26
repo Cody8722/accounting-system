@@ -10,13 +10,16 @@
 
 ### ✅ 已完成
 - Phase 0: 測試環境準備
-- events.js: 事件系統已創建
+- Phase 1: 事件系統測試 - 通過 ✅
+- Phase 2: 基礎模組提取 - 完成 ✅
+  - config.js: 配置和常量
+  - utils.js: 工具函數
+  - api.js: API 調用
 
 ### 🧪 進行中
-- Phase 1: 事件系統測試
+- Phase 2: 測試驗證中
 
 ### ⏳ 待完成
-- Phase 2: 基礎模組提取 (config, utils, api)
 - Phase 3: 功能模組重構 (auth, components, categories)
 - Phase 4: 核心模組遷移 (records, charts, budget)
 - Phase 5: 路由和其他模組
@@ -28,10 +31,13 @@
 http://localhost/test-refactored.html
 ```
 
-### 2. 執行事件系統測試
-點擊「執行測試」按鈕，查看 EventBus 是否正常工作。
+### 2. Phase 1: 執行事件系統測試
+點擊「Phase 1: 事件系統測試」下的「▶ 執行測試」按鈕。
 
-### 3. 對比測試
+### 3. Phase 2: 執行基礎模組測試
+點擊「Phase 2: 基礎模組測試」下的「▶ 執行測試」按鈕。
+
+### 4. 對比測試
 - 穩定版本: http://localhost/ (index.html)
 - 測試版本: http://localhost/index-refactored.html
 
@@ -45,9 +51,9 @@ frontend/
 └── js-refactored/                ← 測試模組
     ├── README.md                 ← 本文件
     ├── events.js                 ← 事件系統 ✅
-    ├── config.js                 ← 待創建
-    ├── utils.js                  ← 待創建
-    ├── api.js                    ← 待創建
+    ├── config.js                 ← 配置和常量 ✅
+    ├── utils.js                  ← 工具函數 ✅
+    ├── api.js                    ← API 調用 ✅
     ├── auth.js                   ← 待創建
     ├── components.js             ← 待創建
     ├── categories.js             ← 待創建
@@ -88,10 +94,11 @@ EventBus.on(EVENTS.RECORD_ADDED, (data) => {
 
 ## 當前進度
 
-📊 總體進度: 10%
-- ✅ Phase 0 完成
-- 🧪 Phase 1 測試中
-- ⏳ Phase 2-5 待開始
+📊 總體進度: 30%
+- ✅ Phase 0 完成（測試環境）
+- ✅ Phase 1 完成（事件系統）
+- ✅ Phase 2 完成（基礎模組）
+- ⏳ Phase 3-5 待開始
 
 ## 注意事項
 

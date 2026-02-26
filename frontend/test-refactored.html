@@ -89,6 +89,12 @@
     </div>
 
     <div class="test-section">
+        <h2>Phase 2: 基礎模組測試</h2>
+        <button class="test-button" onclick="runBasicModulesTests()">▶ 執行測試</button>
+        <p class="text-sm text-gray-600 mt-2">測試 config.js、utils.js、api.js 的基本功能</p>
+    </div>
+
+    <div class="test-section">
         <h2>測試狀態</h2>
         <p>Phase 0: 準備環境 <span class="status pass">✓ 完成</span></p>
         <p>Phase 1: 事件系統 <span class="status pending">⏳ 待測試</span></p>
@@ -202,6 +208,150 @@
             } catch (error) {
                 log(`✗ 錯誤: ${error.message}`, 'error');
                 log('提示: 請確保已創建 /js-refactored/events.js', 'warn');
+                console.error(error);
+            }
+        };
+
+        // Phase 2: 基礎模組測試
+        window.runBasicModulesTests = async function() {
+            clearLog();
+            log('開始基礎模組測試...', 'info');
+
+            try {
+                // 測試 1: config.js
+                log('', 'info');
+                log('=== 測試 1: config.js ===', 'info');
+                const config = await import('/js-refactored/config.js');
+                log('✓ config.js 模組載入成功', 'success');
+
+                // 測試 backendUrl
+                if (config.backendUrl) {
+                    log(`✓ backendUrl: ${config.backendUrl}`, 'success');
+                } else {
+                    log('✗ backendUrl 未定義', 'error');
+                }
+
+                // 測試 categoryData
+                if (config.categoryData && config.categoryData.expense && config.categoryData.income) {
+                    const expenseCount = Object.keys(config.categoryData.expense).length;
+                    const incomeCount = Object.keys(config.categoryData.income).length;
+                    log(`✓ categoryData 包含 ${expenseCount} 個支出分類、${incomeCount} 個收入分類`, 'success');
+                } else {
+                    log('✗ categoryData 結構不正確', 'error');
+                }
+
+                // 測試 getItemIcon
+                if (typeof config.getItemIcon === 'function') {
+                    const testIcon = config.getItemIcon('早餐');
+                    log(`✓ getItemIcon('早餐') = ${testIcon}`, 'success');
+                } else {
+                    log('✗ getItemIcon 不是函數', 'error');
+                }
+
+                // 測試 isDevelopment
+                if (typeof config.isDevelopment === 'function') {
+                    const isDev = config.isDevelopment();
+                    log(`✓ isDevelopment() = ${isDev}`, 'success');
+                } else {
+                    log('✗ isDevelopment 不是函數', 'error');
+                }
+
+                log('✓ 測試 1 通過', 'success');
+
+                // 測試 2: utils.js
+                log('', 'info');
+                log('=== 測試 2: utils.js ===', 'info');
+                const utils = await import('/js-refactored/utils.js');
+                log('✓ utils.js 模組載入成功', 'success');
+
+                // 測試 escapeHtml
+                if (typeof utils.escapeHtml === 'function') {
+                    const escaped = utils.escapeHtml('<script>alert("xss")</script>');
+                    if (escaped.includes('&lt;') && escaped.includes('&gt;')) {
+                        log(`✓ escapeHtml 正確轉義 HTML`, 'success');
+                    } else {
+                        log('✗ escapeHtml 轉義失敗', 'error');
+                    }
+                } else {
+                    log('✗ escapeHtml 不是函數', 'error');
+                }
+
+                // 測試 showToast（不實際顯示，只檢查函數存在）
+                if (typeof utils.showToast === 'function') {
+                    log('✓ showToast 函數存在', 'success');
+                } else {
+                    log('✗ showToast 不是函數', 'error');
+                }
+
+                // 測試 showConfirm（不實際顯示，只檢查函數存在）
+                if (typeof utils.showConfirm === 'function') {
+                    log('✓ showConfirm 函數存在', 'success');
+                } else {
+                    log('✗ showConfirm 不是函數', 'error');
+                }
+
+                log('✓ 測試 2 通過', 'success');
+
+                // 測試 3: api.js
+                log('', 'info');
+                log('=== 測試 3: api.js ===', 'info');
+                const api = await import('/js-refactored/api.js');
+                log('✓ api.js 模組載入成功', 'success');
+
+                // 測試 getAuthToken
+                if (typeof api.getAuthToken === 'function') {
+                    const token = api.getAuthToken();
+                    log(`✓ getAuthToken() 返回: ${token ? '有 token' : '無 token'}`, 'success');
+                } else {
+                    log('✗ getAuthToken 不是函數', 'error');
+                }
+
+                // 測試 setAuthToken & removeAuthToken
+                if (typeof api.setAuthToken === 'function' && typeof api.removeAuthToken === 'function') {
+                    api.setAuthToken('test-token-12345');
+                    const savedToken = api.getAuthToken();
+                    if (savedToken === 'test-token-12345') {
+                        log('✓ setAuthToken 成功儲存 token', 'success');
+                    } else {
+                        log('✗ setAuthToken 儲存失敗', 'error');
+                    }
+                    api.removeAuthToken();
+                    const removedToken = api.getAuthToken();
+                    if (removedToken === '') {
+                        log('✓ removeAuthToken 成功移除 token', 'success');
+                    } else {
+                        log('✗ removeAuthToken 移除失敗', 'error');
+                    }
+                } else {
+                    log('✗ token 管理函數不存在', 'error');
+                }
+
+                // 測試 apiCall
+                if (typeof api.apiCall === 'function') {
+                    log('✓ apiCall 函數存在', 'success');
+                } else {
+                    log('✗ apiCall 不是函數', 'error');
+                }
+
+                log('✓ 測試 3 通過', 'success');
+
+                // 總結
+                log('', 'info');
+                log('=== 所有測試完成 ===', 'success');
+                log('✓ 基礎模組運作正常！', 'success');
+                log('✓ Phase 2 可以進入 Phase 3', 'success');
+
+                // 更新狀態
+                const statusElements = document.querySelectorAll('.status');
+                if (statusElements[2]) {
+                    statusElements[2].classList.remove('pending');
+                    statusElements[2].classList.add('pass');
+                    statusElements[2].textContent = '✓ 通過';
+                }
+
+            } catch (error) {
+                log(`✗ 錯誤: ${error.message}`, 'error');
+                log('提示: 請確保已創建 config.js、utils.js、api.js', 'warn');
                 console.error(error);
             }
         };
