@@ -357,6 +357,9 @@ export function initRecords() {
         }
     });
 
+    // ===== 設置表單事件監聽器 =====
+    setupFormEventListeners();
+
     // 暴露到全局（供 HTML onclick 使用）
     window.deleteAccountingRecord = deleteRecord;
     window.loadAccountingRecords = loadRecords;
@@ -364,4 +367,186 @@ export function initRecords() {
     window.updateAccountingRecord = updateRecord;
 
     console.log('✅ [Records] 記錄管理模組已初始化');
+}
+
+/**
+ * 設置表單事件監聽器
+ */
+function setupFormEventListeners() {
+    // 獲取表單元素
+    const accountingForm = document.getElementById('accounting-form');
+    const recordType = document.getElementById('record-type');
+    const recordAmount = document.getElementById('record-amount');
+    const recordCategory = document.getElementById('record-category');
+    const recordDate = document.getElementById('record-date');
+    const recordDescription = document.getElementById('record-description');
+    const expenseType = document.getElementById('expense-type');
+    const accountingMessage = document.getElementById('accounting-message');
+    const amountError = document.getElementById('amount-error');
+
+    // 根據類型更新分類選項（清空分類輸入框）
+    if (recordType) {
+        recordType.addEventListener('change', () => {
+            if (recordCategory) {
+                recordCategory.value = '';
+            }
+        });
+    }
+
+    // 金額輸入時即時驗證
+    if (recordAmount && amountError) {
+        recordAmount.addEventListener('input', () => {
+            const amount = parseFloat(recordAmount.value);
+            const validation = validateAmount(amount);
+
+            if (!validation.valid && recordAmount.value !== '') {
+                recordAmount.classList.add('input-error');
+                amountError.textContent = validation.message;
+                amountError.classList.remove('hidden');
+            } else {
+                recordAmount.classList.remove('input-error');
+                amountError.classList.add('hidden');
+            }
+        });
+    }
+
+    // 表單提交處理
+    if (accountingForm) {
+        accountingForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const amount = parseFloat(recordAmount.value);
+            const validation = validateAmount(amount);
+
+            // 前端驗證金額
+            if (!validation.valid) {
+                recordAmount.classList.add('input-error');
+                if (amountError) {
+                    amountError.textContent = validation.message;
+                    amountError.classList.remove('hidden');
+                }
+                if (accountingMessage) {
+                    accountingMessage.textContent = `❌ ${validation.message}`;
+                    accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                    accountingMessage.classList.remove('hidden');
+                    setTimeout(() => {
+                        accountingMessage.classList.add('hidden');
+                    }, 3000);
+                }
+                return;
+            }
+
+            const recordData = {
+                type: recordType.value,
+                amount: amount,
+                category: recordCategory.value,
+                date: recordDate.value,
+                description: recordDescription.value,
+                expense_type: expenseType?.value || null
+            };
+
+            try {
+                await addRecord(recordData);
+
+                if (accountingMessage) {
+                    accountingMessage.textContent = '✅ 記帳記錄已新增';
+                    accountingMessage.className = 'text-center text-sm font-medium text-green-600';
+                    accountingMessage.classList.remove('hidden');
+                }
+
+                // 清空表單
+                if (recordAmount) recordAmount.value = '';
+                if (recordDescription) recordDescription.value = '';
+                if (expenseType) expenseType.value = '';
+                if (recordAmount) recordAmount.classList.remove('input-error');
+                if (amountError) amountError.classList.add('hidden');
+                setTodayAsDefault();
+
+                // 靜默刷新記錄和統計
+                await loadRecords(false);
+                EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
+
+                if (accountingMessage) {
+                    setTimeout(() => {
+                        accountingMessage.classList.add('hidden');
+                    }, 3000);
+                }
+            } catch (error) {
+                if (accountingMessage) {
+                    accountingMessage.textContent = `❌ ${error.message}`;
+                    accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                    accountingMessage.classList.remove('hidden');
+                }
+            }
+        });
+    }
+
+    // ===== 編輯記帳表單提交處理 =====
+    const editRecordForm = document.getElementById('edit-record-form');
+    const editRecordAmount = document.getElementById('edit-record-amount');
+    const editAmountError = document.getElementById('edit-amount-error');
+    const editRecordMessage = document.getElementById('edit-record-message');
+
+    if (editRecordForm) {
+        editRecordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const amount = parseFloat(editRecordAmount.value);
+            const validation = validateAmount(amount);
+
+            // 前端驗證金額
+            if (!validation.valid) {
+                if (editRecordAmount) editRecordAmount.classList.add('input-error');
+                if (editAmountError) {
+                    editAmountError.textContent = validation.message;
+                    editAmountError.classList.remove('hidden');
+                }
+                if (editRecordMessage) {
+                    editRecordMessage.textContent = `❌ ${validation.message}`;
+                    editRecordMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                    editRecordMessage.classList.remove('hidden');
+                    setTimeout(() => {
+                        editRecordMessage.classList.add('hidden');
+                    }, 3000);
+                }
+                return;
+            }
+
+            const recordId = document.getElementById('edit-record-id')?.value;
+            const recordData = {
+                type: document.getElementById('edit-record-type')?.value,
+                amount: amount,
+                category: document.getElementById('edit-record-category')?.value,
+                date: document.getElementById('edit-record-date')?.value,
+                description: document.getElementById('edit-record-description')?.value,
+                expense_type: document.getElementById('edit-expense-type')?.value || null
+            };
+
+            try {
+                await updateRecord(recordId, recordData);
+
+                if (editRecordMessage) {
+                    editRecordMessage.textContent = '✅ 記帳記錄已更新';
+                    editRecordMessage.className = 'text-center text-sm font-medium text-green-600';
+                    editRecordMessage.classList.remove('hidden');
+                }
+
+                // 靜默刷新記錄和統計
+                await loadRecords(false);
+                EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
+
+                setTimeout(() => {
+                    if (window.closeEditRecordModal) {
+                        window.closeEditRecordModal();
+                    }
+                }, 1500);
+            } catch (error) {
+                if (editRecordMessage) {
+                    editRecordMessage.textContent = `❌ ${error.message}`;
+                    editRecordMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                    editRecordMessage.classList.remove('hidden');
+                }
+            }
+        });
+    }
 }
