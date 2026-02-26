@@ -194,7 +194,7 @@ export function selectFilterCategory(category, displayText) {
         if (category === '') {
             displaySpan.innerHTML = '<span class="text-gray-500">全部</span>';
         } else {
-            displaySpan.innerHTML = `<span class="text-gray-800">${displayText}</span>';
+            displaySpan.innerHTML = `<span class="text-gray-800">${displayText}</span>`;
         }
     }
 
