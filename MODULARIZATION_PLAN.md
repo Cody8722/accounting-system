@@ -19,24 +19,28 @@
 ## 完整功能清單
 
 ### 1. 認證系統 (Auth)
-- [x] 登入 (showLoginModal, handleLogin)
-- [x] 註冊 (showRegisterModal, handleRegister)
+- [x] 登入 (showLoginModal, loginForm submit handler)
+- [x] 註冊 (showRegisterModal, registerForm submit handler)
 - [x] 登出 (handleLogout)
 - [x] Token 管理 (getAuthToken, setAuthToken, removeAuthToken, verifyToken)
 - [x] 用戶資料 (getUserData, setUserData)
 - [x] 密碼重置 (showForgotPasswordModal, submitForgotPassword, submitResetPassword)
 - [x] 密碼強度驗證 (validatePasswordRealtime, validateChangePasswordRealtime)
+- [x] 密碼 UI 更新 (updatePasswordStrengthUI, updateChangePasswordStrengthUI, updateCheck)
+- [x] 13個密碼檢查項目（長度、大小寫、數字、特殊符號、重複、連續、鍵盤模式、常見密碼、個人資訊、拼音、數學模式、熵值）
 - [x] 用戶顯示更新 (updateUserDisplay)
+- [x] 模態框管理 (hideAuthModals)
 
 ### 2. 記帳記錄 (Records)
 - [x] 新增記帳 (accountingForm submit handler)
 - [x] 載入記錄 (loadAccountingRecords)
 - [x] 編輯記錄 (openEditRecordModal, closeEditRecordModal, editRecordForm submit)
-- [x] 刪除記錄 (deleteRecord)
-- [x] 滑動刪除 (SwipeToDelete class)
-- [x] 長按選單 (LongPressMenu class)
+- [x] 刪除記錄 (deleteAccountingRecord - window 函數)
+- [x] 滑動刪除 (SwipeToDelete class - 完整實現)
+- [x] 長按選單 (LongPressMenu class - 完整實現)
 - [x] 金額驗證 (validateAmount)
 - [x] 日期設置 (setTodayAsDefault)
+- [x] 篩選功能 (loadRecordsBtn, filter-type, filter-start-date, filter-end-date, filter-category)
 
 ### 3. 分類系統 (Categories)
 - [x] 分類資料 (categoryData)
@@ -57,36 +61,64 @@
 
 ### 5. 統計與圖表 (Stats & Charts)
 - [x] 統計資料更新 (updateAccountingStats)
-- [x] 支出圖表 (updateExpenseChart)
-- [x] 趨勢圖表 (updateTrendsChart)
-- [x] 數字動畫 (animateNumber)
+- [x] 支出圖表 (updateExpenseChart - Chart.js instance management)
+- [x] 趨勢圖表 (updateTrendsChart - Chart.js instance management)
+- [x] 數字動畫 (animateNumber - requestAnimationFrame)
 - [x] 樂觀更新 (applyOptimisticStats)
+- [x] 統計應用 (applyStatsToDOM)
+- [x] 精簡統計顯示 (compact-income, compact-expense, compact-balance)
+- [x] Chart 實例管理 (expenseChart, trendsChart - destroy & recreate)
 
 ### 6. 預算管理 (Budget)
 - [x] 載入預算 (loadBudget)
 - [x] 儲存預算 (saveBudgetBtn click handler)
+- [x] 預算使用率 (updateBudgetUsage)
+- [x] 預算使用列表 (budget-usage-list, budget-usage-section)
 
 ### 7. 匯出功能 (Export)
-- [x] 匯出 CSV (exportToCSV)
+- [x] 匯出 CSV (exportRecordsBtn click handler)
 
 ### 8. 設置頁面 (Settings)
 - [x] 編輯使用者名稱 (toggleEditName, saveProfileName)
 - [x] 修改密碼 (toggleChangePassword, saveNewPassword)
 
 ### 9. 路由系統 (Router)
-- [x] 頁面導航 (Router class)
-- [x] 頁面切換
-- [x] 移動端導航欄
+- [x] Router class (完整實現 - 4562行開始)
+  - navigate() - 頁面導航
+  - onPageLoad() - 頁面載入事件
+  - setAuthenticated() - 設置認證狀態
+- [x] 頁面切換 (page-add, page-records, page-analytics, page-settings)
+- [x] 移動端導航欄 (mobile-nav - 事件綁定)
+- [x] 桌面側邊欄 (desktop-sidebar)
 
 ### 10. PWA 功能
-- [x] Service Worker 註冊
-- [x] Android 安裝提示
-- [x] iOS 安裝提示
+**Service Worker:**
+- [x] 註冊 Service Worker
+- [x] 檢測更新
+- [x] 自動重載機制
+- [x] 控制器變更處理
+- [x] 後台同步
+- [x] 網路狀態監聽 (showNetworkStatus)
+
+**Android 安裝提示:**
+- [x] shouldShowAndroidPrompt - 檢查顯示條件
+- [x] showAndroidInstallPrompt - 顯示安裝提示
+- [x] dismissAndroidPrompt - 關閉提示
+- [x] triggerAndroidInstall - 觸發安裝流程
+
+**iOS 安裝提示:**
+- [x] isIOS - 檢測 iOS 設備
+- [x] isInStandaloneMode - 檢測獨立模式
+- [x] shouldShowIOSPrompt - 檢查顯示條件
+- [x] showIOSInstallPrompt - 顯示安裝提示
+- [x] dismissIOSPrompt - 關閉提示
 
 ### 11. 工具函數 (Utils)
-- [x] API 調用 (apiCall)
+- [x] API 調用 (apiCall - 含錯誤處理)
 - [x] HTML 轉義 (escapeHtml)
 - [x] 後端 URL 偵測 (detectBackendUrl, isDevelopment)
+- [x] Toast 通知系統 (showToast - 4種類型)
+- [x] 確認對話框 (showConfirm - Promise-based)
 
 ## 模組劃分策略
 
@@ -139,7 +171,7 @@ frontend/
 ### 記錄相關
 - openEditRecordModal
 - closeEditRecordModal
-- deleteRecord
+- deleteAccountingRecord (window 函數，用於刪除)
 
 ### 設置相關
 - toggleEditName
@@ -152,13 +184,24 @@ frontend/
 - dismissAndroidPrompt
 - triggerAndroidInstall
 - dismissIOSPrompt
+- shouldShowAndroidPrompt
+- showAndroidInstallPrompt
+- isIOS
+- isInStandaloneMode
+- shouldShowIOSPrompt
+- showIOSInstallPrompt
 
-### Router 相關
+### Router 相關（Router class 需要調用）
 - loadAccountingRecords
 - updateAccountingStats
 - updateExpenseChart
 - updateTrendsChart
 - loadBudget
+
+### 組件相關（可能需要暴露）
+- CustomKeyboard instance
+- SwipeToDelete class
+- LongPressMenu instance
 
 ## 全局變數清單
 
