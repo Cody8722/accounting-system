@@ -267,7 +267,8 @@
 
                 // 測試 escapeHtml
                 if (typeof utils.escapeHtml === 'function') {
-                    const escaped = utils.escapeHtml('<script>alert("xss")</script>');
+                    const testString = '<script>alert("xss")<\/script>';
+                    const escaped = utils.escapeHtml(testString);
                     if (escaped.includes('&lt;') && escaped.includes('&gt;')) {
                         log(`✓ escapeHtml 正確轉義 HTML`, 'success');
                     } else {
