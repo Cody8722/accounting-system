@@ -853,6 +853,18 @@ export function initAuth() {
         showLoginModal();
     });
 
+    // 暴露到全局（供 HTML onclick 使用）
+    window.handleLogout = handleLogout;
+    window.showRegisterModal = showRegisterModal;
+    window.showLoginModal = showLoginModal;
+    window.showForgotPasswordModal = showForgotPasswordModal;
+    window.submitForgotPassword = submitForgotPassword;
+    window.submitResetPassword = submitResetPassword;
+    window.saveProfileName = saveProfileName;
+    window.toggleEditName = toggleEditName;
+    window.saveNewPassword = saveNewPassword;
+    window.toggleChangePassword = toggleChangePassword;
+
     console.log('✅ [Auth] 認證模組已初始化');
 }
 

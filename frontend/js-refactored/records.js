@@ -317,6 +317,61 @@ function renderRecords(records) {
 }
 
 /**
+ * 開啟編輯記錄模態窗
+ */
+export async function openEditRecordModal(recordId) {
+    try {
+        // 從後端獲取記錄
+        const response = await apiCall(`${backendUrl}/admin/api/accounting/records?`, {});
+        const records = await response.json();
+
+        if (!response.ok) throw new Error(records.error || '載入記錄失敗');
+
+        const record = records.find(r => {
+            const id = r._id.$oid || r._id;
+            return id === recordId;
+        });
+
+        if (!record) {
+            showToast('找不到該記錄', 'error');
+            return;
+        }
+
+        // 填充表單
+        document.getElementById('edit-record-id').value = recordId;
+        document.getElementById('edit-record-type').value = record.type;
+        document.getElementById('edit-record-amount').value = record.amount;
+        document.getElementById('edit-record-category').value = record.category;
+        document.getElementById('edit-record-date').value = record.date;
+        document.getElementById('edit-record-description').value = record.description || '';
+        document.getElementById('edit-expense-type').value = record.expense_type || '';
+
+        // 顯示 Modal
+        document.getElementById('edit-record-modal').classList.remove('hidden');
+    } catch (error) {
+        showToast(`載入記錄失敗: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 關閉編輯記錄模態窗
+ */
+export function closeEditRecordModal() {
+    const modal = document.getElementById('edit-record-modal');
+    if (modal) modal.classList.add('hidden');
+
+    // 清空表單
+    const form = document.getElementById('edit-record-form');
+    if (form) form.reset();
+
+    const message = document.getElementById('edit-record-message');
+    if (message) message.classList.add('hidden');
+
+    const amountError = document.getElementById('edit-amount-error');
+    if (amountError) amountError.classList.add('hidden');
+}
+
+/**
  * 初始化記錄管理模組
  */
 export function initRecords() {
@@ -365,6 +420,8 @@ export function initRecords() {
     window.loadAccountingRecords = loadRecords;
     window.addAccountingRecord = addRecord;
     window.updateAccountingRecord = updateRecord;
+    window.openEditRecordModal = openEditRecordModal;
+    window.closeEditRecordModal = closeEditRecordModal;
 
     console.log('✅ [Records] 記錄管理模組已初始化');
 }
