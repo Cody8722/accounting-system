@@ -98,6 +98,13 @@ export async function isLoggedIn(page) {
  * @param {import('@playwright/test').Page} page
  */
 export async function clearAuthState(page) {
+  // 如果頁面還在 about:blank，先導航到首頁
+  const currentUrl = page.url();
+  if (currentUrl === 'about:blank' || !currentUrl.startsWith('http')) {
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+  }
+
   await page.evaluate(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('userData');
