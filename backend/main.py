@@ -1487,7 +1487,10 @@ def forgot_password():
             email_sent = send_reset_email(email, reset_url)
             if not email_sent:
                 logger.error(f"密碼重設信寄送失敗: {email}，請檢查 SMTP 配置是否正確")
-                return jsonify({"error": "郵件服務未配置或發送失敗，請聯繫系統管理員"}), 500
+                return (
+                    jsonify({"error": "郵件服務未配置或發送失敗，請聯繫系統管理員"}),
+                    500,
+                )
 
             logger.info(f"密碼重設信已寄送: {email}")
 
