@@ -65,37 +65,46 @@ if (resp.ok) {
 
 密碼重置功能需要配置郵件服務才能正常工作。請按照以下步驟配置:
 
-### 1. 註冊 Resend 帳號
+### 1. 準備 Gmail 帳號
 
-1. 前往 [Resend.com](https://resend.com/) 註冊帳號
-2. 登入後,前往 [API Keys 頁面](https://resend.com/api-keys)
-3. 點擊「Create API Key」建立新的 API Key
-4. 複製 API Key (只會顯示一次,請妥善保存)
+**選項 A: 使用現有 Gmail 帳號**
+- 可以使用您的個人 Gmail 帳號
+- 建議使用專門的郵件發送帳號
 
-### 2. 驗證寄件者網域
+**選項 B: 註冊新的 Gmail 帳號**
+1. 前往 [Gmail](https://mail.google.com/) 註冊新帳號
+2. 選擇一個專門用於系統發送郵件的名稱（例如: noreply.accounting@gmail.com）
 
-**選項 A: 使用測試網域 (開發環境)**
-- 使用 Resend 提供的測試郵箱: `onboarding@resend.dev`
-- 測試郵件只會發送到你的 Resend 帳號郵箱
+### 2. 啟用兩步驟驗證並生成應用程式密碼
 
-**選項 B: 使用自己的網域 (正式環境)**
-1. 在 Resend 中新增網域
-2. 按照指示設定 DNS 記錄 (SPF、DKIM、DMARC)
-3. 等待驗證完成
+**步驟 1: 啟用兩步驟驗證**
+1. 前往 [Google 帳戶安全性設定](https://myaccount.google.com/security)
+2. 在「登入 Google」區塊中,點擊「兩步驟驗證」
+3. 按照指示完成兩步驟驗證設定
+
+**步驟 2: 生成應用程式密碼**
+1. 前往 [應用程式密碼頁面](https://myaccount.google.com/apppasswords)
+2. 選擇「郵件」作為應用程式
+3. 選擇「其他（自訂名稱）」作為裝置,輸入「記帳系統」
+4. 點擊「產生」
+5. 複製生成的 16 位密碼（不含空格）,例如: `abcd efgh ijkl mnop`
+6. 記下這個密碼,之後無法再次查看
 
 ### 3. 設定環境變數
 
 在你的部署環境中設定以下環境變數:
 
 ```bash
-# Resend API Key (必需)
-RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx
+# Gmail SMTP 設定
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
 
-# 寄件者 Email (必需)
-# 測試環境使用:
-RESEND_FROM_EMAIL=onboarding@resend.dev
-# 正式環境使用你驗證過的網域:
-# RESEND_FROM_EMAIL=noreply@yourdomain.com
+# Gmail 帳號和應用程式密碼 (必需)
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=abcdefghijklmnop        # 16位應用程式密碼（不含空格）
+
+# 寄件者 Email (選填，預設使用 SMTP_USERNAME)
+SMTP_FROM_EMAIL=your-email@gmail.com
 ```
 
 #### 本地開發環境
@@ -115,12 +124,15 @@ cp .env.example .env
 2. 選擇你的後端服務
 3. 進入「Environment Variables」設定
 4. 新增以下環境變數:
-   - `RESEND_API_KEY`: 你的 API Key
-   - `RESEND_FROM_EMAIL`: 你的寄件者 Email
+   - `SMTP_HOST`: smtp.gmail.com
+   - `SMTP_PORT`: 587
+   - `SMTP_USERNAME`: 你的 Gmail 帳號
+   - `SMTP_PASSWORD`: 你的應用程式密碼
+   - `SMTP_FROM_EMAIL`: 寄件者 Email（選填）
 
 #### 其他平台
 
-- **Heroku**: `heroku config:set RESEND_API_KEY=xxx RESEND_FROM_EMAIL=xxx`
+- **Heroku**: `heroku config:set SMTP_HOST=smtp.gmail.com SMTP_PORT=587 SMTP_USERNAME=xxx SMTP_PASSWORD=xxx`
 - **Docker**: 在 `docker-compose.yml` 中設定環境變數
 - **Vercel/Netlify**: 在專案設定中新增環境變數
 
@@ -134,42 +146,46 @@ cp .env.example .env
 2. 點擊「忘記密碼」
 3. 輸入已註冊的 Email
 4. 檢查是否收到密碼重設郵件
-
-如果使用測試網域,郵件會發送到你的 Resend 帳號郵箱,而非輸入的 Email。
+5. 如果沒有收到,請檢查垃圾郵件資料夾
 
 ## 錯誤排查
 
 ### 問題: 顯示「郵件服務未配置或發送失敗」
 
 **可能原因**:
-1. `RESEND_API_KEY` 環境變數未設定或設定錯誤
-2. `RESEND_FROM_EMAIL` 環境變數未設定
-3. API Key 無效或已過期
-4. 寄件者 Email 網域未驗證
+1. `SMTP_USERNAME` 或 `SMTP_PASSWORD` 環境變數未設定
+2. Gmail 應用程式密碼錯誤或包含空格
+3. Gmail 帳號未啟用兩步驟驗證
+4. SMTP 連線被防火牆封鎖
+5. Gmail 帳號安全性設定阻擋登入
 
 **解決方法**:
 1. 檢查環境變數是否正確設定
-2. 檢查後端日誌查看詳細錯誤訊息:
+2. 確認應用程式密碼正確（16位,不含空格）
+3. 確認已啟用兩步驟驗證: https://myaccount.google.com/security
+4. 檢查後端日誌查看詳細錯誤訊息:
    ```bash
    # 查看日誌
    tail -f backend/logs/*.log
    # 或使用 docker
    docker logs <container_name>
    ```
-3. 確認 Resend API Key 有效
-4. 確認寄件者 Email 網域已驗證(或使用 `onboarding@resend.dev` 測試)
+5. 確認伺服器可以連線到 smtp.gmail.com:587
+6. 如果出現「登入失敗」錯誤,請重新生成應用程式密碼
 
 ### 問題: 沒有收到郵件
 
 **可能原因**:
 1. 郵件被歸類為垃圾郵件
-2. 使用測試網域時,郵件發送到 Resend 帳號郵箱而非目標郵箱
+2. Gmail 每日發送限制（免費帳號每日限制 500 封）
 3. 郵箱地址不存在或無效
+4. Gmail 帳號被暫時停用
 
 **解決方法**:
 1. 檢查垃圾郵件資料夾
-2. 如果使用 `onboarding@resend.dev`,請檢查你的 Resend 帳號郵箱
+2. 檢查 Gmail 發送配額: https://support.google.com/mail/answer/22839
 3. 確認郵箱地址正確且可接收郵件
+4. 登入 Gmail 檢查是否有安全性警告
 
 ## 安全說明
 
@@ -182,12 +198,14 @@ cp .env.example .env
 
 ## 測試檢查清單
 
-- [ ] 後端環境變數已設定 (RESEND_API_KEY, RESEND_FROM_EMAIL)
+- [ ] Gmail 帳號已啟用兩步驟驗證
+- [ ] Gmail 應用程式密碼已生成
+- [ ] 後端環境變數已設定 (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)
 - [ ] 後端服務已重啟
 - [ ] 測試用戶已註冊
 - [ ] 點擊「忘記密碼」功能
 - [ ] 輸入已註冊的 Email
-- [ ] 檢查是否收到郵件(或檢查 Resend 儀表板)
+- [ ] 檢查是否收到郵件（包含垃圾郵件資料夾）
 - [ ] 點擊郵件中的重設連結
 - [ ] 成功設定新密碼
 - [ ] 使用新密碼登入成功

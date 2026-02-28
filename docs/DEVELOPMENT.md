@@ -183,12 +183,12 @@ JWT_SECRET=your-secret-key-change-in-production
 # Admin 密鑰（用於特殊操作）
 ADMIN_SECRET=admin-secret-key-change-in-production
 
-# Email 設定（忘記密碼功能）
+# Email 設定（忘記密碼功能，使用 Gmail SMTP）
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-SMTP_FROM=noreply@example.com
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-gmail-app-password
+SMTP_FROM_EMAIL=your-email@gmail.com
 
 # 密碼政策（true/false）
 PASSWORD_MIN_LENGTH=12

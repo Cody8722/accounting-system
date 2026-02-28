@@ -118,8 +118,12 @@ limiter = Limiter(
 
 # 環境變數
 MONGO_URI = os.getenv("MONGO_URI")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@resend.dev")
+# Gmail SMTP 配置
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USERNAME)
 
 # MongoDB 連線
 client = None
@@ -1362,13 +1366,14 @@ def change_password():
 
 
 def send_reset_email(to_email: str, reset_url: str) -> bool:
-    """用 Resend 寄送密碼重設信"""
-    if not RESEND_API_KEY:
-        logger.error("RESEND_API_KEY 未設定")
+    """用 Gmail SMTP 寄送密碼重設信"""
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        logger.error("SMTP_USERNAME 或 SMTP_PASSWORD 未設定")
         return False
     try:
-        import urllib.request
-        import urllib.error
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
 
         html_body = f"""
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -1384,27 +1389,27 @@ def send_reset_email(to_email: str, reset_url: str) -> bool:
             </p>
         </div>
         """
-        payload = json.dumps(
-            {
-                "from": RESEND_FROM_EMAIL,
-                "to": [to_email],
-                "subject": "記帳本 — 密碼重設",
-                "html": html_body,
-            }
-        ).encode("utf-8")
-        req = urllib.request.Request(
-            "https://api.resend.com/emails",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
+
+        # 建立郵件訊息
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "記帳本 — 密碼重設"
+        msg["From"] = SMTP_FROM_EMAIL
+        msg["To"] = to_email
+
+        # 添加 HTML 內容
+        html_part = MIMEText(html_body, "html", "utf-8")
+        msg.attach(html_part)
+
+        # 連接 SMTP 伺服器並發送郵件
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()  # 啟用 TLS 加密
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+
+        logger.info(f"郵件已成功發送至: {to_email}")
+        return True
     except Exception as e:
-        logger.error(f"Resend 寄信失敗: {e}")
+        logger.error(f"Gmail SMTP 寄信失敗: {e}")
         return False
 
 
@@ -1451,7 +1456,7 @@ def forgot_password():
             # 檢查郵件是否成功發送
             email_sent = send_reset_email(email, reset_url)
             if not email_sent:
-                logger.error(f"密碼重設信寄送失敗: {email}，請檢查 RESEND_API_KEY 是否已設定")
+                logger.error(f"密碼重設信寄送失敗: {email}，請檢查 SMTP 配置是否正確")
                 return jsonify({"error": "郵件服務未配置或發送失敗，請聯繫系統管理員"}), 500
 
             logger.info(f"密碼重設信已寄送: {email}")
