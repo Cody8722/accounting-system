@@ -124,6 +124,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USERNAME)
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "會計系統 - 系統通知")
 
 # MongoDB 連線
 client = None
@@ -1374,6 +1375,7 @@ def send_reset_email(to_email: str, reset_url: str) -> bool:
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        from email.utils import formataddr
 
         html_body = f"""
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -1393,7 +1395,7 @@ def send_reset_email(to_email: str, reset_url: str) -> bool:
         # 建立郵件訊息
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "記帳本 — 密碼重設"
-        msg["From"] = SMTP_FROM_EMAIL
+        msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
         msg["To"] = to_email
 
         # 添加 HTML 內容
