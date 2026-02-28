@@ -1449,10 +1449,38 @@ def forgot_password():
                 },
             )
 
-            # 取前端 URL 來組重設連結
-            frontend_url = (
-                FRONTEND_URLS[0] if FRONTEND_URLS else "http://localhost:8080"
-            )
+            # 取前端 URL 來組重設連結（自適應邏輯）
+            # 1. 優先從請求的 Origin header 自動偵測
+            origin = request.headers.get("Origin")
+            if not origin:
+                # Fallback: 從 Referer 提取（移除 query string 和結尾斜線）
+                referer = request.headers.get("Referer", "")
+                if referer:
+                    # 提取 protocol://domain:port 部分
+                    origin = referer.split("?")[0].rstrip("/")
+                    # 移除路徑部分，只保留 origin
+                    if "/" in origin.replace("https://", "").replace("http://", ""):
+                        origin = "/".join(origin.split("/")[:3])
+
+            # 2. 驗證 Origin 是否在白名單中（安全性檢查）
+            frontend_url = None
+            if origin and origin in FRONTEND_URLS:
+                frontend_url = origin
+                logger.info(f"使用請求來源作為重設連結: {origin}")
+
+            # 3. Fallback: 使用 FRONTEND_URL 環境變數
+            if not frontend_url:
+                frontend_url = os.getenv("FRONTEND_URL")
+                if frontend_url:
+                    logger.info(f"使用 FRONTEND_URL 環境變數: {frontend_url}")
+
+            # 4. 最終 Fallback: 使用 FRONTEND_URLS 第一個
+            if not frontend_url:
+                frontend_url = (
+                    FRONTEND_URLS[0] if FRONTEND_URLS else "http://localhost:8080"
+                )
+                logger.info(f"使用預設前端網址: {frontend_url}")
+
             reset_url = f"{frontend_url}?reset_token={token}"
 
             # 檢查郵件是否成功發送
