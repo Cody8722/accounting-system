@@ -196,9 +196,16 @@ export async function submitForgotPassword() {
         });
         const data = await resp.json();
 
-        if (successEl) {
-            successEl.textContent = data.message || '重設連結已寄出';
-            successEl.classList.remove('hidden');
+        if (resp.ok) {
+            if (successEl) {
+                successEl.textContent = data.message || '重設連結已寄出';
+                successEl.classList.remove('hidden');
+            }
+        } else {
+            if (errEl) {
+                errEl.textContent = data.error || '發送失敗，請稍後再試';
+                errEl.classList.remove('hidden');
+            }
         }
     } catch (e) {
         if (errEl) {

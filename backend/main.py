@@ -1447,7 +1447,13 @@ def forgot_password():
                 FRONTEND_URLS[0] if FRONTEND_URLS else "http://localhost:8080"
             )
             reset_url = f"{frontend_url}?reset_token={token}"
-            send_reset_email(email, reset_url)
+
+            # 檢查郵件是否成功發送
+            email_sent = send_reset_email(email, reset_url)
+            if not email_sent:
+                logger.error(f"密碼重設信寄送失敗: {email}，請檢查 RESEND_API_KEY 是否已設定")
+                return jsonify({"error": "郵件服務未配置或發送失敗，請聯繫系統管理員"}), 500
+
             logger.info(f"密碼重設信已寄送: {email}")
 
         return jsonify({"message": "若此 Email 已註冊，重設連結已寄出"}), 200
