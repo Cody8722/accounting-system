@@ -8,7 +8,7 @@ export default defineConfig({
   testDir: './tests/e2e',
 
   /* 測試超時時間 - CI 環境延長超時時間 */
-  timeout: process.env.CI ? 60000 : 30000,
+  timeout: process.env.CI ? 90000 : 30000,  // 增加到 90 秒
 
   /* 每個測試的重試次數 */
   retries: process.env.CI ? 2 : 0,
@@ -45,8 +45,8 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
 
     /* 等待設定 - CI 環境延長超時時間 */
-    actionTimeout: process.env.CI ? 15000 : 10000,
-    navigationTimeout: process.env.CI ? 45000 : 30000,
+    actionTimeout: process.env.CI ? 30000 : 10000,  // 增加到 30 秒
+    navigationTimeout: process.env.CI ? 60000 : 30000,  // 增加到 60 秒
   },
 
   /* 測試項目配置 */

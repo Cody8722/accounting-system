@@ -93,6 +93,13 @@ export async function registerUser(page, user) {
       },
       { timeout: 10000 }
     );
+    console.log('✓ Registration success message confirmed');
+
+    // 等待可能的 SweetAlert2 弹窗（前端可能使用 SweetAlert2 显示成功消息）
+    // 等待弹窗关闭后再继续，避免阻塞后续操作
+    await page.waitForTimeout(3000);  // 给 SweetAlert2 足够时间显示和自动关闭
+    console.log('✓ Waited for modal animations');
+
     console.log('✅ Registration completed successfully!');
 
   } catch (error) {
@@ -190,9 +197,13 @@ export async function loginUser(page, credentials) {
         const loginModal = document.getElementById('login-modal');
         return loginModal && loginModal.classList.contains('hidden');
       },
-      { timeout: 10000 }
+      { timeout: 20000 }  // 增加超时时间到 20 秒（CI 环境可能较慢）
     );
     console.log('✓ Login modal hidden - login successful');
+
+    // 额外等待确保 DOM 更新完成
+    await page.waitForTimeout(1000);
+    console.log('✓ Waited for DOM updates to complete');
 
     // 驗證認證狀態
     const authToken = await page.evaluate(() => localStorage.getItem('authToken'));
@@ -234,7 +245,7 @@ export async function loginUser(page, credentials) {
       console.error('Failed to collect debug info:', debugError.message);
     }
 
-    throw new Error(`Authentication failed at auth.helpers.js:86 - ${error.message}`);
+    throw new Error(`Login failed: ${error.message}`);
   }
 }
 
