@@ -44,8 +44,8 @@ test.describe('預算與統計功能測試', () => {
       // 儲存預算
       await page.click('button:has-text("儲存"), button:has-text("保存")');
 
-      // 驗證成功訊息
-      await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+      // 驗證成功訊息 (SweetAlert2 modal with success icon)
+      await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
       await page.click('.swal2-confirm');
 
       // 重新載入頁面驗證預算已儲存
@@ -158,7 +158,7 @@ test.describe('預算與統計功能測試', () => {
     if (await lunchBudgetInput.count() > 0) {
       await lunchBudgetInput.fill('100');
       await page.click('button:has-text("儲存"), button:has-text("保存")');
-      await page.waitForSelector('.swal2-success', { timeout: 5000 });
+      await page.waitForSelector('.swal2-popup .swal2-icon.swal2-success', { timeout: 5000 });
       await page.click('.swal2-confirm');
     }
 

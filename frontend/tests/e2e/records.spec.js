@@ -56,8 +56,8 @@ test.describe('記帳記錄 CRUD 測試', () => {
     // 提交
     await page.click('button#save-record-btn, button:has-text("確認")');
 
-    // 驗證成功訊息
-    await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+    // 驗證成功訊息 (SweetAlert2 modal with success icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
     await page.click('.swal2-confirm');
 
     // 前往記錄頁面驗證
@@ -103,8 +103,8 @@ test.describe('記帳記錄 CRUD 測試', () => {
     // 提交
     await page.click('button#save-record-btn, button:has-text("確認")');
 
-    // 驗證成功訊息
-    await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+    // 驗證成功訊息 (SweetAlert2 modal with success icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
   });
 
   test('使用者可以編輯記錄', async ({ page }) => {
@@ -135,8 +135,8 @@ test.describe('記帳記錄 CRUD 測試', () => {
     // 提交更新
     await page.click('button#save-record-btn, button:has-text("確認")');
 
-    // 驗證成功訊息
-    await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+    // 驗證成功訊息 (SweetAlert2 modal with success icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
     await page.click('.swal2-confirm');
 
     // 重新載入並驗證更新
@@ -169,8 +169,8 @@ test.describe('記帳記錄 CRUD 測試', () => {
     await page.waitForSelector('.swal2-confirm', { state: 'visible' });
     await page.click('.swal2-confirm');
 
-    // 驗證成功訊息
-    await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+    // 驗證成功訊息 (SweetAlert2 modal with success icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
     await page.click('.swal2-confirm');
 
     // 重新載入並驗證記錄已刪除
@@ -240,9 +240,9 @@ test.describe('記帳記錄 CRUD 測試', () => {
     // 嘗試提交
     await page.click('button#save-record-btn, button:has-text("確認")');
 
-    // 應該顯示錯誤訊息或阻止提交
+    // 應該顯示錯誤訊息或阻止提交 (SweetAlert2 modal with error icon)
     const hasError = await Promise.race([
-      page.locator('.swal2-error, .error-message').isVisible(),
+      page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message').isVisible(),
       page.locator('input:invalid').count().then(c => c > 0),
       page.waitForTimeout(2000).then(() => false)
     ]);

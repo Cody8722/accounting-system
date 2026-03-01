@@ -66,8 +66,8 @@ export async function addRecord(page, record) {
   // 提交表單
   await page.click('button#save-record-btn');
 
-  // 等待成功訊息
-  await page.waitForSelector('.swal2-success', { timeout: 5000 });
+  // 等待成功訊息 (SweetAlert2 modal with success icon)
+  await page.waitForSelector('.swal2-popup .swal2-icon.swal2-success', { timeout: 5000 });
   await page.click('.swal2-confirm');
 }
 
@@ -99,8 +99,8 @@ export async function deleteRecord(page, index = 0) {
   await page.waitForSelector('.swal2-confirm', { state: 'visible' });
   await page.click('.swal2-confirm');
 
-  // 等待成功訊息
-  await page.waitForSelector('.swal2-success', { timeout: 5000 });
+  // 等待成功訊息 (SweetAlert2 modal with success icon)
+  await page.waitForSelector('.swal2-popup .swal2-icon.swal2-success', { timeout: 5000 });
   await page.click('.swal2-confirm');
 }
 
@@ -152,8 +152,8 @@ export async function editRecord(page, index, updates) {
   // 提交更新
   await page.click('button#save-record-btn');
 
-  // 等待成功訊息
-  await page.waitForSelector('.swal2-success', { timeout: 5000 });
+  // 等待成功訊息 (SweetAlert2 modal with success icon)
+  await page.waitForSelector('.swal2-popup .swal2-icon.swal2-success', { timeout: 5000 });
   await page.click('.swal2-confirm');
 }
 

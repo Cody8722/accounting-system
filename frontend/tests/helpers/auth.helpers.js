@@ -51,8 +51,8 @@ export async function registerUser(page, user) {
   // 提交註冊
   await page.click('#register-modal button:has-text("註冊")');
 
-  // 等待成功訊息
-  await page.waitForSelector('.swal2-success', { timeout: 5000 });
+  // 等待成功訊息 (SweetAlert2 modal with success icon)
+  await page.waitForSelector('.swal2-popup .swal2-icon.swal2-success', { timeout: 5000 });
 }
 
 /**

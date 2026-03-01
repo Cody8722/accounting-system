@@ -36,8 +36,8 @@ test.describe('認證流程測試', () => {
     // 提交註冊
     await page.click('#register-modal button:has-text("註冊")');
 
-    // 驗證成功訊息
-    await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+    // 驗證成功訊息 (SweetAlert2 modal with success icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
 
     // 關閉成功訊息
     await page.click('.swal2-confirm');
@@ -82,8 +82,8 @@ test.describe('認證流程測試', () => {
     // 提交註冊
     await page.click('#register-modal button:has-text("註冊")');
 
-    // 驗證錯誤訊息
-    await expect(page.locator('.swal2-error, .error-message')).toBeVisible({ timeout: 5000 });
+    // 驗證錯誤訊息 (SweetAlert2 modal with error icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message')).toBeVisible({ timeout: 5000 });
   });
 
   test('無效的 Email 應該被拒絕', async ({ page }) => {
@@ -105,8 +105,8 @@ test.describe('認證流程測試', () => {
     // 提交註冊
     await page.click('#register-modal button:has-text("註冊")');
 
-    // 驗證錯誤訊息或表單驗證
-    const hasError = await page.locator('.swal2-error, .error-message, input:invalid').count() > 0;
+    // 驗證錯誤訊息或表單驗證 (SweetAlert2 modal with error icon)
+    const hasError = await page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message, input:invalid').count() > 0;
     expect(hasError).toBeTruthy();
   });
 
@@ -147,8 +147,8 @@ test.describe('認證流程測試', () => {
     // 提交登入
     await page.click('#login-modal button:has-text("登入")');
 
-    // 驗證錯誤訊息
-    await expect(page.locator('.swal2-error')).toBeVisible({ timeout: 5000 });
+    // 驗證錯誤訊息 (SweetAlert2 modal with error icon)
+    await expect(page.locator('.swal2-popup .swal2-icon.swal2-error')).toBeVisible({ timeout: 5000 });
 
     // 驗證仍在登入頁
     await expect(page).toHaveURL(/.*#login/);

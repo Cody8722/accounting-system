@@ -37,8 +37,8 @@ test.describe('設定頁面測試', () => {
       // 儲存
       await page.click('button:has-text("儲存"), button:has-text("保存")');
 
-      // 驗證成功訊息
-      await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+      // 驗證成功訊息 (SweetAlert2 modal with success icon)
+      await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
       await page.click('.swal2-confirm');
 
       // 重新載入並驗證
@@ -73,8 +73,8 @@ test.describe('設定頁面測試', () => {
       // 提交
       await page.click('button:has-text("確認"), button:has-text("提交")');
 
-      // 驗證成功訊息
-      await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
+      // 驗證成功訊息 (SweetAlert2 modal with success icon)
+      await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
       await page.click('.swal2-confirm');
 
       // 登出
@@ -115,8 +115,8 @@ test.describe('設定頁面測試', () => {
       // 提交
       await page.click('button:has-text("確認"), button:has-text("提交")');
 
-      // 應該顯示錯誤訊息
-      await expect(page.locator('.swal2-error, .error-message')).toBeVisible({ timeout: 5000 });
+      // 應該顯示錯誤訊息 (SweetAlert2 modal with error icon)
+      await expect(page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message')).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -141,8 +141,8 @@ test.describe('設定頁面測試', () => {
       // 提交
       await page.click('button:has-text("確認"), button:has-text("提交")');
 
-      // 應該顯示錯誤訊息
-      await expect(page.locator('.swal2-error, .error-message, :text("不一致")')).toBeVisible({ timeout: 5000 });
+      // 應該顯示錯誤訊息 (SweetAlert2 modal with error icon)
+      await expect(page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message, :text("不一致")')).toBeVisible({ timeout: 5000 });
     }
   });
 
