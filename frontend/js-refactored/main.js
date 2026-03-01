@@ -164,8 +164,21 @@ async function handleDOMContentLoaded() {
         showAndroidInstallPrompt();
 
     } else {
-        // 未登入，顯示登入modal
-        showLoginModal();
+        // 未登入時，檢查當前 hash 是否已經是認證頁面
+        const currentHash = window.location.hash;
+        const isAuthPage = currentHash === '#login' ||
+                          currentHash === '#register' ||
+                          currentHash === '#forgot-password';
+
+        // 如果不在認證頁面，則導航到登入頁
+        // 如果已經在認證頁面（例如測試中直接訪問 #register），則保持不變
+        if (!isAuthPage) {
+            showLoginModal();
+        } else {
+            // 已經在認證頁面，只需確保不會顯示 main-content
+            const mainContent = document.getElementById('main-content');
+            if (mainContent) mainContent.style.display = 'none';
+        }
     }
 }
 
