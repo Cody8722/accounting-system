@@ -63,6 +63,11 @@ export function showLoginModal() {
         }
     }
 
+    // 更新 hash（如果不同）
+    if (window.location.hash !== '#login') {
+        window.location.hash = '#login';
+    }
+
     EventBus.emit(EVENTS.AUTH_MODAL_OPENED, { type: 'login' });
 }
 
@@ -81,6 +86,11 @@ export function showRegisterModal() {
     if (loginModal) loginModal.classList.add('hidden');
     if (registerError) registerError.classList.add('hidden');
     if (registerForm) registerForm.reset();
+
+    // 更新 hash（如果不同）
+    if (window.location.hash !== '#register') {
+        window.location.hash = '#register';
+    }
 
     EventBus.emit(EVENTS.AUTH_MODAL_OPENED, { type: 'register' });
 }
@@ -444,7 +454,7 @@ export async function handleLogout() {
     // 跳轉到登入頁
     const mainContent = document.getElementById('main-content');
     if (mainContent) mainContent.style.display = 'none';
-    showLoginModal();
+    window.location.hash = '#login';
 
     console.log('✅ 已登出');
 }
@@ -502,6 +512,9 @@ export async function handleLogin(e) {
             hideAuthModals();
             const mainContent = document.getElementById('main-content');
             if (mainContent) mainContent.style.display = 'block';
+
+            // 導航到儀表板
+            window.location.hash = '#dashboard';
 
             // 更新用戶顯示
             updateUserDisplay();
@@ -597,9 +610,15 @@ export async function handleRegister(e) {
                 registerError.classList.add('text-green-500');
             }
 
+            // 發送註冊成功事件
+            EventBus.emit(EVENTS.AUTH_REGISTER_SUCCESS, data);
+
+            // 使用 SweetAlert 顯示成功訊息
+            showToast('✅ 註冊成功！請登入', 'success', 2000);
+
             // 2秒後切換到登入頁
             setTimeout(() => {
-                showLoginModal();
+                window.location.hash = '#login';
                 const loginEmail = document.getElementById('login-email');
                 if (loginEmail) loginEmail.value = email;
             }, 2000);
@@ -820,6 +839,24 @@ function updateChangePasswordStrengthUI(result) {
 }
 
 /**
+ * 處理 hash 變化，顯示對應的認證模態框
+ */
+function handleAuthHash() {
+    const hash = window.location.hash;
+
+    if (hash === '#register') {
+        showRegisterModal();
+    } else if (hash === '#login') {
+        showLoginModal();
+    } else if (hash === '#forgot-password') {
+        showForgotPasswordModal();
+    } else if (hash === '#dashboard' || hash.startsWith('#page-')) {
+        // 應用頁面，不處理認證模態框
+        hideAuthModals();
+    }
+}
+
+/**
  * 初始化認證模組
  * 設置事件監聽器
  */
@@ -859,6 +896,12 @@ export function initAuth() {
         showToast('登入已過期，請重新登入', 'warning');
         showLoginModal();
     });
+
+    // 監聽 hash 變化以顯示對應的認證頁面
+    window.addEventListener('hashchange', handleAuthHash);
+
+    // 初始化時檢查 hash
+    handleAuthHash();
 
     // 暴露到全局（供 HTML onclick 使用）
     window.handleLogout = handleLogout;

@@ -135,6 +135,7 @@ export const EVENTS = {
 
     // ===== 認證事件 =====
     AUTH_LOGIN_SUCCESS: 'auth:login-success',       // 登入成功
+    AUTH_REGISTER_SUCCESS: 'auth:register-success', // 註冊成功
     AUTH_LOGOUT: 'auth:logout',                     // 登出
     AUTH_TOKEN_INVALID: 'auth:token-invalid',       // Token 無效
     AUTH_MODAL_OPENED: 'auth:modal-opened',         // 認證模態框打開
