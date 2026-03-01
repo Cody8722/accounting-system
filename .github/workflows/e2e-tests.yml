@@ -60,8 +60,9 @@ jobs:
       - name: Start Backend Server
         run: |
           cd backend
-          python main.py &
-          sleep 10
+          python main.py > backend.log 2>&1 &
+          echo $! > backend.pid
+          echo "Backend server started with PID: $(cat backend.pid)"
         env:
           MONGO_URI: mongodb://localhost:27017/test_db
           JWT_SECRET: test-jwt-secret-key-for-e2e
@@ -70,9 +71,43 @@ jobs:
           GMAIL_APP_PASSWORD: test-password
           TESTING: true
 
-      - name: Verify Backend is Running
+      - name: Wait for Backend to be Ready
         run: |
-          curl -f http://localhost:5001/api/health || curl -f http://localhost:5001/ || echo "Backend may not have health endpoint"
+          echo "⏳ Waiting for backend server to be ready..."
+          for i in {1..60}; do
+            if curl -f http://localhost:5001/api/health 2>/dev/null || curl -f http://localhost:5001/ 2>/dev/null; then
+              echo "✅ Backend is ready after ${i} seconds!"
+              exit 0
+            fi
+            echo "Attempt $i/60: Backend not ready yet..."
+            sleep 2
+          done
+          echo "❌ Backend failed to start after 120 seconds"
+          echo "Backend logs:"
+          cat backend/backend.log || echo "No backend logs found"
+          exit 1
+
+      - name: Start Frontend Server
+        run: |
+          cd frontend
+          python3 -m http.server 8080 > frontend.log 2>&1 &
+          echo $! > frontend.pid
+          echo "Frontend server started with PID: $(cat frontend.pid)"
+          sleep 3
+
+      - name: Verify Frontend is Running
+        run: |
+          echo "⏳ Verifying frontend server..."
+          for i in {1..10}; do
+            if curl -f http://localhost:8080/ 2>/dev/null; then
+              echo "✅ Frontend is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/10: Frontend not ready yet..."
+            sleep 1
+          done
+          echo "❌ Frontend failed to start"
+          exit 1
 
       - name: Run E2E Tests
         run: |
@@ -80,6 +115,30 @@ jobs:
           npx playwright test --project=chromium
         env:
           BASE_URL: http://localhost:8080
+          API_URL: http://localhost:5001
+
+      - name: Stop Servers
+        if: always()
+        run: |
+          echo "Stopping servers..."
+          if [ -f backend/backend.pid ]; then
+            kill $(cat backend/backend.pid) 2>/dev/null || true
+            echo "Backend server stopped"
+          fi
+          if [ -f frontend/frontend.pid ]; then
+            kill $(cat frontend/frontend.pid) 2>/dev/null || true
+            echo "Frontend server stopped"
+          fi
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: |
+            backend/backend.log
+            frontend/frontend.log
+          retention-days: 7
 
       - name: Upload Test Report
         if: always()
@@ -196,17 +255,50 @@ jobs:
       - name: Start Backend Server
         run: |
           cd backend
-          python main.py &
-          sleep 10
+          python main.py > backend.log 2>&1 &
+          echo $! > backend.pid
+          echo "Backend server started with PID: $(cat backend.pid)"
         env:
           MONGO_URI: mongodb://localhost:27017/test_db
           JWT_SECRET: test-jwt-secret-key-for-e2e
+          ADMIN_SECRET: test-admin-secret-key
           TESTING: true
+
+      - name: Wait for Backend to be Ready
+        run: |
+          echo "⏳ Waiting for backend server to be ready..."
+          for i in {1..60}; do
+            if curl -f http://localhost:5001/api/health 2>/dev/null || curl -f http://localhost:5001/ 2>/dev/null; then
+              echo "✅ Backend is ready after ${i} seconds!"
+              exit 0
+            fi
+            echo "Attempt $i/60: Backend not ready yet..."
+            sleep 2
+          done
+          echo "❌ Backend failed to start after 120 seconds"
+          cat backend/backend.log || echo "No backend logs found"
+          exit 1
+
+      - name: Start Frontend Server
+        run: |
+          cd frontend
+          python3 -m http.server 8080 > frontend.log 2>&1 &
+          echo $! > frontend.pid
+          sleep 3
+          curl -f http://localhost:8080/ || (echo "Frontend failed to start"; exit 1)
 
       - name: Run E2E Tests (Firefox)
         run: |
           cd frontend
           npx playwright test --project=firefox
+        env:
+          BASE_URL: http://localhost:8080
+
+      - name: Stop Servers
+        if: always()
+        run: |
+          if [ -f backend/backend.pid ]; then kill $(cat backend/backend.pid) 2>/dev/null || true; fi
+          if [ -f frontend/frontend.pid ]; then kill $(cat frontend/frontend.pid) 2>/dev/null || true; fi
 
       - name: Upload Test Report
         if: always()
@@ -214,4 +306,14 @@ jobs:
         with:
           name: playwright-report-firefox
           path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-firefox
+          path: |
+            backend/backend.log
+            frontend/frontend.log
           retention-days: 7
