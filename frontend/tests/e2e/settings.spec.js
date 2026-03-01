@@ -81,9 +81,12 @@ test.describe('設定頁面測試', () => {
       await page.click('button:has-text("登出")');
       await expect(page).toHaveURL(/.*#login/);
 
+      // 等待登入 modal 顯示
+      await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
+
       // 使用新密碼登入
-      await page.fill('input[name="email"]', user.email);
-      await page.fill('input[name="password"]', newPassword);
+      await page.fill('#login-modal input[name="email"]', user.email);
+      await page.fill('#login-modal input[name="password"]', newPassword);
       await page.click('button:has-text("登入")');
 
       // 驗證登入成功
