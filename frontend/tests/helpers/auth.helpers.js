@@ -40,15 +40,15 @@ export async function registerUser(page, user) {
   await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
 
   // 等待輸入框可見
-  await page.waitForSelector('input[name="name"]', { state: 'visible', timeout: 5000 });
+  await page.waitForSelector('#register-modal input[name="name"]', { state: 'visible', timeout: 5000 });
 
   // 填寫註冊表單
-  await page.fill('input[name="name"]', user.name);
-  await page.fill('input[name="email"]', user.email);
-  await page.fill('input[name="password"]', user.password);
+  await page.fill('#register-modal input[name="name"]', user.name);
+  await page.fill('#register-modal input[name="email"]', user.email);
+  await page.fill('#register-modal input[name="password"]', user.password);
 
   // 提交註冊
-  await page.click('button:has-text("註冊")');
+  await page.click('#register-modal button:has-text("註冊")');
 
   // 等待成功訊息
   await page.waitForSelector('.swal2-success', { timeout: 5000 });
@@ -67,14 +67,14 @@ export async function loginUser(page, credentials) {
   await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
 
   // 等待輸入框可見
-  await page.waitForSelector('input[name="email"]', { state: 'visible', timeout: 5000 });
+  await page.waitForSelector('#login-modal input[name="email"]', { state: 'visible', timeout: 5000 });
 
   // 填寫登入表單
-  await page.fill('input[name="email"]', credentials.email);
-  await page.fill('input[name="password"]', credentials.password);
+  await page.fill('#login-modal input[name="email"]', credentials.email);
+  await page.fill('#login-modal input[name="password"]', credentials.password);
 
   // 提交登入
-  await page.click('button:has-text("登入")');
+  await page.click('#login-modal button:has-text("登入")');
 
   // 等待導航到儀表板
   await page.waitForURL('**/#dashboard', { timeout: 5000 });
