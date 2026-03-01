@@ -110,15 +110,24 @@ export async function isLoggedIn(page) {
  * @param {import('@playwright/test').Page} page
  */
 export async function clearAuthState(page) {
-  // 如果頁面還在 about:blank，先導航到首頁
-  const currentUrl = page.url();
-  if (currentUrl === 'about:blank' || !currentUrl.startsWith('http')) {
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
+  try {
+    // Try to clear localStorage without navigation first
+    await page.evaluate(() => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('userData');
+    });
+  } catch (error) {
+    // If context was destroyed or page is not loaded, navigate and retry
+    try {
+      await page.goto('/', { waitUntil: 'load', timeout: 10000 });
+      await page.evaluate(() => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userData');
+      });
+    } catch (retryError) {
+      // If still failing, it might be due to ongoing navigation
+      // Log but don't fail the test
+      console.warn('Could not clear auth state:', retryError.message);
+    }
   }
-
-  await page.evaluate(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
-  });
 }

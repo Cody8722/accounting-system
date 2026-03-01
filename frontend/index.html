@@ -4324,7 +4324,26 @@
                 showAndroidInstallPrompt();
             } else {
                 // 未登入，顯示登入modal
-                showLoginModal();
+                // 檢查初始 hash 是否要求顯示註冊頁面
+                const hash = window.location.hash;
+                if (hash === '#register') {
+                    showRegisterModal();
+                } else {
+                    showLoginModal();
+                }
+            }
+        });
+
+        // 監聽 hash 變化以支援測試和直接連結導航
+        window.addEventListener('hashchange', () => {
+            const hash = window.location.hash;
+            // 只在未登入狀態下處理 auth 相關的 hash
+            if (!isAuthenticated) {
+                if (hash === '#register') {
+                    showRegisterModal();
+                } else if (hash === '#login' || hash === '') {
+                    showLoginModal();
+                }
             }
         });
     </script>
