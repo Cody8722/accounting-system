@@ -12,14 +12,23 @@ test.describe('設定頁面測試', () => {
   test.beforeEach(async ({ page }) => {
     // 清除狀態並登入
     await clearAuthState(page);
+
+    // 等待狀態清除完成
+    await page.waitForTimeout(500);
+
     user = generateTestUser();
     await registerUser(page, user);
+
+    // 點擊確認按鈕並等待 modal 關閉
     await page.click('.swal2-confirm');
+    await page.waitForSelector('.swal2-popup', { state: 'hidden', timeout: 5000 });
+
+    // 登入用戶
     await loginUser(page, user);
 
     // 前往設定頁面
-    await page.goto('/#settings');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/#settings', { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.waitForLoadState('networkidle', { timeout: 10000 });
   });
 
   test('使用者可以修改個人資料名稱', async ({ page }) => {
