@@ -529,6 +529,16 @@ export async function handleLogin(e) {
                 loginError.classList.remove('text-gray-500');
                 loginError.classList.add('text-red-500');
             }
+
+            // 使用 SweetAlert2 顯示錯誤訊息
+            if (window.Swal) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: '登入失敗',
+                    text: data.error || '登入失敗',
+                    confirmButtonText: '確定'
+                });
+            }
         }
     } catch (error) {
         console.error('登入錯誤:', error);
@@ -613,20 +623,40 @@ export async function handleRegister(e) {
             // 發送註冊成功事件
             EventBus.emit(EVENTS.AUTH_REGISTER_SUCCESS, data);
 
-            // 使用 SweetAlert 顯示成功訊息
-            showToast('✅ 註冊成功！請登入', 'success', 2000);
+            // 使用 SweetAlert2 顯示成功訊息
+            if (window.Swal) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: '註冊成功',
+                    text: '✅ 註冊成功！請登入',
+                    confirmButtonText: '確定',
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+            } else {
+                // Fallback to toast if SweetAlert2 is not loaded
+                showToast('✅ 註冊成功！請登入', 'success', 2000);
+            }
 
-            // 2秒後切換到登入頁
-            setTimeout(() => {
-                window.location.hash = '#login';
-                const loginEmail = document.getElementById('login-email');
-                if (loginEmail) loginEmail.value = email;
-            }, 2000);
+            // 切換到登入頁
+            window.location.hash = '#login';
+            const loginEmail = document.getElementById('login-email');
+            if (loginEmail) loginEmail.value = email;
         } else {
             if (registerError) {
                 registerError.textContent = data.error || '註冊失敗';
                 registerError.classList.remove('text-gray-500');
                 registerError.classList.add('text-red-500');
+            }
+
+            // 使用 SweetAlert2 顯示錯誤訊息
+            if (window.Swal) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: '註冊失敗',
+                    text: data.error || '註冊失敗',
+                    confirmButtonText: '確定'
+                });
             }
         }
     } catch (error) {
@@ -640,6 +670,16 @@ export async function handleRegister(e) {
             registerError.textContent = errorMsg;
             registerError.classList.remove('text-gray-500');
             registerError.classList.add('text-red-500');
+        }
+
+        // 使用 SweetAlert2 顯示網路錯誤
+        if (window.Swal) {
+            await Swal.fire({
+                icon: 'error',
+                title: '網路錯誤',
+                text: errorMsg,
+                confirmButtonText: '確定'
+            });
         }
     }
 }
