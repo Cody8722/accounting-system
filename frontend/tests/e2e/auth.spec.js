@@ -23,6 +23,10 @@ test.describe('認證流程測試', () => {
     await page.goto('/#register');
     await page.waitForLoadState('networkidle');
 
+    // 等待註冊 modal 顯示
+    await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('input[name="name"]', { state: 'visible', timeout: 5000 });
+
     // 填寫註冊表單
     await page.fill('input[name="name"]', user.name);
     await page.fill('input[name="email"]', user.email);
@@ -39,6 +43,10 @@ test.describe('認證流程測試', () => {
 
     // 驗證自動跳轉到登入頁
     await expect(page).toHaveURL(/.*#login/);
+
+    // 等待登入 modal 顯示
+    await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('input[name="email"]', { state: 'visible', timeout: 5000 });
 
     // 登入
     await page.fill('input[name="email"]', user.email);
@@ -57,6 +65,10 @@ test.describe('認證流程測試', () => {
 
     await page.goto('/#register');
     await page.waitForLoadState('networkidle');
+
+    // 等待註冊 modal 顯示
+    await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('input[name="name"]', { state: 'visible', timeout: 5000 });
 
     // 填寫基本資料
     await page.fill('input[name="name"]', user.name);
@@ -77,6 +89,10 @@ test.describe('認證流程測試', () => {
 
     await page.goto('/#register');
     await page.waitForLoadState('networkidle');
+
+    // 等待註冊 modal 顯示
+    await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('input[name="name"]', { state: 'visible', timeout: 5000 });
 
     // 填寫基本資料
     await page.fill('input[name="name"]', user.name);
@@ -117,6 +133,10 @@ test.describe('認證流程測試', () => {
     await page.goto('/#login');
     await page.waitForLoadState('networkidle');
 
+    // 等待登入 modal 顯示
+    await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('input[name="email"]', { state: 'visible', timeout: 5000 });
+
     // 使用不存在的帳號
     await page.fill('input[name="email"]', 'nonexistent@example.com');
     await page.fill('input[name="password"]', 'WrongPassword123!');
@@ -151,6 +171,12 @@ test.describe('認證流程測試', () => {
 
     // 登入並勾選記住我
     await page.goto('/#login');
+    await page.waitForLoadState('networkidle');
+
+    // 等待登入 modal 顯示
+    await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('input[name="email"]', { state: 'visible', timeout: 5000 });
+
     await page.fill('input[name="email"]', user.email);
     await page.fill('input[name="password"]', user.password);
 

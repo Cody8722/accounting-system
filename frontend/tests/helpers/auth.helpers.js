@@ -36,6 +36,12 @@ export async function registerUser(page, user) {
   await page.goto('/#register');
   await page.waitForLoadState('networkidle');
 
+  // 等待註冊 modal 顯示（移除 hidden class）
+  await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
+
+  // 等待輸入框可見
+  await page.waitForSelector('input[name="name"]', { state: 'visible', timeout: 5000 });
+
   // 填寫註冊表單
   await page.fill('input[name="name"]', user.name);
   await page.fill('input[name="email"]', user.email);
@@ -56,6 +62,12 @@ export async function registerUser(page, user) {
 export async function loginUser(page, credentials) {
   await page.goto('/#login');
   await page.waitForLoadState('networkidle');
+
+  // 等待登入 modal 顯示（移除 hidden class）
+  await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
+
+  // 等待輸入框可見
+  await page.waitForSelector('input[name="email"]', { state: 'visible', timeout: 5000 });
 
   // 填寫登入表單
   await page.fill('input[name="email"]', credentials.email);
