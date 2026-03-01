@@ -49,14 +49,14 @@ export const sampleRecords = {
     salary: {
       type: 'income',
       amount: 50000,
-      category: '薪水',
+      category: '薪資',
       description: '月薪',
       date: new Date().toISOString().split('T')[0]
     },
     bonus: {
       type: 'income',
       amount: 10000,
-      category: '獎金',
+      category: '獎金/紅利',
       description: '績效獎金',
       date: new Date().toISOString().split('T')[0]
     }
@@ -114,5 +114,5 @@ export const categories = {
     '交通', '娛樂', '購物',
     '醫療', '教育', '其他'
   ],
-  income: ['薪水', '獎金', '其他']
+  income: ['薪資', '獎金/紅利', '其他收入']
 };

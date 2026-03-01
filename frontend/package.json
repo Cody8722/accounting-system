@@ -19,8 +19,8 @@
   "author": "Development Team",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.41.0",
-    "playwright": "^1.41.0"
+    "@playwright/test": "^1.55.0",
+    "playwright": "^1.55.0"
   },
   "dependencies": {
     "sweetalert2": "^11.26.21"

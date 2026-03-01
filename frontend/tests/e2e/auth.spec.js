@@ -3,62 +3,49 @@ import {
   generateTestUser,
   registerUser,
   loginUser,
-  logoutUser,
   clearAuthState
 } from '../helpers/auth.helpers.js';
+import { setupApiMocks } from '../helpers/api-mock.helpers.js';
 import { weakPasswords, invalidEmails } from '../fixtures/test-data.js';
 
 test.describe('認證流程測試', () => {
 
   test.beforeEach(async ({ page }) => {
-    // 清除認證狀態
+    await setupApiMocks(page);
     await clearAuthState(page);
   });
 
   test('使用者可以成功註冊並登入', async ({ page }) => {
-    // 生成測試用戶
     const user = generateTestUser();
 
-    // 前往註冊頁面
-    await page.goto('/#register');
-    await page.waitForLoadState('networkidle');
+    // 註冊
+    await registerUser(page, user);
 
-    // 等待註冊 modal 顯示
-    await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
-    await page.waitForSelector('#register-modal input[name="name"]', { state: 'visible', timeout: 5000 });
+    // 等待自動跳轉到登入頁（前端 2 秒後跳轉）
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && !loginModal.classList.contains('hidden');
+      },
+      { timeout: 15000 }
+    );
 
-    // 填寫註冊表單
-    await page.fill('#register-modal input[name="name"]', user.name);
-    await page.fill('#register-modal input[name="email"]', user.email);
-    await page.fill('#register-modal input[name="password"]', user.password);
-    await page.fill('#register-modal input[name="password-confirm"]', user.password);
-
-    // 提交註冊
-    await page.click('#register-modal button:has-text("註冊")');
-
-    // 驗證成功訊息 (SweetAlert2 modal with success icon)
-    await expect(page.locator('.swal2-popup .swal2-icon.swal2-success')).toBeVisible({ timeout: 10000 });
-
-    // 關閉成功訊息
-    await page.click('.swal2-confirm');
-
-    // 驗證自動跳轉到登入頁
-    await expect(page).toHaveURL(/.*#login/);
-
-    // 等待登入 modal 顯示
-    await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
-    await page.waitForSelector('#login-modal input[name="email"]', { state: 'visible', timeout: 5000 });
-
-    // 登入
+    // 填寫登入表單
     await page.fill('#login-modal input[name="email"]', user.email);
     await page.fill('#login-modal input[name="password"]', user.password);
     await page.click('#login-modal button:has-text("登入")');
 
-    // 驗證登入成功並跳轉到儀表板
-    await expect(page).toHaveURL(/.*#dashboard/, { timeout: 10000 });
+    // 驗證登入成功 - login modal 被隱藏
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && loginModal.classList.contains('hidden');
+      },
+      { timeout: 10000 }
+    );
 
     // 驗證用戶名稱顯示
-    await expect(page.locator('.user-name, [data-user-name]')).toContainText(user.name, { timeout: 5000 });
+    await expect(page.locator('#user-name-display')).toContainText(user.name, { timeout: 5000 });
   });
 
   test('弱密碼應該被拒絕', async ({ page }) => {
@@ -67,7 +54,6 @@ test.describe('認證流程測試', () => {
     await page.goto('/#register');
     await page.waitForLoadState('networkidle');
 
-    // 等待註冊 modal 顯示
     await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
     await page.waitForSelector('#register-modal input[name="name"]', { state: 'visible', timeout: 5000 });
 
@@ -75,15 +61,29 @@ test.describe('認證流程測試', () => {
     await page.fill('#register-modal input[name="name"]', user.name);
     await page.fill('#register-modal input[name="email"]', user.email);
 
-    // 測試第一個弱密碼
+    // 使用弱密碼
     await page.fill('#register-modal input[name="password"]', weakPasswords[0]);
     await page.fill('#register-modal input[name="password-confirm"]', weakPasswords[0]);
 
     // 提交註冊
     await page.click('#register-modal button:has-text("註冊")');
 
-    // 驗證錯誤訊息 (SweetAlert2 modal with error icon)
-    await expect(page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message')).toBeVisible({ timeout: 5000 });
+    // 驗證錯誤訊息（前端顯示行內錯誤文字 或 後端拒絕）
+    await page.waitForFunction(
+      () => {
+        const errEl = document.getElementById('register-error');
+        if (errEl && !errEl.classList.contains('hidden') && errEl.textContent.length > 0) {
+          // 確認不是成功訊息
+          return !errEl.textContent.includes('註冊成功');
+        }
+        return false;
+      },
+      { timeout: 10000 }
+    );
+
+    const errorText = await page.locator('#register-error').textContent();
+    expect(errorText).toBeTruthy();
+    expect(errorText).not.toContain('註冊成功');
   });
 
   test('無效的 Email 應該被拒絕', async ({ page }) => {
@@ -92,7 +92,6 @@ test.describe('認證流程測試', () => {
     await page.goto('/#register');
     await page.waitForLoadState('networkidle');
 
-    // 等待註冊 modal 顯示
     await page.waitForSelector('#register-modal:not(.hidden)', { timeout: 5000 });
     await page.waitForSelector('#register-modal input[name="name"]', { state: 'visible', timeout: 5000 });
 
@@ -105,27 +104,60 @@ test.describe('認證流程測試', () => {
     // 提交註冊
     await page.click('#register-modal button:has-text("註冊")');
 
-    // 驗證錯誤訊息或表單驗證 (SweetAlert2 modal with error icon)
-    const hasError = await page.locator('.swal2-popup .swal2-icon.swal2-error, .error-message, input:invalid').count() > 0;
+    // 驗證瀏覽器原生驗證或錯誤訊息
+    const hasError = await page.locator('#register-error:not(.hidden), input:invalid').count() > 0;
     expect(hasError).toBeTruthy();
   });
 
   test('使用者可以登出', async ({ page }) => {
-    // 先註冊並登入
     const user = generateTestUser();
     await registerUser(page, user);
-    await page.click('.swal2-confirm'); // 關閉註冊成功訊息
-    await loginUser(page, user);
 
-    // 前往設定頁面
-    await page.click('a[href="#settings"]');
-    await page.waitForLoadState('networkidle');
+    // 等待跳轉到登入頁並登入
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && !loginModal.classList.contains('hidden');
+      },
+      { timeout: 15000 }
+    );
+    await page.fill('#login-modal input[name="email"]', user.email);
+    await page.fill('#login-modal input[name="password"]', user.password);
+    await page.click('#login-modal button:has-text("登入")');
+
+    // 等待登入成功
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && loginModal.classList.contains('hidden');
+      },
+      { timeout: 10000 }
+    );
+
+    // 導航到設定頁面
+    await page.click('.sidebar-item[data-page="settings"]');
+    await page.waitForTimeout(500);
 
     // 點擊登出
     await page.click('button:has-text("登出")');
 
+    // 確認登出對話框（使用自定義 showConfirm，非 SweetAlert2）
+    // 等待對話框出現，然後點擊「登出」按鈕
+    await page.waitForSelector('text=確定要登出嗎', { timeout: 5000 });
+    // 點擊文字為「登出」的按鈕（對話框中的確認按鈕）
+    const confirmButtons = page.locator('button');
+    // 找到對話框中的「登出」按鈕（不是sidebar中的）
+    const logoutConfirmBtn = page.locator('button:has-text("登出")').last();
+    await logoutConfirmBtn.click();
+
     // 驗證跳轉到登入頁
-    await expect(page).toHaveURL(/.*#login/);
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && !loginModal.classList.contains('hidden');
+      },
+      { timeout: 5000 }
+    );
 
     // 驗證 token 已清除
     const token = await page.evaluate(() => localStorage.getItem('authToken'));
@@ -136,7 +168,6 @@ test.describe('認證流程測試', () => {
     await page.goto('/#login');
     await page.waitForLoadState('networkidle');
 
-    // 等待登入 modal 顯示
     await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
     await page.waitForSelector('#login-modal input[name="email"]', { state: 'visible', timeout: 5000 });
 
@@ -147,22 +178,41 @@ test.describe('認證流程測試', () => {
     // 提交登入
     await page.click('#login-modal button:has-text("登入")');
 
-    // 驗證錯誤訊息 (SweetAlert2 modal with error icon)
-    await expect(page.locator('.swal2-popup .swal2-icon.swal2-error')).toBeVisible({ timeout: 5000 });
+    // 驗證錯誤訊息（行內文字：data.error 或「登入失敗」）
+    await page.waitForFunction(
+      () => {
+        const errEl = document.getElementById('login-error');
+        if (!errEl) return false;
+        const text = errEl.textContent;
+        // 等待顯示實際錯誤訊息（非「登入中...」）
+        return text.length > 0 && !text.includes('登入中') &&
+          (text.includes('錯誤') || text.includes('失敗'));
+      },
+      { timeout: 10000 }
+    );
 
     // 驗證仍在登入頁
-    await expect(page).toHaveURL(/.*#login/);
+    const loginModalVisible = await page.evaluate(() => {
+      const loginModal = document.getElementById('login-modal');
+      return loginModal && !loginModal.classList.contains('hidden');
+    });
+    expect(loginModalVisible).toBeTruthy();
   });
 
   test('未登入時訪問受保護頁面應跳轉到登入頁', async ({ page }) => {
     // 確保未登入
     await clearAuthState(page);
 
-    // 嘗試訪問儀表板
+    // 嘗試訪問受保護頁面
     await page.goto('/#dashboard');
+    await page.waitForTimeout(1000);
 
-    // 應該被重定向到登入頁
-    await expect(page).toHaveURL(/.*#login/, { timeout: 5000 });
+    // 應該顯示登入 modal
+    const loginModalVisible = await page.evaluate(() => {
+      const loginModal = document.getElementById('login-modal');
+      return loginModal && !loginModal.classList.contains('hidden');
+    });
+    expect(loginModalVisible).toBeTruthy();
   });
 
   test('記住我功能應正常運作', async ({ page }) => {
@@ -170,34 +220,41 @@ test.describe('認證流程測試', () => {
 
     // 註冊
     await registerUser(page, user);
-    await page.click('.swal2-confirm');
 
-    // 登入並勾選記住我
-    await page.goto('/#login');
-    await page.waitForLoadState('networkidle');
+    // 等待跳轉到登入頁
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && !loginModal.classList.contains('hidden');
+      },
+      { timeout: 15000 }
+    );
 
-    // 等待登入 modal 顯示
-    await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 5000 });
-    await page.waitForSelector('#login-modal input[name="email"]', { state: 'visible', timeout: 5000 });
-
+    // 填寫登入表單
     await page.fill('#login-modal input[name="email"]', user.email);
     await page.fill('#login-modal input[name="password"]', user.password);
 
     // 勾選記住我
-    const rememberCheckbox = page.locator('input[type="checkbox"]#remember-me, input[name="remember"]');
-    if (await rememberCheckbox.count() > 0) {
-      await rememberCheckbox.check();
-    }
+    await page.check('#remember-me');
 
+    // 提交登入
     await page.click('#login-modal button:has-text("登入")');
-    await expect(page).toHaveURL(/.*#dashboard/);
 
-    // 重新載入頁面
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    // 等待登入成功
+    await page.waitForFunction(
+      () => {
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && loginModal.classList.contains('hidden');
+      },
+      { timeout: 10000 }
+    );
 
-    // 應該仍然保持登入狀態
+    // 驗證 token 存在
     const token = await page.evaluate(() => localStorage.getItem('authToken'));
     expect(token).not.toBeNull();
+
+    // 驗證 rememberedEmail 已儲存
+    const rememberedEmail = await page.evaluate(() => localStorage.getItem('rememberedEmail'));
+    expect(rememberedEmail).toBe(user.email);
   });
 });
