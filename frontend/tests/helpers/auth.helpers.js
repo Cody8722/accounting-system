@@ -46,6 +46,7 @@ export async function registerUser(page, user) {
   await page.fill('#register-modal input[name="name"]', user.name);
   await page.fill('#register-modal input[name="email"]', user.email);
   await page.fill('#register-modal input[name="password"]', user.password);
+  await page.fill('#register-modal input[name="password-confirm"]', user.password);
 
   // 提交註冊
   await page.click('#register-modal button:has-text("註冊")');
@@ -101,7 +102,7 @@ export async function logoutUser(page) {
  * @param {import('@playwright/test').Page} page
  */
 export async function isLoggedIn(page) {
-  const token = await page.evaluate(() => localStorage.getItem('token'));
+  const token = await page.evaluate(() => localStorage.getItem('authToken'));
   return !!token;
 }
 
@@ -113,7 +114,7 @@ export async function clearAuthState(page) {
   try {
     // Try to clear localStorage without navigation first
     await page.evaluate(() => {
-      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
       localStorage.removeItem('userData');
     });
   } catch (error) {
@@ -121,7 +122,7 @@ export async function clearAuthState(page) {
     try {
       await page.goto('/', { waitUntil: 'load', timeout: 10000 });
       await page.evaluate(() => {
-        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
         localStorage.removeItem('userData');
       });
     } catch (retryError) {

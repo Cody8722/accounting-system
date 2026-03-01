@@ -31,9 +31,10 @@ test.describe('認證流程測試', () => {
     await page.fill('#register-modal input[name="name"]', user.name);
     await page.fill('#register-modal input[name="email"]', user.email);
     await page.fill('#register-modal input[name="password"]', user.password);
+    await page.fill('#register-modal input[name="password-confirm"]', user.password);
 
     // 提交註冊
-    await page.click('button:has-text("註冊")');
+    await page.click('#register-modal button:has-text("註冊")');
 
     // 驗證成功訊息
     await expect(page.locator('.swal2-success')).toBeVisible({ timeout: 10000 });
@@ -51,7 +52,7 @@ test.describe('認證流程測試', () => {
     // 登入
     await page.fill('#login-modal input[name="email"]', user.email);
     await page.fill('#login-modal input[name="password"]', user.password);
-    await page.click('button:has-text("登入")');
+    await page.click('#login-modal button:has-text("登入")');
 
     // 驗證登入成功並跳轉到儀表板
     await expect(page).toHaveURL(/.*#dashboard/, { timeout: 10000 });
@@ -76,9 +77,10 @@ test.describe('認證流程測試', () => {
 
     // 測試第一個弱密碼
     await page.fill('#register-modal input[name="password"]', weakPasswords[0]);
+    await page.fill('#register-modal input[name="password-confirm"]', weakPasswords[0]);
 
     // 提交註冊
-    await page.click('button:has-text("註冊")');
+    await page.click('#register-modal button:has-text("註冊")');
 
     // 驗證錯誤訊息
     await expect(page.locator('.swal2-error, .error-message')).toBeVisible({ timeout: 5000 });
@@ -98,9 +100,10 @@ test.describe('認證流程測試', () => {
     await page.fill('#register-modal input[name="name"]', user.name);
     await page.fill('#register-modal input[name="email"]', invalidEmails[0]);
     await page.fill('#register-modal input[name="password"]', user.password);
+    await page.fill('#register-modal input[name="password-confirm"]', user.password);
 
     // 提交註冊
-    await page.click('button:has-text("註冊")');
+    await page.click('#register-modal button:has-text("註冊")');
 
     // 驗證錯誤訊息或表單驗證
     const hasError = await page.locator('.swal2-error, .error-message, input:invalid').count() > 0;
@@ -125,7 +128,7 @@ test.describe('認證流程測試', () => {
     await expect(page).toHaveURL(/.*#login/);
 
     // 驗證 token 已清除
-    const token = await page.evaluate(() => localStorage.getItem('token'));
+    const token = await page.evaluate(() => localStorage.getItem('authToken'));
     expect(token).toBeNull();
   });
 
@@ -142,7 +145,7 @@ test.describe('認證流程測試', () => {
     await page.fill('#login-modal input[name="password"]', 'WrongPassword123!');
 
     // 提交登入
-    await page.click('button:has-text("登入")');
+    await page.click('#login-modal button:has-text("登入")');
 
     // 驗證錯誤訊息
     await expect(page.locator('.swal2-error')).toBeVisible({ timeout: 5000 });
@@ -186,7 +189,7 @@ test.describe('認證流程測試', () => {
       await rememberCheckbox.check();
     }
 
-    await page.click('button:has-text("登入")');
+    await page.click('#login-modal button:has-text("登入")');
     await expect(page).toHaveURL(/.*#dashboard/);
 
     // 重新載入頁面
@@ -194,7 +197,7 @@ test.describe('認證流程測試', () => {
     await page.waitForLoadState('networkidle');
 
     // 應該仍然保持登入狀態
-    const token = await page.evaluate(() => localStorage.getItem('token'));
+    const token = await page.evaluate(() => localStorage.getItem('authToken'));
     expect(token).not.toBeNull();
   });
 });

@@ -87,7 +87,7 @@ test.describe('設定頁面測試', () => {
       // 使用新密碼登入
       await page.fill('#login-modal input[name="email"]', user.email);
       await page.fill('#login-modal input[name="password"]', newPassword);
-      await page.click('button:has-text("登入")');
+      await page.click('#login-modal button:has-text("登入")');
 
       // 驗證登入成功
       await expect(page).toHaveURL(/.*#dashboard/, { timeout: 10000 });

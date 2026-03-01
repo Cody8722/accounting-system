@@ -4337,6 +4337,17 @@
         // 監聽 hash 變化以支援測試和直接連結導航
         window.addEventListener('hashchange', () => {
             const hash = window.location.hash;
+            // 定義受保護的頁面
+            const protectedPages = ['#dashboard', '#records', '#stats', '#settings', '#budgets'];
+            const isProtectedPage = protectedPages.some(page => hash.startsWith(page));
+
+            // 如果訪問受保護頁面但未登入，重定向到登入頁
+            if (!isAuthenticated && isProtectedPage) {
+                window.location.hash = '#login';
+                showLoginModal();
+                return;
+            }
+
             // 只在未登入狀態下處理 auth 相關的 hash
             if (!isAuthenticated) {
                 if (hash === '#register') {
