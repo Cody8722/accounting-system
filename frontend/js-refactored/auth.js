@@ -616,7 +616,7 @@ export async function handleRegister(e) {
         if (response.ok) {
             if (registerError) {
                 registerError.textContent = '✅ 註冊成功！請登入';
-                registerError.classList.remove('text-red-500');
+                registerError.classList.remove('text-red-500', 'hidden');
                 registerError.classList.add('text-green-500');
             }
 

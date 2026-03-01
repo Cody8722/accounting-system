@@ -46,6 +46,9 @@ export async function setupApiMocks(page) {
       if (path === '/api/auth/validate-password' && method === 'POST') {
         return await handleValidatePassword(route, request);
       }
+      if (path === '/api/health') {
+        return await handleHealth(route);
+      }
 
       // User routes
       if (path === '/api/user/profile' && method === 'PUT') {
@@ -141,13 +144,19 @@ async function handleLogin(route, request) {
   }
 
   const token = `mock-token-${Date.now()}`;
+  const userId = `mock-user-id-${email.replace(/[^a-z0-9]/gi, '')}`;
 
   return await route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
       token,
-      user: { name: user.name, email: user.email }
+      user: {
+        id: userId,
+        name: user.name,
+        email: user.email,
+        created_at: new Date().toISOString()
+      }
     })
   });
 }
@@ -155,10 +164,20 @@ async function handleLogin(route, request) {
 async function handleVerify(route, request) {
   const authHeader = request.headers()['authorization'];
   if (authHeader && authHeader.startsWith('Bearer mock-token-')) {
+    // Extract user info from mock token (if needed, we can enhance this later)
+    const mockUser = Array.from(mockUsers.values())[0] || { name: 'Test User', email: 'test@example.com' };
+
     return await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ valid: true })
+      body: JSON.stringify({
+        valid: true,
+        user: {
+          id: 'mock-user-id',
+          name: mockUser.name,
+          email: mockUser.email
+        }
+      })
     });
   }
 
@@ -174,6 +193,14 @@ async function handleLogout(route) {
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ message: '已登出' })
+  });
+}
+
+async function handleHealth(route) {
+  return await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'ok', message: 'API is healthy' })
   });
 }
 
