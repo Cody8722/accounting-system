@@ -64,8 +64,16 @@ export async function registerUser(page, user) {
       { timeout: 15000 }
     ).catch(() => null);
 
+    // 等待註冊按鈕完全穩定並可見
+    const registerButton = page.locator('#register-modal button:has-text("註冊")');
+    await registerButton.waitFor({ state: 'visible', timeout: 10000 });
+
+    // 確保按鈕在視窗內並且穩定
+    await registerButton.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500); // 等待任何動畫或佈局調整完成
+
     // 提交註冊
-    await page.click('#register-modal button:has-text("註冊")');
+    await registerButton.click({ timeout: 10000 });
     console.log('✓ Register button clicked');
 
     // 等待註冊 API 回應
@@ -169,8 +177,16 @@ export async function loginUser(page, credentials) {
       { timeout: 15000 }
     ).catch(() => null);
 
+    // 等待登入按鈕完全穩定並可見
+    const loginButton = page.locator('#login-modal button:has-text("登入")');
+    await loginButton.waitFor({ state: 'visible', timeout: 10000 });
+
+    // 確保按鈕在視窗內並且穩定
+    await loginButton.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500); // 等待任何動畫或佈局調整完成
+
     // 提交登入
-    await page.click('#login-modal button:has-text("登入")');
+    await loginButton.click({ timeout: 10000 });
     console.log('✓ Login button clicked');
 
     // 等待登入 API 回應
