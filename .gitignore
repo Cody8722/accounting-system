@@ -48,6 +48,9 @@ Thumbs.db
 .coverage
 htmlcov/
 .tox/
+test-results/
+playwright-report/
+playwright/.cache/
 
 # Logs
 *.log
