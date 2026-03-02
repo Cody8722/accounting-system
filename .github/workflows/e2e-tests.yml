@@ -61,9 +61,9 @@ jobs:
         run: |
           # Kill any existing process on port 5001 to prevent conflicts
           echo "🔍 Checking for processes on port 5001..."
-          if lsof -ti:5001 > /dev/null 2>&1; then
+          if lsof -t -i:5001 > /dev/null 2>&1; then
             echo "⚠️  Port 5001 is in use, killing existing process..."
-            kill -9 $(lsof -ti:5001) 2>/dev/null || true
+            kill -9 $(lsof -t -i:5001) 2>/dev/null || true
             sleep 1
           fi
 
@@ -99,9 +99,9 @@ jobs:
         run: |
           # Kill any existing process on port 8080 to prevent conflicts
           echo "🔍 Checking for processes on port 8080..."
-          if lsof -ti:8080 > /dev/null 2>&1; then
+          if lsof -t -i:8080 > /dev/null 2>&1; then
             echo "⚠️  Port 8080 is in use, killing existing process..."
-            kill -9 $(lsof -ti:8080) 2>/dev/null || true
+            kill -9 $(lsof -t -i:8080) 2>/dev/null || true
             sleep 1
           fi
 
@@ -272,9 +272,9 @@ jobs:
         run: |
           # Kill any existing process on port 5001 to prevent conflicts
           echo "🔍 Checking for processes on port 5001..."
-          if lsof -ti:5001 > /dev/null 2>&1; then
+          if lsof -t -i:5001 > /dev/null 2>&1; then
             echo "⚠️  Port 5001 is in use, killing existing process..."
-            kill -9 $(lsof -ti:5001) 2>/dev/null || true
+            kill -9 $(lsof -t -i:5001) 2>/dev/null || true
             sleep 1
           fi
 
@@ -307,9 +307,9 @@ jobs:
         run: |
           # Kill any existing process on port 8080 to prevent conflicts
           echo "🔍 Checking for processes on port 8080..."
-          if lsof -ti:8080 > /dev/null 2>&1; then
+          if lsof -t -i:8080 > /dev/null 2>&1; then
             echo "⚠️  Port 8080 is in use, killing existing process..."
-            kill -9 $(lsof -ti:8080) 2>/dev/null || true
+            kill -9 $(lsof -t -i:8080) 2>/dev/null || true
             sleep 1
           fi
 
