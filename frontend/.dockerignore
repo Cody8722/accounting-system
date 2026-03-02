@@ -1,0 +1,27 @@
+# Node modules and dependencies
+node_modules/
+package-lock.json
+
+# Test files and reports
+tests/
+test-*.html
+playwright-report/
+test-results/
+playwright.config.js
+
+# Development files
+*.md
+!README.md
+.gitignore
+
+# Generator and refactored versions
+generate-icons.html
+icon-generator.html
+index-refactored.html
+test-refactored.html
+test-basic-modules.html
+test-phase4-integration.html
+
+# Build artifacts
+*.log
+.DS_Store
