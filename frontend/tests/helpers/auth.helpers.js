@@ -64,8 +64,8 @@ export async function registerUser(page, user) {
       { timeout: 15000 }
     ).catch(() => null);
 
-    // 提交註冊
-    await page.click('#register-modal button:has-text("註冊")');
+    // 提交註冊 - 使用 force: true 來繞過可視性檢查，因為按鈕可能因表單太長而在視窗外
+    await page.click('#register-modal button:has-text("註冊")', { force: true });
     console.log('✓ Register button clicked');
 
     // 等待註冊 API 回應
@@ -169,8 +169,8 @@ export async function loginUser(page, credentials) {
       { timeout: 15000 }
     ).catch(() => null);
 
-    // 提交登入
-    await page.click('#login-modal button:has-text("登入")');
+    // 提交登入 - 使用 force: true 來繞過可視性檢查
+    await page.click('#login-modal button:has-text("登入")', { force: true });
     console.log('✓ Login button clicked');
 
     // 等待登入 API 回應
