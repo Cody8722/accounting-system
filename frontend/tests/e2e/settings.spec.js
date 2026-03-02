@@ -11,7 +11,8 @@ test.describe('設定頁面測試', () => {
   let user;
 
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
+    // Disabled API mocks - using real backend in CI
+    // await setupApiMocks(page);
     await clearAuthState(page);
     await page.waitForTimeout(500);
 

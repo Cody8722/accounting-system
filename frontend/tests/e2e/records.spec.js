@@ -12,7 +12,8 @@ test.describe('記帳記錄 CRUD 測試', () => {
   let user;
 
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
+    // Disabled API mocks - using real backend in CI
+    // await setupApiMocks(page);
     await clearAuthState(page);
 
     // 註冊並登入

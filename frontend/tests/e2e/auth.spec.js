@@ -11,7 +11,8 @@ import { weakPasswords, invalidEmails } from '../fixtures/test-data.js';
 test.describe('認證流程測試', () => {
 
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
+    // Disabled API mocks - using real backend in CI
+    // await setupApiMocks(page);
     await clearAuthState(page);
   });
 

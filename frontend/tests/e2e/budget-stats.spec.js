@@ -12,7 +12,8 @@ test.describe('預算與統計功能測試', () => {
   let user;
 
   test.beforeEach(async ({ page }) => {
-    await setupApiMocks(page);
+    // Disabled API mocks - using real backend in CI
+    // await setupApiMocks(page);
     await clearAuthState(page);
     user = generateTestUser();
     await registerUser(page, user);
