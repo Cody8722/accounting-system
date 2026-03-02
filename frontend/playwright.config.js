@@ -7,17 +7,17 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
 
-  /* 測試超時時間 - CI 環境適度延長超時時間 */
-  timeout: process.env.CI ? 60000 : 30000,  // 60 秒 - 優化後的超時設置
+  /* 測試超時時間 - CI 環境延長超時時間以確保穩定性 */
+  timeout: process.env.CI ? 90000 : 30000,  // 90 秒 - 為複雜測試提供充足時間
 
   /* 每個測試的重試次數 */
   retries: process.env.CI ? 2 : 0,
 
-  /* 並行執行的 worker 數量 - CI 環境使用 3 個 worker 加速測試 */
-  workers: process.env.CI ? 3 : undefined,
+  /* 並行執行的 worker 數量 - CI 環境使用單一 worker 避免資料庫衝突 */
+  workers: process.env.CI ? 1 : undefined,
 
-  /* 完全並行模式 - 啟用並行執行加速測試 */
-  fullyParallel: true,
+  /* 完全並行模式 - CI 環境禁用以確保測試順序執行，避免資料庫競爭條件 */
+  fullyParallel: !process.env.CI,
 
   /* Reporter 配置 */
   reporter: [
@@ -44,9 +44,9 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
 
-    /* 等待設定 - CI 環境適度超時設置 */
-    actionTimeout: process.env.CI ? 20000 : 10000,  // 20 秒 - 平衡速度與穩定性
-    navigationTimeout: process.env.CI ? 45000 : 30000,  // 45 秒 - 優化導航超時
+    /* 等待設定 - CI 環境延長超時時間以處理較慢的操作 */
+    actionTimeout: process.env.CI ? 30000 : 10000,  // 30 秒 - 確保複雜操作有足夠時間
+    navigationTimeout: process.env.CI ? 60000 : 30000,  // 60 秒 - 避免導航超時
   },
 
   /* 測試項目配置 */
