@@ -92,11 +92,11 @@ export default defineConfig({
   ],
 
   /* 本地開發伺服器配置 */
-  webServer: {
+  webServer: process.env.CI ? undefined : {
     command: 'python3 -m http.server 8080',
     cwd: './',
     port: 8080,
     timeout: 120000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
   },
 });
