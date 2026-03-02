@@ -59,10 +59,18 @@ jobs:
 
       - name: Start Backend Server
         run: |
+          # Kill any existing process on port 5001 to prevent conflicts
+          echo "🔍 Checking for processes on port 5001..."
+          if lsof -ti:5001 > /dev/null 2>&1; then
+            echo "⚠️  Port 5001 is in use, killing existing process..."
+            kill -9 $(lsof -ti:5001) 2>/dev/null || true
+            sleep 1
+          fi
+
           cd backend
           python main.py > backend.log 2>&1 &
           echo $! > backend.pid
-          echo "Backend server started with PID: $(cat backend.pid)"
+          echo "✅ Backend server started with PID: $(cat backend.pid)"
         env:
           MONGO_URI: mongodb://localhost:27017/test_db
           JWT_SECRET: test-jwt-secret-key-for-e2e
@@ -89,10 +97,18 @@ jobs:
 
       - name: Start Frontend Server
         run: |
+          # Kill any existing process on port 8080 to prevent conflicts
+          echo "🔍 Checking for processes on port 8080..."
+          if lsof -ti:8080 > /dev/null 2>&1; then
+            echo "⚠️  Port 8080 is in use, killing existing process..."
+            kill -9 $(lsof -ti:8080) 2>/dev/null || true
+            sleep 1
+          fi
+
           cd frontend
           python3 -m http.server 8080 > frontend.log 2>&1 &
           echo $! > frontend.pid
-          echo "Frontend server started with PID: $(cat frontend.pid)"
+          echo "✅ Frontend server started with PID: $(cat frontend.pid)"
           sleep 3
 
       - name: Verify Frontend is Running
@@ -254,10 +270,18 @@ jobs:
 
       - name: Start Backend Server
         run: |
+          # Kill any existing process on port 5001 to prevent conflicts
+          echo "🔍 Checking for processes on port 5001..."
+          if lsof -ti:5001 > /dev/null 2>&1; then
+            echo "⚠️  Port 5001 is in use, killing existing process..."
+            kill -9 $(lsof -ti:5001) 2>/dev/null || true
+            sleep 1
+          fi
+
           cd backend
           python main.py > backend.log 2>&1 &
           echo $! > backend.pid
-          echo "Backend server started with PID: $(cat backend.pid)"
+          echo "✅ Backend server started with PID: $(cat backend.pid)"
         env:
           MONGO_URI: mongodb://localhost:27017/test_db
           JWT_SECRET: test-jwt-secret-key-for-e2e
@@ -281,9 +305,18 @@ jobs:
 
       - name: Start Frontend Server
         run: |
+          # Kill any existing process on port 8080 to prevent conflicts
+          echo "🔍 Checking for processes on port 8080..."
+          if lsof -ti:8080 > /dev/null 2>&1; then
+            echo "⚠️  Port 8080 is in use, killing existing process..."
+            kill -9 $(lsof -ti:8080) 2>/dev/null || true
+            sleep 1
+          fi
+
           cd frontend
           python3 -m http.server 8080 > frontend.log 2>&1 &
           echo $! > frontend.pid
+          echo "✅ Frontend server started with PID: $(cat frontend.pid)"
           sleep 3
           curl -f http://localhost:8080/ || (echo "Frontend failed to start"; exit 1)
 
