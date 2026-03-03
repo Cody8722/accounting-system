@@ -1,28 +1,64 @@
-# Frontend language detection
-# Mark vendor and generated files as vendored to exclude from language stats
+# Language Detection Configuration
+# This project is: Python backend + HTML/JavaScript frontend (NOT a Node.js application)
+
+# ============================================
+# Backend (Python) - Primary Application Logic
+# ============================================
+backend/**/*.py linguist-language=Python
+
+# ============================================
+# Frontend - Client-side HTML/JavaScript
+# ============================================
+frontend/**/*.html linguist-language=HTML
+frontend/**/*.js linguist-language=JavaScript
+frontend/**/*.css linguist-language=CSS
+
+# Mark package.json as configuration (dev dependencies only, not a Node.js app)
+**/package.json linguist-language=JSON linguist-vendored
+**/package-lock.json linguist-generated
+
+# ============================================
+# Exclude from language statistics
+# ============================================
+# Vendor dependencies
 frontend/node_modules/** linguist-vendored
+**/node_modules/** linguist-vendored
+
+# Generated files
 backend/htmlcov/** linguist-generated
 **/playwright-report/** linguist-generated
 **/test-results/** linguist-generated
+**/.coverage linguist-generated
+**/__pycache__/** linguist-generated
 
-# Mark test files as test code
-**/*test*.html linguist-documentation
-**/*test*.js linguist-documentation
+# ============================================
+# Test files and documentation
+# ============================================
+# Test files (exclude from main language stats)
 **/tests/** linguist-documentation
 **/*.spec.js linguist-documentation
 **/*.test.js linguist-documentation
+**/*test*.html linguist-documentation
+**/*test*.js linguist-documentation
+**/playwright.config.js linguist-documentation
 
 # Documentation files
 *.md linguist-documentation
 docs/** linguist-documentation
+**/*README*.md linguist-documentation
+**/*CHANGELOG*.md linguist-documentation
 
-# Mark Dockerfile as configuration (not main language)
-**/Dockerfile linguist-documentation
-**/.dockerignore linguist-documentation
-**/docker-compose.yml linguist-documentation
-**/nginx*.conf linguist-documentation
+# ============================================
+# Configuration files
+# ============================================
+**/Dockerfile linguist-vendored
+**/.dockerignore linguist-vendored
+**/docker-compose.yml linguist-vendored
+**/nginx*.conf linguist-vendored
+**/.env.example linguist-vendored
+**/gunicorn.conf.py linguist-vendored
+**/pytest.ini linguist-vendored
+**/.coveragerc linguist-vendored
 
-# Ensure HTML and JavaScript are detected
-*.html linguist-detectable
-*.js linguist-detectable
-*.css linguist-detectable
+# Service worker (PWA infrastructure, not main app logic)
+**/service-worker.js linguist-vendored
