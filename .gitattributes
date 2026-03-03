@@ -1,0 +1,28 @@
+# Frontend language detection
+# Mark vendor and generated files as vendored to exclude from language stats
+frontend/node_modules/** linguist-vendored
+backend/htmlcov/** linguist-generated
+**/playwright-report/** linguist-generated
+**/test-results/** linguist-generated
+
+# Mark test files as test code
+**/*test*.html linguist-documentation
+**/*test*.js linguist-documentation
+**/tests/** linguist-documentation
+**/*.spec.js linguist-documentation
+**/*.test.js linguist-documentation
+
+# Documentation files
+*.md linguist-documentation
+docs/** linguist-documentation
+
+# Mark Dockerfile as configuration (not main language)
+**/Dockerfile linguist-documentation
+**/.dockerignore linguist-documentation
+**/docker-compose.yml linguist-documentation
+**/nginx*.conf linguist-documentation
+
+# Ensure HTML and JavaScript are detected
+*.html linguist-detectable
+*.js linguist-detectable
+*.css linguist-detectable
