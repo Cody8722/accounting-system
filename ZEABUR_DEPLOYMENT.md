@@ -33,9 +33,11 @@ Frontend is **pure static HTML**, no Docker needed! Using Zeabur's static site s
    }
    ```
 
-3. **`frontend/Dockerfile`** 已重命名為 `Dockerfile.backup`
-   - 避免 Zeabur 自動檢測為 Docker 部署
-   - 如需 Docker 方案可隨時恢復
+3. **`frontend/Dockerfile`** 已移除/重命名
+   - ✅ 已重命名為 `Dockerfile.docker-legacy` 和 `Dockerfile.backup`
+   - ⚠️ **重要**: 避免 Zeabur 自動檢測為 Docker 部署
+   - 💡 前端是純靜態網站，E2E 測試不需要 Dockerfile
+   - 如需 Docker 方案可隨時從備份恢復
 
 #### Zeabur 部署步驟 (Deployment Steps)
 

@@ -58,6 +58,11 @@ test-results/
 playwright-report/
 playwright/.cache/
 
+# Zeabur deployment - prevent accidental Dockerfile in frontend
+frontend/Dockerfile
+!frontend/Dockerfile.backup
+!frontend/Dockerfile.docker-legacy
+
 # Logs
 *.log
 
