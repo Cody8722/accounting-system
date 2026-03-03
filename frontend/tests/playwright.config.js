@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './e2e',
 
   /* 測試超時時間 */
   timeout: 30000,
@@ -18,9 +18,9 @@ export default defineConfig({
 
   /* Reporter 配置 */
   reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
+    ['html', { outputFolder: '../playwright-report' }],
     ['list'],
-    ['json', { outputFile: 'test-results/results.json' }]
+    ['json', { outputFile: '../test-results/results.json' }]
   ],
 
   /* 共用設定 */
@@ -94,7 +94,7 @@ export default defineConfig({
   /* 本地開發伺服器配置 */
   webServer: process.env.CI ? undefined : {
     command: 'python3 -m http.server 8080',
-    cwd: './',
+    cwd: '../',
     port: 8080,
     timeout: 120000,
     reuseExistingServer: true,

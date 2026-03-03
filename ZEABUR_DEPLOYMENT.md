@@ -63,7 +63,7 @@ Frontend is **pure static HTML**, no Docker needed! Using Zeabur's static site s
 
 ---
 
-## 問題診斷 (Problem Diagnosis)
+## 問題診斷與解決 (Problem Diagnosis & Solution)
 
 ### 錯誤訊息 (Error Message)
 ```
@@ -78,6 +78,29 @@ Zeabur 檢測到 `frontend/package.json` 並嘗試將其作為 Node.js 應用程
 The frontend is a **static HTML/CSS/JS site** that should be served by nginx, not run as a Node.js application.
 
 Zeabur detected `frontend/package.json` and tried to run it as a Node.js app, but that package.json only contains Playwright test scripts, not an actual Node.js server.
+
+### ✅ 解決方案：移動測試依賴到 tests/ 目錄 (Solution: Move Test Dependencies)
+
+為了避免 Zeabur 誤判，已將所有測試相關文件移至 `frontend/tests/` 目錄：
+
+To prevent Zeabur from misdetecting the project type, all test-related files have been moved to `frontend/tests/`:
+
+- `frontend/tests/package.json` - Playwright 測試依賴
+- `frontend/tests/package-lock.json` - 鎖定版本
+- `frontend/tests/node_modules/` - 測試依賴包
+- `frontend/tests/playwright.config.js` - Playwright 配置
+
+**運行測試 (Running Tests):**
+```bash
+cd frontend/tests
+npm install  # 首次需要安裝依賴
+npm test     # 運行測試
+```
+
+**優點 (Benefits):**
+- ✅ 前端根目錄不再有 package.json，Zeabur 正確識別為靜態網站
+- ✅ 測試功能完全保留，所有測試腳本正常工作
+- ✅ 項目結構更清晰，測試文件集中管理
 
 ## 替代解決方案 (Alternative Solutions)
 
@@ -236,6 +259,9 @@ A: Configure backend CORS settings to allow frontend origin
 - `docker-compose.yml` - 本地開發配置
 - `nginx.conf` - Docker Compose nginx 配置
 
+### 測試相關
+- `frontend/tests/package.json` - Playwright 測試依賴（已移至 tests/ 目錄）
+- `frontend/tests/playwright.config.js` - Playwright 配置文件
+
 ### 其他
 - `Procfile` - Heroku 格式的啟動配置
-- `frontend/package.json` - 僅用於測試（Playwright）
