@@ -1,0 +1,7 @@
+{
+  "type": "static",
+  "static": {
+    "output_dir": ".",
+    "index": "index.html"
+  }
+}

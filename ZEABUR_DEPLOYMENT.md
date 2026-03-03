@@ -1,5 +1,68 @@
 # Zeabur 部署指南 (Zeabur Deployment Guide)
 
+## 推薦部署方案 (Recommended Deployment) ⭐
+
+### 使用 zbpack.json 配置（非 Docker 方式）
+
+**前端是純靜態 HTML**，不需要 Docker！使用 Zeabur 的靜態網站服務更簡單、更快速。
+
+Frontend is **pure static HTML**, no Docker needed! Using Zeabur's static site service is simpler and faster.
+
+#### 已配置的文件 (Configured Files)
+
+1. **`frontend/zbpack.json`** - 明確指定為靜態網站
+   ```json
+   {
+     "type": "static",
+     "static": {
+       "output_dir": ".",
+       "index": "index.html"
+     }
+   }
+   ```
+
+2. **`backend/zbpack.json`** - 明確指定為 Python 應用
+   ```json
+   {
+     "type": "python",
+     "python": {
+       "version": "3.11",
+       "install_command": "pip install -r requirements.txt",
+       "start_command": "gunicorn -c gunicorn.conf.py main:app"
+     }
+   }
+   ```
+
+3. **`frontend/Dockerfile`** 已重命名為 `Dockerfile.backup`
+   - 避免 Zeabur 自動檢測為 Docker 部署
+   - 如需 Docker 方案可隨時恢復
+
+#### Zeabur 部署步驟 (Deployment Steps)
+
+1. **前端服務 (Frontend Service)**
+   - Root Directory: `frontend/`
+   - Zeabur 會自動檢測到 `zbpack.json`
+   - 類型：Static Site（靜態網站）
+   - 無需環境變數
+
+2. **後端服務 (Backend Service)**
+   - Root Directory: `backend/`
+   - Zeabur 會自動檢測到 `zbpack.json`
+   - 類型：Python
+   - 環境變數：
+     ```
+     MONGO_URI=<your-mongodb-uri>
+     JWT_SECRET=<your-jwt-secret>
+     ADMIN_SECRET=<your-admin-secret>
+     PORT=8080
+     ```
+
+3. **MongoDB 服務**
+   - 使用 Zeabur Marketplace 添加 MongoDB
+   - 或使用外部 MongoDB 服務（如 MongoDB Atlas）
+
+---
+
 ## 問題診斷 (Problem Diagnosis)
 
 ### 錯誤訊息 (Error Message)
@@ -16,52 +79,32 @@ The frontend is a **static HTML/CSS/JS site** that should be served by nginx, no
 
 Zeabur detected `frontend/package.json` and tried to run it as a Node.js app, but that package.json only contains Playwright test scripts, not an actual Node.js server.
 
-## 解決方案 (Solution)
+## 替代解決方案 (Alternative Solutions)
 
-### 1. 前端 Dockerfile (Frontend Dockerfile)
-已創建 `frontend/Dockerfile` 使用 nginx 來提供靜態文件服務:
+### 方案 A: 使用 Docker（如需要）
+
+如果您希望使用 Docker 部署，可以恢復 Dockerfile：
+
+If you prefer Docker deployment, restore the Dockerfile:
+
+```bash
+cd frontend
+mv Dockerfile.backup Dockerfile
+```
+
+已備份的 `frontend/Dockerfile.backup` 使用 nginx 來提供靜態文件服務:
 - 基於 `nginx:alpine` 映像
 - 複製所有必要的靜態文件
-- 使用自定義 nginx 配置
+- 使用自定義 nginx 配置（`nginx-frontend.conf`）
 - 暴露端口 80
 
-Created `frontend/Dockerfile` that uses nginx to serve static files:
+The backed-up `frontend/Dockerfile.backup` uses nginx to serve static files:
 - Based on `nginx:alpine` image
 - Copies all necessary static files
-- Uses custom nginx configuration
+- Uses custom nginx configuration (`nginx-frontend.conf`)
 - Exposes port 80
 
-### 2. Nginx 配置 (Nginx Configuration)
-創建 `frontend/nginx-frontend.conf`:
-- 提供靜態文件服務
-- 配置 MIME types
-- 啟用 gzip 壓縮
-- 設置緩存控制
-
-Created `frontend/nginx-frontend.conf`:
-- Serves static files
-- Configures MIME types
-- Enables gzip compression
-- Sets cache control
-
-### 3. Docker Ignore
-創建 `frontend/.dockerignore` 排除:
-- node_modules
-- 測試文件
-- 開發工具
-
-Created `frontend/.dockerignore` to exclude:
-- node_modules
-- Test files
-- Development tools
-
-## Zeabur 部署步驟 (Deployment Steps)
-
-### 方案 A: 多服務部署 (Multi-Service Deployment)
-
-在 Zeabur 上分別部署前端和後端作為獨立服務:
-
-Deploy frontend and backend as separate services on Zeabur:
+**Zeabur 部署步驟 (Docker 方式):**
 
 1. **後端服務 (Backend Service)**
    - 目錄: `backend/`
@@ -76,11 +119,11 @@ Deploy frontend and backend as separate services on Zeabur:
 
 2. **前端服務 (Frontend Service)**
    - 目錄: `frontend/`
-   - 使用 `frontend/Dockerfile`
+   - 恢復 Dockerfile 並使用它
    - 端口: 80
    - 確保在 Zeabur 中選擇 "Dockerfile" 作為構建方式
 
-### 方案 B: 單體部署 (Monolithic Deployment)
+### 方案 B: 本地 Docker Compose 部署
 
 如果要在單個容器中部署,可以使用 `docker-compose.yml`:
 
@@ -142,15 +185,29 @@ Test API connections
 
 ## 故障排除 (Troubleshooting)
 
-### 如果仍然出現 "Cannot find module" 錯誤:
-1. 確認 Zeabur 使用的是 Dockerfile 而非 package.json
-2. 檢查 Zeabur 服務設置中的 "Root Directory" 是否設置為 `frontend/`
-3. 確認構建日誌中使用的是 nginx,而非 Node.js
+### 如果 Zeabur 仍然檢測為 Docker:
+1. 確認 `frontend/zbpack.json` 文件存在
+2. 確認 `frontend/Dockerfile` 已重命名或刪除
+3. 重新連接 GitHub 倉庫或重新部署服務
+4. 檢查 Zeabur 構建日誌，應該顯示 "Detected: Static Site"
 
-If "Cannot find module" error persists:
-1. Confirm Zeabur is using Dockerfile, not package.json
+If Zeabur still detects as Docker:
+1. Confirm `frontend/zbpack.json` file exists
+2. Confirm `frontend/Dockerfile` is renamed or deleted
+3. Reconnect GitHub repository or redeploy service
+4. Check Zeabur build logs, should show "Detected: Static Site"
+
+### 如果出現 "Cannot find module" 錯誤:
+1. 確認使用的是 zbpack.json 配置（推薦）
+2. 檢查 Zeabur 服務設置中的 "Root Directory" 是否設置為 `frontend/`
+3. 確認前端檢測為 "Static Site" 而非 Node.js
+4. 後端檢測為 "Python" 而非 Docker
+
+If "Cannot find module" error occurs:
+1. Confirm using zbpack.json configuration (recommended)
 2. Check "Root Directory" in Zeabur service settings is set to `frontend/`
-3. Verify build logs show nginx, not Node.js
+3. Verify frontend is detected as "Static Site" not Node.js
+4. Verify backend is detected as "Python" not Docker
 
 ### 常見問題 (Common Issues)
 
@@ -164,8 +221,21 @@ A: Verify nginx configuration and file paths in Dockerfile
 A: Configure backend CORS settings to allow frontend origin
 
 ## 相關文件 (Related Files)
-- `frontend/Dockerfile` - 前端 Docker 配置
+
+### 推薦配置 (Recommended)
+- `frontend/zbpack.json` - 前端靜態網站配置 ⭐
+- `backend/zbpack.json` - 後端 Python 配置 ⭐
+- `frontend/index.html` - 前端主頁面
+- `backend/main.py` - 後端主程式
+- `backend/requirements.txt` - Python 依賴
+
+### Docker 相關（備選方案）
+- `frontend/Dockerfile.backup` - 前端 Docker 配置（已備份）
 - `frontend/nginx-frontend.conf` - Nginx 配置
 - `backend/Dockerfile` - 後端 Docker 配置
 - `docker-compose.yml` - 本地開發配置
 - `nginx.conf` - Docker Compose nginx 配置
+
+### 其他
+- `Procfile` - Heroku 格式的啟動配置
+- `frontend/package.json` - 僅用於測試（Playwright）
