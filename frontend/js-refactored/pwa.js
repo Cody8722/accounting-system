@@ -275,8 +275,12 @@ function syncOfflineQueue() {
                 console.log('✅ 離線記錄同步完成');
                 showNetworkStatus('離線記錄已同步', 'success');
                 EventBus.emit(EVENTS.NETWORK_SYNC_COMPLETE);
-                // 通知 records 模組重新載入
-                EventBus.emit(EVENTS.RECORDS_LOADED);
+                // 通知 records 模組重新載入（使用全局暴露的函數）
+                setTimeout(() => {
+                    if (typeof window.loadAccountingRecords === 'function') {
+                        window.loadAccountingRecords();
+                    }
+                }, 1000);
             } else {
                 console.error('❌ 同步失敗:', event.data.error);
                 EventBus.emit(EVENTS.NETWORK_SYNC_FAILED, event.data.error);
@@ -290,7 +294,11 @@ function syncOfflineQueue() {
     } catch (err) {
         // iOS PWA 降級：直接觸發記錄重新載入
         console.warn('MessageChannel 不支援，降級為重新載入記錄:', err);
-        setTimeout(() => EventBus.emit(EVENTS.RECORDS_LOADED), 1500);
+        setTimeout(() => {
+            if (typeof window.loadAccountingRecords === 'function') {
+                window.loadAccountingRecords();
+            }
+        }, 1500);
     }
 
     // 同時嘗試 Background Sync（不強制依賴）
