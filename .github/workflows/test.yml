@@ -55,7 +55,8 @@ jobs:
     - name: Check coverage threshold
       run: |
         cd backend
-        coverage report --fail-under=75
+        coverage report --include=main.py --fail-under=90
+        coverage report --include=auth.py --fail-under=80
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4

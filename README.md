@@ -16,6 +16,40 @@
 
 ---
 
+## 本地快速啟動
+
+```bash
+# 1. 啟動 MongoDB（需要 Docker）
+docker run -d -p 27017:27017 --name mongo mongo:7.0
+
+# 2. 後端
+cd backend
+cp .env.example .env          # 填入 MONGO_URI 和 JWT_SECRET（本地用隨意字串即可）
+pip install -r requirements.txt
+python main.py                # http://localhost:5001
+
+# 3. 前端（另開終端機）
+cd frontend
+python -m http.server 8080    # http://localhost:8080
+```
+
+**跑測試：**
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest                        # 跑全部測試
+pytest --cov=. --cov-report=term-missing   # 含覆蓋率
+```
+
+> `.env` 測試用最小設定：
+> ```
+> MONGO_URI=mongodb://localhost:27017/
+> JWT_SECRET=any-local-secret
+> ```
+
+---
+
 ## 目錄
 
 - [功能特色](#功能特色)

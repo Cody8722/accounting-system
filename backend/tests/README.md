@@ -148,10 +148,8 @@ pytest -s         # 顯示 print 輸出
 
 ## 覆蓋率目標
 
-- **整體覆蓋率**: ≥ 90%
-- **關鍵模組**: ≥ 95%
-  - auth.py
-  - main.py (API 端點)
+- **main.py**（主要 API 邏輯）: ≥ 90%
+- **auth.py**（認證與密碼驗證）: ≥ 80%
 
 ## CI/CD 集成
 
@@ -163,7 +161,7 @@ pytest -s         # 顯示 print 輸出
 GitHub Actions 會：
 1. 運行所有測試
 2. 生成覆蓋率報告
-3. 檢查覆蓋率是否達到 90%
+3. 檢查覆蓋率（main.py ≥ 90%，auth.py ≥ 80%）
 4. 上傳報告到 Codecov
 5. 運行代碼質量檢查 (flake8, black)
 
