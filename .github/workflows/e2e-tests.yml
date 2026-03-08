@@ -1,0 +1,355 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, develop, claude/**]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  e2e-tests:
+    name: E2E Tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/tests/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend/tests
+          npm ci
+
+      - name: Install Playwright Browsers
+        run: |
+          cd frontend/tests
+          npx playwright install chromium --with-deps
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Start Backend Server
+        run: |
+          # Kill any existing process on port 5001 to prevent conflicts
+          echo "🔍 Checking for processes on port 5001..."
+          if lsof -t -i:5001 > /dev/null 2>&1; then
+            echo "⚠️  Port 5001 is in use, killing existing process..."
+            kill -9 $(lsof -t -i:5001) 2>/dev/null || true
+            sleep 1
+          fi
+
+          cd backend
+          python main.py > backend.log 2>&1 &
+          echo $! > backend.pid
+          echo "✅ Backend server started with PID: $(cat backend.pid)"
+        env:
+          MONGO_URI: mongodb://localhost:27017/test_db
+          JWT_SECRET: test-jwt-secret-key-for-e2e
+          ADMIN_SECRET: test-admin-secret-key
+          GMAIL_USER: test@example.com
+          GMAIL_APP_PASSWORD: test-password
+          TESTING: true
+
+      - name: Wait for Backend to be Ready
+        run: |
+          echo "⏳ Waiting for backend server to be ready..."
+          for i in {1..60}; do
+            if curl -f http://localhost:5001/api/health 2>/dev/null || curl -f http://localhost:5001/ 2>/dev/null; then
+              echo "✅ Backend is ready after ${i} seconds!"
+              exit 0
+            fi
+            echo "Attempt $i/60: Backend not ready yet..."
+            sleep 2
+          done
+          echo "❌ Backend failed to start after 120 seconds"
+          echo "Backend logs:"
+          cat backend/backend.log || echo "No backend logs found"
+          exit 1
+
+      - name: Start Frontend Server
+        run: |
+          # Kill any existing process on port 8080 to prevent conflicts
+          echo "🔍 Checking for processes on port 8080..."
+          if lsof -t -i:8080 > /dev/null 2>&1; then
+            echo "⚠️  Port 8080 is in use, killing existing process..."
+            kill -9 $(lsof -t -i:8080) 2>/dev/null || true
+            sleep 1
+          fi
+
+          cd frontend
+          python3 -m http.server 8080 > frontend.log 2>&1 &
+          echo $! > frontend.pid
+          echo "✅ Frontend server started with PID: $(cat frontend.pid)"
+          sleep 3
+
+      - name: Verify Frontend is Running
+        run: |
+          echo "⏳ Verifying frontend server..."
+          for i in {1..10}; do
+            if curl -f http://localhost:8080/ 2>/dev/null; then
+              echo "✅ Frontend is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/10: Frontend not ready yet..."
+            sleep 1
+          done
+          echo "❌ Frontend failed to start"
+          exit 1
+
+      - name: Run E2E Tests
+        run: |
+          cd frontend/tests
+          npx playwright test --project=chromium
+        env:
+          BASE_URL: http://localhost:8080
+          API_URL: http://localhost:5001
+
+      - name: Stop Servers
+        if: always()
+        run: |
+          echo "Stopping servers..."
+          if [ -f backend/backend.pid ]; then
+            kill $(cat backend/backend.pid) 2>/dev/null || true
+            echo "Backend server stopped"
+          fi
+          if [ -f frontend/frontend.pid ]; then
+            kill $(cat frontend/frontend.pid) 2>/dev/null || true
+            echo "Frontend server stopped"
+          fi
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: |
+            backend/backend.log
+            frontend/frontend.log
+          retention-days: 7
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/tests/playwright-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: frontend/tests/test-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment PR with Test Results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'frontend/tests/test-results/results.json';
+
+            if (fs.existsSync(path)) {
+              const results = JSON.parse(fs.readFileSync(path, 'utf8'));
+              const { suites } = results;
+
+              let passed = 0;
+              let failed = 0;
+              let skipped = 0;
+
+              // Count test results
+              function countTests(suite) {
+                for (const spec of suite.specs || []) {
+                  for (const test of spec.tests || []) {
+                    if (test.status === 'passed') passed++;
+                    else if (test.status === 'failed') failed++;
+                    else if (test.status === 'skipped') skipped++;
+                  }
+                }
+                for (const child of suite.suites || []) {
+                  countTests(child);
+                }
+              }
+
+              countTests(suites[0]);
+
+              const body = `## 🧪 E2E Test Results
+
+              - ✅ Passed: ${passed}
+              - ❌ Failed: ${failed}
+              - ⏭️ Skipped: ${skipped}
+              - **Total**: ${passed + failed + skipped}
+
+              ${failed > 0 ? '⚠️ Some tests failed. Please check the test report.' : '✨ All tests passed!'}
+
+              [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+  e2e-tests-firefox:
+    name: E2E Tests (Firefox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/tests/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd frontend/tests
+          npm ci
+          npx playwright install firefox --with-deps
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Start Backend Server
+        run: |
+          # Kill any existing process on port 5001 to prevent conflicts
+          echo "🔍 Checking for processes on port 5001..."
+          if lsof -t -i:5001 > /dev/null 2>&1; then
+            echo "⚠️  Port 5001 is in use, killing existing process..."
+            kill -9 $(lsof -t -i:5001) 2>/dev/null || true
+            sleep 1
+          fi
+
+          cd backend
+          python main.py > backend.log 2>&1 &
+          echo $! > backend.pid
+          echo "✅ Backend server started with PID: $(cat backend.pid)"
+        env:
+          MONGO_URI: mongodb://localhost:27017/test_db
+          JWT_SECRET: test-jwt-secret-key-for-e2e
+          ADMIN_SECRET: test-admin-secret-key
+          TESTING: true
+
+      - name: Wait for Backend to be Ready
+        run: |
+          echo "⏳ Waiting for backend server to be ready..."
+          for i in {1..60}; do
+            if curl -f http://localhost:5001/api/health 2>/dev/null || curl -f http://localhost:5001/ 2>/dev/null; then
+              echo "✅ Backend is ready after ${i} seconds!"
+              exit 0
+            fi
+            echo "Attempt $i/60: Backend not ready yet..."
+            sleep 2
+          done
+          echo "❌ Backend failed to start after 120 seconds"
+          cat backend/backend.log || echo "No backend logs found"
+          exit 1
+
+      - name: Start Frontend Server
+        run: |
+          # Kill any existing process on port 8080 to prevent conflicts
+          echo "🔍 Checking for processes on port 8080..."
+          if lsof -t -i:8080 > /dev/null 2>&1; then
+            echo "⚠️  Port 8080 is in use, killing existing process..."
+            kill -9 $(lsof -t -i:8080) 2>/dev/null || true
+            sleep 1
+          fi
+
+          cd frontend
+          python3 -m http.server 8080 > frontend.log 2>&1 &
+          echo $! > frontend.pid
+          echo "✅ Frontend server started with PID: $(cat frontend.pid)"
+          sleep 3
+          curl -f http://localhost:8080/ || (echo "Frontend failed to start"; exit 1)
+
+      - name: Run E2E Tests (Firefox)
+        run: |
+          cd frontend/tests
+          npx playwright test --project=firefox
+        env:
+          BASE_URL: http://localhost:8080
+
+      - name: Stop Servers
+        if: always()
+        run: |
+          if [ -f backend/backend.pid ]; then kill $(cat backend/backend.pid) 2>/dev/null || true; fi
+          if [ -f frontend/frontend.pid ]; then kill $(cat frontend/frontend.pid) 2>/dev/null || true; fi
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-firefox
+          path: frontend/tests/playwright-report/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-firefox
+          path: |
+            backend/backend.log
+            frontend/frontend.log
+          retention-days: 7

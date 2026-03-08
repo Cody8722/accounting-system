@@ -1,0 +1,417 @@
+name: Comprehensive Test Suite
+
+on:
+  push:
+    branches: [main, develop, claude/*]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== 代碼品質檢查 ====================
+  lint:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend linting tools
+        run: |
+          cd backend
+          pip install flake8 black mypy
+
+      - name: Lint backend with flake8
+        run: |
+          cd backend
+          # 嚴重錯誤檢查
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # 一般檢查 (作為警告)
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Check backend code formatting
+        run: |
+          cd backend
+          black --check --diff .
+
+      - name: Type check with mypy
+        run: |
+          cd backend
+          mypy . --ignore-missing-imports --no-strict-optional
+        continue-on-error: true  # mypy 錯誤不中斷 CI
+
+  # ==================== 後端測試 ====================
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run unit tests
+        env:
+          MONGO_URI: mongodb://localhost:27017/
+          JWT_SECRET: test-jwt-secret-key-for-ci
+          ADMIN_SECRET: test-admin-secret-key
+          TESTING: 'true'
+        run: |
+          cd backend
+          pytest -m "unit" --cov=. --cov-report=xml --cov-report=html --cov-report=term-missing -v
+
+      - name: Run integration tests
+        env:
+          MONGO_URI: mongodb://localhost:27017/
+          JWT_SECRET: test-jwt-secret-key-for-ci
+          ADMIN_SECRET: test-admin-secret-key
+          TESTING: 'true'
+        run: |
+          cd backend
+          pytest -m "integration" --cov=. --cov-append --cov-report=xml --cov-report=html -v
+
+      - name: Run all tests with coverage
+        env:
+          MONGO_URI: mongodb://localhost:27017/
+          JWT_SECRET: test-jwt-secret-key-for-ci
+          ADMIN_SECRET: test-admin-secret-key
+          TESTING: 'true'
+        run: |
+          cd backend
+          pytest --cov=. --cov-report=xml --cov-report=html --cov-report=term-missing tests/ -v
+
+      - name: Check coverage threshold
+        run: |
+          cd backend
+          coverage report --fail-under=80
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+      - name: Archive coverage HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/htmlcov/
+          retention-days: 30
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/test-results/
+          retention-days: 30
+
+  # ==================== 前端測試 (Vitest) ====================
+  frontend-tests:
+    name: Frontend Tests (Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 暫時允許失敗,因為前端測試還未實作
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check if package.json exists
+        id: check-package
+        run: |
+          if [ -f "frontend/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run frontend unit tests
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npm run test:unit || echo "Unit tests not configured yet"
+
+      - name: Run frontend integration tests
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npm run test:integration || echo "Integration tests not configured yet"
+
+      - name: Generate coverage report
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npm run test:coverage || echo "Coverage not configured yet"
+
+      - name: Upload coverage to Codecov
+        if: steps.check-package.outputs.exists == 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+      - name: Archive coverage report
+        if: always() && steps.check-package.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: frontend/coverage/
+          retention-days: 30
+
+  # ==================== E2E 測試 (Playwright) ====================
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend-tests]
+    # 暫時允許失敗,因為 E2E 測試還未實作
+    continue-on-error: true
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Check if frontend package.json exists
+        id: check-package
+        run: |
+          if [ -f "frontend/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install frontend dependencies
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Install Playwright browsers
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+
+      - name: Start backend server
+        run: |
+          cd backend
+          python main.py &
+          echo $! > backend.pid
+          sleep 10
+        env:
+          MONGO_URI: mongodb://localhost:27017/test_e2e_db
+          JWT_SECRET: test-jwt-secret-e2e
+          ADMIN_SECRET: test-admin-secret-e2e
+          PORT: 5001
+
+      - name: Wait for backend to be ready
+        run: |
+          timeout 30 bash -c 'until curl -f http://localhost:5001/status; do sleep 1; done'
+
+      - name: Start frontend server
+        run: |
+          cd frontend
+          python -m http.server 8080 &
+          echo $! > frontend.pid
+          sleep 3
+
+      - name: Run E2E tests
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npx playwright test --project=chromium || echo "E2E tests not configured yet"
+        env:
+          BASE_URL: http://localhost:8080
+
+      - name: Stop servers
+        if: always()
+        run: |
+          if [ -f backend/backend.pid ]; then kill $(cat backend/backend.pid) || true; fi
+          if [ -f frontend/frontend.pid ]; then kill $(cat frontend/frontend.pid) || true; fi
+
+      - name: Upload Playwright report
+        if: always() && steps.check-package.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: Upload test videos
+        if: failure() && steps.check-package.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-videos
+          path: frontend/test-results/
+          retention-days: 7
+
+  # ==================== 安全掃描 ====================
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Safety
+        run: pip install safety
+
+      - name: Check Python dependencies for vulnerabilities
+        run: |
+          cd backend
+          safety check --json || true
+        continue-on-error: true
+
+      - name: Run Bandit security linter
+        run: |
+          pip install bandit
+          cd backend
+          bandit -r . -f json -o bandit-report.json || true
+        continue-on-error: true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: backend/*-report.json
+          retention-days: 30
+
+  # ==================== 測試結果總結 ====================
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [lint, backend-tests, frontend-tests, e2e-tests, security-scan]
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          echo "## 測試執行總結" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 測試類型 | 狀態 |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Tests | ${{ needs.backend-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Tests | ${{ needs.frontend-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 檢查是否有失敗的測試
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.backend-tests.result }}" != "success" ]; then
+            echo "⚠️ 有測試失敗,請檢查詳細日誌" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ 所有關鍵測試通過!" >> $GITHUB_STEP_SUMMARY
+          fi

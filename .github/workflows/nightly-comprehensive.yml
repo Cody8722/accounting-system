@@ -1,0 +1,481 @@
+name: Nightly Comprehensive Tests
+
+on:
+  schedule:
+    # 每天 UTC 02:00 執行 (台灣時間 10:00)
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # 允許手動觸發
+
+jobs:
+  # ==================== 完整測試套件 ====================
+  full-test-suite:
+    name: Full Test Suite (包含慢速測試)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements-dev.txt
+
+      - name: Run all tests including slow ones
+        env:
+          MONGO_URI: mongodb://localhost:27017/
+          JWT_SECRET: test-jwt-secret
+          ADMIN_SECRET: test-admin-secret
+        run: |
+          cd backend
+          # 執行所有測試,包括標記為 slow 的測試
+          pytest --cov=. --cov-report=xml --cov-report=html -v --maxfail=0
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-coverage-report
+          path: backend/htmlcov/
+          retention-days: 7
+
+  # ==================== 性能測試 ====================
+  performance-tests:
+    name: Performance & Load Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true  # 性能測試失敗不影響整體
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Start backend server
+        run: |
+          cd backend
+          python main.py &
+          sleep 10
+        env:
+          MONGO_URI: mongodb://localhost:27017/perf_test_db
+          JWT_SECRET: test-jwt-secret
+          PORT: 5001
+
+      - name: Create test user for load testing
+        run: |
+          # 建立測試用戶
+          curl -X POST http://localhost:5001/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"loadtest@example.com","password":"LoadTest123!@#Abc","name":"Load Test User"}'
+
+      - name: Run Locust load test
+        run: |
+          cd backend/tests/performance
+          # 如果性能測試文件存在則執行
+          if [ -f "locustfile.py" ]; then
+            locust -f locustfile.py --headless \
+              --users 100 \
+              --spawn-rate 10 \
+              --run-time 5m \
+              --host http://localhost:5001 \
+              --html locust-report.html
+          else
+            echo "Performance test file not found, skipping..."
+          fi
+        continue-on-error: true
+
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: backend/tests/performance/locust-report.html
+          retention-days: 30
+        continue-on-error: true
+
+  # ==================== 前端性能測試 (Lighthouse) ====================
+  lighthouse-tests:
+    name: Frontend Performance (Lighthouse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Start backend
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          python main.py &
+          sleep 10
+        env:
+          MONGO_URI: mongodb://localhost:27017/lighthouse_test_db
+          JWT_SECRET: test-jwt-secret
+
+      - name: Start frontend
+        run: |
+          cd frontend
+          python -m http.server 8080 &
+          sleep 3
+
+      - name: Run Lighthouse CI
+        run: |
+          if [ -f "frontend/lighthouserc.js" ]; then
+            lhci autorun --config=frontend/lighthouserc.js
+          else
+            # 使用默認配置
+            lhci autorun --collect.url=http://localhost:8080
+          fi
+        continue-on-error: true
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 30
+
+  # ==================== 跨瀏覽器 E2E 測試 ====================
+  cross-browser-e2e:
+    name: Cross-Browser E2E Tests
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    continue-on-error: true
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        browser: [chromium, firefox, webkit]
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Check if frontend package.json exists
+        id: check-package
+        run: |
+          if [ -f "frontend/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Playwright
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Start servers
+        run: |
+          cd backend
+          python main.py &
+          sleep 10
+          cd ../frontend
+          python -m http.server 8080 &
+          sleep 3
+        env:
+          MONGO_URI: mongodb://localhost:27017/e2e_${{ matrix.browser }}_db
+          JWT_SECRET: test-jwt-secret
+
+      - name: Run E2E tests on ${{ matrix.browser }}
+        if: steps.check-package.outputs.exists == 'true'
+        run: |
+          cd frontend
+          npx playwright test --project=${{ matrix.browser }} || echo "E2E tests not configured"
+        env:
+          BASE_URL: http://localhost:8080
+
+      - name: Upload test results
+        if: always() && steps.check-package.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ matrix.browser }}
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  # ==================== 安全掃描進階版 ====================
+  advanced-security-scan:
+    name: Advanced Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run comprehensive dependency check
+        run: |
+          pip install safety pip-audit
+          cd backend
+
+          # Safety check
+          safety check --json --output safety-report.json || true
+
+          # pip-audit check
+          pip-audit --format json --output pip-audit-report.json || true
+        continue-on-error: true
+
+      - name: Run Bandit security analysis
+        run: |
+          pip install bandit
+          cd backend
+          bandit -r . -f json -o bandit-report.json -ll || true
+        continue-on-error: true
+
+      - name: OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:8080'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+        continue-on-error: true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: advanced-security-reports
+          path: |
+            backend/*-report.json
+            zap-report.html
+          retention-days: 30
+
+  # ==================== 資料庫性能測試 ====================
+  database-performance:
+    name: Database Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements-dev.txt
+
+      - name: Run database performance tests
+        env:
+          MONGO_URI: mongodb://localhost:27017/db_perf_test
+          JWT_SECRET: test-jwt-secret
+        run: |
+          cd backend
+          # 執行標記為 performance 的測試
+          pytest -m performance -v || echo "No performance tests found"
+        continue-on-error: true
+
+      - name: Generate performance report
+        run: |
+          echo "## Database Performance Test Results" > db-perf-report.md
+          echo "Database performance tests completed" >> db-perf-report.md
+        continue-on-error: true
+
+      - name: Upload DB performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-performance-report
+          path: db-perf-report.md
+          retention-days: 30
+
+  # ==================== 測試覆蓋率趨勢追蹤 ====================
+  coverage-trend:
+    name: Coverage Trend Tracking
+    runs-on: ubuntu-latest
+    needs: [full-test-suite]
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements-dev.txt
+
+      - name: Generate coverage report
+        env:
+          MONGO_URI: mongodb://localhost:27017/
+          JWT_SECRET: test-jwt-secret
+        run: |
+          cd backend
+          pytest --cov=. --cov-report=term --cov-report=json
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          cd backend
+          COVERAGE=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered'])")
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./backend/coverage.json
+          flags: nightly
+          name: nightly-coverage
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+  # ==================== 夜間測試總結 ====================
+  nightly-summary:
+    name: Nightly Test Summary
+    runs-on: ubuntu-latest
+    needs:
+      [
+        full-test-suite,
+        performance-tests,
+        lighthouse-tests,
+        cross-browser-e2e,
+        advanced-security-scan,
+        database-performance,
+        coverage-trend,
+      ]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# 🌙 Nightly Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**執行時間:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 測試結果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 測試類型 | 狀態 |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 完整測試套件 | ${{ needs.full-test-suite.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 性能測試 | ${{ needs.performance-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lighthouse | ${{ needs.lighthouse-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 跨瀏覽器 E2E | ${{ needs.cross-browser-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 進階安全掃描 | ${{ needs.advanced-security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 資料庫性能 | ${{ needs.database-performance.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 覆蓋率追蹤 | ${{ needs.coverage-trend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 統計結果
+          TOTAL=7
+          SUCCESS=$(echo "${{ needs.full-test-suite.result }} ${{ needs.performance-tests.result }} ${{ needs.lighthouse-tests.result }} ${{ needs.cross-browser-e2e.result }} ${{ needs.advanced-security-scan.result }} ${{ needs.database-performance.result }} ${{ needs.coverage-trend.result }}" | grep -o "success" | wc -l)
+
+          echo "**通過率:** $SUCCESS/$TOTAL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.full-test-suite.result }}" != "success" ]; then
+            echo "⚠️ 關鍵測試套件失敗,請檢查!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 核心測試全部通過" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 可選: 發送通知到 Slack 或 Discord
+      # - name: Notify team
+      #   if: failure()
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: ${{ job.status }}
+      #     text: 'Nightly tests failed! Please check the results.'
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

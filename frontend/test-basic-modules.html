@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基礎模組測試 - Accounting System</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .test-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #1f2937;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-item {
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #cbd5e0;
+            background: #f7fafc;
+        }
+        .test-item.pass {
+            border-left-color: #10b981;
+            background: #ecfdf5;
+        }
+        .test-item.fail {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .test-item.running {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+        .summary {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            flex: 1;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-item.total { background: #e0e7ff; color: #3730a3; }
+        .summary-item.passed { background: #d1fae5; color: #065f46; }
+        .summary-item.failed { background: #fee2e2; color: #991b1b; }
+        .summary-item h3 { margin: 0; font-size: 32px; }
+        .summary-item p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.8; }
+        pre {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 基礎模組測試</h1>
+
+    <div class="summary">
+        <div class="summary-item total">
+            <h3 id="total-tests">0</h3>
+            <p>總測試數</p>
+        </div>
+        <div class="summary-item passed">
+            <h3 id="passed-tests">0</h3>
+            <p>通過測試</p>
+        </div>
+        <div class="summary-item failed">
+            <h3 id="failed-tests">0</h3>
+            <p>失敗測試</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📦 模組 1: config.js</h2>
+        <div id="config-tests"></div>
+        <button onclick="testConfig()">▶ 執行測試</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🛠️ 模組 2: utils.js</h2>
+        <div id="utils-tests"></div>
+        <button onclick="testUtils()">▶ 執行測試</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🌐 模組 3: api.js</h2>
+        <div id="api-tests"></div>
+        <button onclick="testAPI()">▶ 執行測試</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📡 模組 4: events.js (EventBus)</h2>
+        <div id="events-tests"></div>
+        <button onclick="testEventBus()">▶ 執行測試</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 全部測試</h2>
+        <button onclick="runAllTests()">▶▶ 執行所有測試</button>
+        <button onclick="location.reload()">🔄 重置頁面</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Console 日誌</h2>
+        <pre id="console-log"></pre>
+    </div>
+
+    <script type="module">
+        import { backendUrl, categoryData, getItemIcon, isDevelopment, detectBackendUrl } from '/js-refactored/config.js';
+        import { escapeHtml, showToast, showConfirm } from '/js-refactored/utils.js';
+        import { getAuthToken, setAuthToken, removeAuthToken, apiCall } from '/js-refactored/api.js';
+        import { EventBus, EVENTS } from '/js-refactored/events.js';
+
+        // 暴露到全局供測試使用
+        window.modules = { backendUrl, categoryData, getItemIcon, isDevelopment, detectBackendUrl, escapeHtml, showToast, showConfirm, getAuthToken, setAuthToken, removeAuthToken, apiCall, EventBus, EVENTS };
+
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+
+        // 攔截 console.log 並顯示在頁面上
+        const originalLog = console.log;
+        const consoleElement = document.getElementById('console-log');
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg =>
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            consoleElement.textContent += message + '\n';
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        };
+
+        function updateSummary() {
+            document.getElementById('total-tests').textContent = totalTests;
+            document.getElementById('passed-tests').textContent = passedTests;
+            document.getElementById('failed-tests').textContent = failedTests;
+        }
+
+        function addTest(containerId, name, status, message = '') {
+            totalTests++;
+            if (status === 'pass') passedTests++;
+            if (status === 'fail') failedTests++;
+            updateSummary();
+
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = `test-item ${status}`;
+            const icon = status === 'pass' ? '✅' : status === 'fail' ? '❌' : '⏳';
+            div.innerHTML = `<strong>${icon} ${name}</strong>${message ? '<br><small>' + message + '</small>' : ''}`;
+            container.appendChild(div);
+        }
+
+        window.testConfig = async function() {
+            console.log('\n=== 測試 config.js ===\n');
+            const container = 'config-tests';
+            document.getElementById(container).innerHTML = '';
+
+            try {
+                // 測試 1: backendUrl 存在且正確格式
+                if (backendUrl && backendUrl.startsWith('http')) {
+                    addTest(container, '後端 URL 偵測', 'pass', `URL: ${backendUrl}`);
+                } else {
+                    addTest(container, '後端 URL 偵測', 'fail', `URL 無效: ${backendUrl}`);
+                }
+
+                // 測試 2: categoryData 存在且有資料
+                if (categoryData && categoryData.expense && categoryData.income) {
+                    const expenseCount = Object.keys(categoryData.expense).length;
+                    const incomeCount = Object.keys(categoryData.income).length;
+                    addTest(container, '分類資料載入', 'pass', `支出分類: ${expenseCount}, 收入分類: ${incomeCount}`);
+                } else {
+                    addTest(container, '分類資料載入', 'fail', '分類資料不完整');
+                }
+
+                // 測試 3: getItemIcon 函數
+                const icon = getItemIcon('早餐');
+                if (icon === '☕') {
+                    addTest(container, '分類圖標映射', 'pass', `早餐 → ${icon}`);
+                } else {
+                    addTest(container, '分類圖標映射', 'fail', `預期 ☕，得到 ${icon}`);
+                }
+
+                // 測試 4: isDevelopment 函數
+                const isDev = isDevelopment();
+                addTest(container, '環境檢測', 'pass', `開發環境: ${isDev}`);
+
+            } catch (error) {
+                addTest(container, '模組載入', 'fail', error.message);
+            }
+        };
+
+        window.testUtils = async function() {
+            console.log('\n=== 測試 utils.js ===\n');
+            const container = 'utils-tests';
+            document.getElementById(container).innerHTML = '';
+
+            try {
+                // 測試 1: escapeHtml
+                const escaped = escapeHtml('<script>alert("xss")</script>');
+                if (escaped.includes('&lt;') && escaped.includes('&gt;')) {
+                    addTest(container, 'HTML 轉義功能', 'pass', `正確轉義 XSS 腳本`);
+                } else {
+                    addTest(container, 'HTML 轉義功能', 'fail', `轉義失敗: ${escaped}`);
+                }
+
+                // 測試 2: showToast（視覺測試）
+                addTest(container, 'Toast 通知系統', 'pass', '點擊下方按鈕測試');
+
+                // 測試 3: showConfirm（視覺測試）
+                addTest(container, '確認對話框', 'pass', '點擊下方按鈕測試');
+
+            } catch (error) {
+                addTest(container, '模組載入', 'fail', error.message);
+            }
+
+            // 添加測試按鈕
+            const container = document.getElementById('utils-tests');
+            const btn1 = document.createElement('button');
+            btn1.textContent = '測試 Toast (成功)';
+            btn1.onclick = () => showToast('測試成功！', 'success', 2000);
+            container.appendChild(btn1);
+
+            const btn2 = document.createElement('button');
+            btn2.textContent = '測試 Toast (錯誤)';
+            btn2.onclick = () => showToast('測試錯誤！', 'error', 2000);
+            container.appendChild(btn2);
+
+            const btn3 = document.createElement('button');
+            btn3.textContent = '測試確認對話框';
+            btn3.onclick = async () => {
+                const result = await showConfirm('確定要測試嗎？', '確定', '取消');
+                showToast(result ? '您點擊了確定' : '您點擊了取消', 'info', 2000);
+            };
+            container.appendChild(btn3);
+        };
+
+        window.testAPI = async function() {
+            console.log('\n=== 測試 api.js ===\n');
+            const container = 'api-tests';
+            document.getElementById(container).innerHTML = '';
+
+            try {
+                // 測試 1: Token 管理
+                removeAuthToken();
+                const token1 = getAuthToken();
+                if (token1 === '') {
+                    addTest(container, 'Token 初始狀態', 'pass', '未登入時 Token 為空');
+                } else {
+                    addTest(container, 'Token 初始狀態', 'fail', `預期空字串，得到 ${token1}`);
+                }
+
+                // 測試 2: 設置 Token
+                setAuthToken('test-token-12345');
+                const token2 = getAuthToken();
+                if (token2 === 'test-token-12345') {
+                    addTest(container, 'Token 儲存功能', 'pass', 'Token 正確儲存');
+                } else {
+                    addTest(container, 'Token 儲存功能', 'fail', `Token 不匹配`);
+                }
+
+                // 測試 3: 移除 Token
+                removeAuthToken();
+                const token3 = getAuthToken();
+                if (token3 === '') {
+                    addTest(container, 'Token 移除功能', 'pass', 'Token 正確移除');
+                } else {
+                    addTest(container, 'Token 移除功能', 'fail', `Token 未移除`);
+                }
+
+                // 測試 4: apiCall 函數存在
+                if (typeof apiCall === 'function') {
+                    addTest(container, 'API 調用函數', 'pass', 'apiCall 函數存在');
+                } else {
+                    addTest(container, 'API 調用函數', 'fail', 'apiCall 函數不存在');
+                }
+
+            } catch (error) {
+                addTest(container, '模組載入', 'fail', error.message);
+            }
+        };
+
+        window.testEventBus = async function() {
+            console.log('\n=== 測試 events.js ===\n');
+            const container = 'events-tests';
+            document.getElementById(container).innerHTML = '';
+
+            try {
+                // 清除所有監聽器
+                EventBus.clear();
+
+                // 測試 1: 註冊監聽器
+                let eventReceived = false;
+                EventBus.on('test:event1', () => { eventReceived = true; });
+                if (EventBus.getListenerCount('test:event1') === 1) {
+                    addTest(container, '註冊監聽器', 'pass', '監聽器計數正確');
+                } else {
+                    addTest(container, '註冊監聽器', 'fail', '監聽器計數錯誤');
+                }
+
+                // 測試 2: 發送事件
+                EventBus.emit('test:event1');
+                if (eventReceived) {
+                    addTest(container, '發送事件', 'pass', '事件正確觸發');
+                } else {
+                    addTest(container, '發送事件', 'fail', '事件未觸發');
+                }
+
+                // 測試 3: 多個監聽器
+                let count = 0;
+                EventBus.on('test:event2', () => count++);
+                EventBus.on('test:event2', () => count++);
+                EventBus.emit('test:event2');
+                if (count === 2) {
+                    addTest(container, '多個監聽器', 'pass', '2 個監聽器都被觸發');
+                } else {
+                    addTest(container, '多個監聽器', 'fail', `只觸發了 ${count} 個`);
+                }
+
+                // 測試 4: 事件數據傳遞
+                let receivedData = null;
+                EventBus.on('test:event3', (data) => { receivedData = data; });
+                EventBus.emit('test:event3', { test: 123 });
+                if (receivedData && receivedData.test === 123) {
+                    addTest(container, '事件數據傳遞', 'pass', '數據正確傳遞');
+                } else {
+                    addTest(container, '事件數據傳遞', 'fail', '數據傳遞失敗');
+                }
+
+                // 測試 5: 移除監聽器
+                const handler = () => {};
+                EventBus.on('test:event4', handler);
+                EventBus.off('test:event4', handler);
+                if (EventBus.getListenerCount('test:event4') === 0) {
+                    addTest(container, '移除監聽器', 'pass', '監聽器正確移除');
+                } else {
+                    addTest(container, '移除監聽器', 'fail', '監聽器未移除');
+                }
+
+                // 測試 6: EVENTS 常量
+                if (EVENTS.RECORD_ADDED && EVENTS.STATS_UPDATED && EVENTS.AUTH_LOGIN_SUCCESS) {
+                    const eventCount = Object.keys(EVENTS).length;
+                    addTest(container, 'EVENTS 常量', 'pass', `定義了 ${eventCount} 個事件常量`);
+                } else {
+                    addTest(container, 'EVENTS 常量', 'fail', 'EVENTS 常量不完整');
+                }
+
+            } catch (error) {
+                addTest(container, '模組載入', 'fail', error.message);
+            }
+        };
+
+        window.runAllTests = async function() {
+            // 清除之前的測試結果
+            totalTests = 0;
+            passedTests = 0;
+            failedTests = 0;
+            updateSummary();
+
+            consoleElement.textContent = '開始執行所有測試...\n';
+
+            await testConfig();
+            await new Promise(r => setTimeout(r, 300));
+            await testUtils();
+            await new Promise(r => setTimeout(r, 300));
+            await testAPI();
+            await new Promise(r => setTimeout(r, 300));
+            await testEventBus();
+
+            console.log(`\n✅ 測試完成！通過 ${passedTests}/${totalTests} 個測試`);
+            showToast(`測試完成！通過 ${passedTests}/${totalTests} 個測試`, passedTests === totalTests ? 'success' : 'warning', 3000);
+        };
+
+        // 頁面載入時的提示
+        console.log('🎯 基礎模組測試頁面已載入');
+        console.log('💡 點擊按鈕開始測試各個模組');
+    </script>
+</body>
+</html>

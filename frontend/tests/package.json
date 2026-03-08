@@ -1,0 +1,28 @@
+{
+  "name": "accounting-system-frontend",
+  "version": "1.6.0",
+  "description": "個人記帳系統前端測試",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "test:codegen": "playwright codegen http://localhost:8080"
+  },
+  "keywords": [
+    "accounting",
+    "pwa",
+    "testing"
+  ],
+  "author": "Development Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "playwright": "^1.55.0"
+  },
+  "dependencies": {
+    "sweetalert2": "^11.26.21"
+  }
+}
