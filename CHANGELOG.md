@@ -4,16 +4,49 @@
 
 ## [Unreleased]
 
+---
+
+## [1.5.1] - 2026-03-08
+
 ### Added
-- 程式碼品質改善：後端使用 logging 替代 print 輸出
-- 前端條件化日誌：生產環境不輸出 console.log，僅開發環境可見
-- 測試覆蓋率提升至 76.77%（超過 74% 門檻）
-- 新增 CSV 資料匯出功能測試
-- 新增月度趨勢圖表測試
+- 前端模組化重構（`frontend/js-refactored/`）：13 個 ES6 模組，含 EventBus 事件總線
+- PWA 網路狀態監聽：online/offline 事件、浮動通知、MessageChannel 離線同步
+- PWA EventBus 整合：NETWORK_ONLINE / NETWORK_OFFLINE / NETWORK_SYNC_COMPLETE / NETWORK_SYNC_FAILED 事件
+- 忘記密碼 / 重設密碼 API（後端 + 前端）
+- CSV 匯出後端 API（`/admin/api/accounting/export`）
+- 月度趨勢 API（`/admin/api/accounting/trends`）
+- 篩選分類 UI 模組（`categories.js`）
+- 模糊測試（`tests/test_fuzzing.py`）
+- 輸入驗證邊界測試（`tests/test_validation_errors.py`）
+
+### Changed
+- EventBus debug 模式改為環境感知（僅 localhost/127.0.0.1 啟用）
+- CI 測試覆蓋率門檻：main.py ≥ 75%、auth.py ≥ 80%
+- 刪除冗餘文件：TEST_REPORT.md、PASSWORD_RESET_FIX.md、TEST_STRATEGY.md、重複 E2E 文件
 
 ### Fixed
-- 修正 Black 格式化問題（CSV writer 和 Response headers）
-- 優化 gunicorn 日誌輸出機制
+- syncOfflineQueue 錯誤使用 RECORDS_LOADED 事件，改為直接呼叫 `window.loadAccountingRecords()`
+- Black 格式化問題（test_validation_errors.py）
+
+---
+
+## [1.3.6] - 2026-03-08
+
+### Added
+- 安全加固：密碼雜湊驗證、Token 刷新機制
+- 詳細文件：PASSWORD_POLICY.md、E2E_TESTING_GUIDE.md、TESTING_BEST_PRACTICES.md
+
+### Fixed
+- 多項前端 Bug 修復與 RWD 排版問題
+
+---
+
+## [1.0.0] - 2026-02-16
+
+### Added
+- 採用語義化版本控制（Semantic Versioning）
+- 改進 Service Worker 自動更新機制（CACHE_NAME 版本號觸發）
+- PWA 安裝提示（Android `beforeinstallprompt` + iOS 手動指引）
 
 ---
 
