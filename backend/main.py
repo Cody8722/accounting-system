@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 import logging
 import re
+import csv
+from io import StringIO
 
 # 導入認證模組
 import auth
@@ -116,6 +118,13 @@ limiter = Limiter(
 
 # 環境變數
 MONGO_URI = os.getenv("MONGO_URI")
+# Gmail SMTP 配置
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USERNAME)
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "會計系統 - 系統通知")
 
 # MongoDB 連線
 client = None
@@ -398,7 +407,7 @@ def add_accounting_record():
         return jsonify({"error": "資料庫未初始化"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -490,7 +499,7 @@ def update_accounting_record(record_id):
         if not existing_record:
             return jsonify({"error": "找不到該記錄或無權限修改"}), 404
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -690,7 +699,7 @@ def set_accounting_budget():
         return jsonify({"error": "資料庫未初始化"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data or "budget" not in data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -717,14 +726,228 @@ def set_accounting_budget():
         return jsonify({"error": "儲存預算失敗"}), 500
 
 
+@app.route("/admin/api/accounting/export", methods=["GET"])
+@limiter.limit("10 per hour")
+@require_auth
+def export_accounting_records():
+    """
+    匯出記帳記錄為 CSV 檔案
+
+    Query Parameters:
+        start_date: 開始日期 (YYYY-MM-DD, 可選)
+        end_date: 結束日期 (YYYY-MM-DD, 可選)
+        type: 記錄類型 (income/expense, 可選)
+
+    Returns:
+        CSV file download
+    """
+    if accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    try:
+        # 獲取查詢參數
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        record_type = request.args.get("type")
+
+        # 建立查詢條件
+        query = {}
+
+        # 用戶數據隔離：只能匯出自己的記錄
+        query["user_id"] = ObjectId(request.user_id)
+
+        # 日期範圍過濾
+        if start_date and end_date:
+            valid_start, _ = validate_date(start_date)
+            valid_end, _ = validate_date(end_date)
+            if valid_start and valid_end:
+                query["date"] = {"$gte": start_date, "$lte": end_date}
+
+        # 記錄類型過濾
+        if record_type:
+            valid, _ = validate_record_type(record_type)
+            if valid:
+                query["type"] = record_type
+
+        # 查詢記錄，按日期降冪排序
+        records = list(
+            accounting_records_collection.find(query)
+            .sort("date", -1)
+            .limit(MAX_RECORDS_LIMIT)
+        )
+
+        # 建立 CSV
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # 寫入標題列
+        writer.writerow(["日期", "類型", "分類", "金額", "描述", "支出類型"])
+
+        # 寫入資料列
+        for record in records:
+            # 類型轉換為中文
+            type_zh = "收入" if record.get("type") == "income" else "支出"
+
+            # 支出類型轉換為中文
+            expense_type = record.get("expense_type", "")
+            expense_type_zh = ""
+            if expense_type == "fixed":
+                expense_type_zh = "固定支出"
+            elif expense_type == "variable":
+                expense_type_zh = "變動支出"
+            elif expense_type == "onetime":
+                expense_type_zh = "一次性支出"
+
+            writer.writerow(
+                [
+                    record.get("date", ""),
+                    type_zh,
+                    record.get("category", ""),
+                    record.get("amount", 0),
+                    record.get("description", ""),
+                    expense_type_zh,
+                ]
+            )
+
+        # 準備檔案名稱
+        filename = "記帳記錄"
+        if start_date and end_date:
+            filename += f"_{start_date}_至_{end_date}"
+        else:
+            filename += f"_{datetime.now().strftime('%Y%m%d')}"
+        filename += ".csv"
+
+        # 建立 Response
+        output.seek(0)
+
+        # 添加 BOM 以支援 Excel 正確顯示中文
+        bom_output = "\ufeff" + output.getvalue()
+
+        response = Response(
+            bom_output.encode("utf-8"),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "text/csv; charset=utf-8-sig",  # BOM for Excel
+                "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+            },
+        )
+
+        logger.info(f"匯出 {len(records)} 筆記帳記錄 (user: {request.email})")
+        return response
+
+    except Exception as e:
+        logger.error(f"匯出記帳記錄失敗: {e}")
+        return jsonify({"error": "匯出失敗"}), 500
+
+
+@app.route("/admin/api/accounting/trends", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_monthly_trends():
+    """
+    取得月度趨勢資料（收入與支出）
+
+    Query Parameters:
+        months: 顯示最近幾個月 (預設 6 個月)
+
+    Returns:
+        {
+            "months": ["2024-01", "2024-02", ...],
+            "income": [1000, 2000, ...],
+            "expense": [800, 1500, ...]
+        }
+    """
+    if accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    try:
+        # 獲取參數
+        months_count = int(request.args.get("months", 6))
+        if months_count > 24:  # 限制最多 24 個月
+            months_count = 24
+
+        # 用戶數據隔離
+        base_query = {"user_id": ObjectId(request.user_id)}
+
+        # 按月份分組統計收入
+        income_pipeline = [
+            {"$match": {**base_query, "type": "income"}},
+            {
+                "$group": {
+                    "_id": {"$substr": ["$date", 0, 7]},  # 擷取 YYYY-MM
+                    "total": {"$sum": "$amount"},
+                }
+            },
+            {"$sort": {"_id": 1}},  # 按月份升冪排序
+            {"$limit": months_count},
+        ]
+
+        # 按月份分組統計支出
+        expense_pipeline = [
+            {"$match": {**base_query, "type": "expense"}},
+            {
+                "$group": {
+                    "_id": {"$substr": ["$date", 0, 7]},  # 擷取 YYYY-MM
+                    "total": {"$sum": "$amount"},
+                }
+            },
+            {"$sort": {"_id": 1}},  # 按月份升冪排序
+            {"$limit": months_count},
+        ]
+
+        income_data = list(accounting_records_collection.aggregate(income_pipeline))
+        expense_data = list(accounting_records_collection.aggregate(expense_pipeline))
+
+        # 整理資料為字典格式
+        income_dict = {item["_id"]: item["total"] for item in income_data}
+        expense_dict = {item["_id"]: item["total"] for item in expense_data}
+
+        # 取得所有出現過的月份
+        all_months = sorted(set(income_dict.keys()) | set(expense_dict.keys()))
+
+        # 如果資料不足，補充最近幾個月
+        if len(all_months) < months_count:
+            current = datetime.now()
+            for i in range(months_count):
+                # 計算月份（使用簡單的月份減法）
+                year = current.year
+                month = current.month - i
+                while month <= 0:
+                    month += 12
+                    year -= 1
+                month_str = f"{year:04d}-{month:02d}"
+                if month_str not in all_months:
+                    all_months.append(month_str)
+
+            all_months = sorted(list(set(all_months)))
+
+        # 限制月份數量
+        all_months = all_months[-months_count:]
+
+        # 建立回應資料
+        response_data = {
+            "months": all_months,
+            "income": [income_dict.get(month, 0) for month in all_months],
+            "expense": [expense_dict.get(month, 0) for month in all_months],
+        }
+
+        logger.info(f"取得月度趨勢資料: {months_count} 個月 (user: {request.email})")
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        logger.error(f"取得月度趨勢失敗: {e}")
+        return jsonify({"error": "取得趨勢資料失敗"}), 500
+
+
 # ==================== 系統狀態 ====================
 
 
 @app.route("/status", methods=["GET"])
 @limiter.limit("10 per minute")
-@require_auth
 def status():
-    """系統狀態檢查（需要驗證）"""
+    """系統狀態檢查（公開端點）"""
     db_connected = client is not None
 
     return (
@@ -750,7 +973,7 @@ def validate_password():
     Response: { "valid": true/false, "checks": {...}, "errors": [...] }
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -804,7 +1027,7 @@ def register():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -876,7 +1099,7 @@ def login():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1033,7 +1256,7 @@ def update_profile():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1094,7 +1317,7 @@ def change_password():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1138,6 +1361,195 @@ def change_password():
     except Exception as e:
         logger.error(f"修改密碼失敗: {e}")
         return jsonify({"error": "修改密碼失敗"}), 500
+
+
+# ==================== 忘記密碼 ====================
+
+
+def send_reset_email(to_email: str, reset_url: str) -> bool:
+    """用 Gmail SMTP 寄送密碼重設信"""
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        logger.error("SMTP_USERNAME 或 SMTP_PASSWORD 未設定")
+        return False
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from email.utils import formataddr
+
+        html_body = f"""
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2 style="color: #7c3aed;">密碼重設</h2>
+            <p>我們收到了您的密碼重設請求。請點擊下方按鈕重設密碼：</p>
+            <a href="{reset_url}"
+               style="display:inline-block;padding:12px 24px;background:#7c3aed;color:#fff;
+                      border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
+                重設密碼
+            </a>
+            <p style="color:#6b7280;font-size:0.875rem;">
+                此連結將在 1 小時後失效。若非您本人操作，請忽略此信件。
+            </p>
+        </div>
+        """
+
+        # 建立郵件訊息
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "記帳本 — 密碼重設"
+        msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
+        msg["To"] = to_email
+
+        # 添加 HTML 內容
+        html_part = MIMEText(html_body, "html", "utf-8")
+        msg.attach(html_part)
+
+        # 連接 SMTP 伺服器並發送郵件
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()  # 啟用 TLS 加密
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+
+        logger.info(f"郵件已成功發送至: {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Gmail SMTP 寄信失敗: {e}")
+        return False
+
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+@limiter.limit("5 per hour")
+def forgot_password():
+    """忘記密碼：寄送重設連結"""
+    try:
+        if users_collection is None:
+            return jsonify({"error": "資料庫未連線"}), 503
+
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "請提供 Email"}), 400
+
+        email = data.get("email", "").strip().lower()
+        if not email:
+            return jsonify({"error": "請提供 Email"}), 400
+
+        # 不論 email 是否存在都回傳相同訊息（防止用戶枚舉）
+        user = users_collection.find_one({"email": email})
+        if user:
+            token = auth.generate_reset_token()
+            from datetime import timedelta
+
+            expires_at = datetime.now() + timedelta(hours=1)
+
+            users_collection.update_one(
+                {"_id": user["_id"]},
+                {
+                    "$set": {
+                        "password_reset_token": token,
+                        "password_reset_expires": expires_at,
+                    }
+                },
+            )
+
+            # 取前端 URL 來組重設連結（自適應邏輯）
+            # 1. 優先從請求的 Origin header 自動偵測
+            origin = request.headers.get("Origin")
+            if not origin:
+                # Fallback: 從 Referer 提取（移除 query string 和結尾斜線）
+                referer = request.headers.get("Referer", "")
+                if referer:
+                    # 提取 protocol://domain:port 部分
+                    origin = referer.split("?")[0].rstrip("/")
+                    # 移除路徑部分，只保留 origin
+                    if "/" in origin.replace("https://", "").replace("http://", ""):
+                        origin = "/".join(origin.split("/")[:3])
+
+            # 2. 驗證 Origin 是否在白名單中（安全性檢查）
+            frontend_url = None
+            if origin and origin in FRONTEND_URLS:
+                frontend_url = origin
+                logger.info(f"使用請求來源作為重設連結: {origin}")
+
+            # 3. Fallback: 使用 FRONTEND_URL 環境變數
+            if not frontend_url:
+                frontend_url = os.getenv("FRONTEND_URL")
+                if frontend_url:
+                    logger.info(f"使用 FRONTEND_URL 環境變數: {frontend_url}")
+
+            # 4. 最終 Fallback: 使用 FRONTEND_URLS 第一個
+            if not frontend_url:
+                frontend_url = (
+                    FRONTEND_URLS[0] if FRONTEND_URLS else "http://localhost:8080"
+                )
+                logger.info(f"使用預設前端網址: {frontend_url}")
+
+            reset_url = f"{frontend_url}?reset_token={token}"
+
+            # 檢查郵件是否成功發送
+            email_sent = send_reset_email(email, reset_url)
+            if not email_sent:
+                logger.error(f"密碼重設信寄送失敗: {email}，請檢查 SMTP 配置是否正確")
+                return (
+                    jsonify({"error": "郵件服務未配置或發送失敗，請聯繫系統管理員"}),
+                    500,
+                )
+
+            logger.info(f"密碼重設信已寄送: {email}")
+
+        return jsonify({"message": "若此 Email 已註冊，重設連結已寄出"}), 200
+
+    except Exception as e:
+        logger.error(f"忘記密碼失敗: {e}")
+        return jsonify({"error": "系統錯誤"}), 500
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+@limiter.limit("10 per hour")
+def reset_password():
+    """用 token 重設密碼"""
+    try:
+        if users_collection is None:
+            return jsonify({"error": "資料庫未連線"}), 503
+
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "請提供 token 和新密碼"}), 400
+
+        token = data.get("token", "").strip()
+        new_password = data.get("new_password", "")
+
+        if not token or not new_password:
+            return jsonify({"error": "請提供 token 和新密碼"}), 400
+
+        user = users_collection.find_one({"password_reset_token": token})
+        if not user:
+            return jsonify({"error": "連結無效或已過期"}), 400
+
+        expires = user.get("password_reset_expires")
+        if not expires or datetime.now() > expires:
+            return jsonify({"error": "連結已過期，請重新申請"}), 400
+
+        is_valid, message = auth.validate_password_strength(
+            new_password,
+            email=user.get("email", ""),
+            name=user.get("name", ""),
+        )
+        if not is_valid:
+            return jsonify({"error": message}), 400
+
+        new_hash = auth.hash_password(new_password)
+        users_collection.update_one(
+            {"_id": user["_id"]},
+            {
+                "$set": {"password_hash": new_hash, "updated_at": datetime.now()},
+                "$unset": {"password_reset_token": "", "password_reset_expires": ""},
+            },
+        )
+
+        logger.info(f"用戶已重設密碼: {user.get('email')}")
+        return jsonify({"message": "密碼已重設，請重新登入"}), 200
+
+    except Exception as e:
+        logger.error(f"重設密碼失敗: {e}")
+        return jsonify({"error": "系統錯誤"}), 500
 
 
 if __name__ == "__main__":

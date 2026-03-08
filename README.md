@@ -9,6 +9,9 @@
 | 文件 | 說明 |
 |------|------|
 | `README.md`（本文） | 系統介紹、部署方式、API 參考 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 版本更新日誌 |
+| [`docs/API.md`](docs/API.md) | API 完整文件（含請求/回應範例） |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 開發指南（環境設定、測試、提交規範） |
 | [`frontend/PWA-README.md`](frontend/PWA-README.md) | PWA 安裝、離線功能、Service Worker 說明 |
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 每次更新前端的必做清單 |
 | [`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md) | 密碼強度規則與環境變數設定 |

@@ -27,6 +27,12 @@ ENV/
 env/
 .venv
 
+# Node.js / npm (for frontend test dependencies - now in frontend/tests/)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # IDEs
 .vscode/
 .idea/
@@ -48,6 +54,14 @@ Thumbs.db
 .coverage
 htmlcov/
 .tox/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Zeabur deployment - prevent accidental Dockerfile in frontend
+frontend/Dockerfile
+!frontend/Dockerfile.backup
+!frontend/Dockerfile.docker-legacy
 
 # Logs
 *.log
