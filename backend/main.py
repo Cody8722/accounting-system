@@ -407,7 +407,7 @@ def add_accounting_record():
         return jsonify({"error": "資料庫未初始化"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -499,7 +499,7 @@ def update_accounting_record(record_id):
         if not existing_record:
             return jsonify({"error": "找不到該記錄或無權限修改"}), 404
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -699,7 +699,7 @@ def set_accounting_budget():
         return jsonify({"error": "資料庫未初始化"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data or "budget" not in data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -973,7 +973,7 @@ def validate_password():
     Response: { "valid": true/false, "checks": {...}, "errors": [...] }
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1027,7 +1027,7 @@ def register():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1099,7 +1099,7 @@ def login():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1256,7 +1256,7 @@ def update_profile():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
@@ -1317,7 +1317,7 @@ def change_password():
         return jsonify({"error": "資料庫未連線"}), 500
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
