@@ -64,8 +64,8 @@ export async function apiCall(url, options = {}) {
             headers
         });
 
-        // 如果返回 401，清除 token
-        if (response.status === 401) {
+        // 如果返回 401，且是有 token 的請求（非登入/註冊），才當作過期處理
+        if (response.status === 401 && getAuthToken()) {
             removeAuthToken();
             // 防止多個同時發出的請求重複觸發處理
             if (!is401Handling) {

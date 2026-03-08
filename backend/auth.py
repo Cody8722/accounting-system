@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, List
 from email_validator import validate_email, EmailNotValidError
 from passlib.hash import pbkdf2_sha256
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # JWT 配置
 JWT_SECRET = os.getenv("JWT_SECRET")
