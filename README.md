@@ -102,6 +102,8 @@ pytest --cov=. --cov-report=term-missing   # 含覆蓋率
 - 離線新增記錄，連線後自動同步
 - iOS / Android 全螢幕體驗（無瀏覽器 UI）
 
+安裝步驟、快取策略與 Service Worker 詳細說明請參考 [`frontend/PWA-README.md`](frontend/PWA-README.md)。
+
 ---
 
 ## 快速開始
