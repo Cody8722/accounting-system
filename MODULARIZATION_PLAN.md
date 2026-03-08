@@ -98,7 +98,7 @@
 - [x] 自動重載機制
 - [x] 控制器變更處理
 - [x] 後台同步
-- [x] 網路狀態監聽 (showNetworkStatus)
+- [x] 網路狀態監聽 (showNetworkStatus) — 含 online/offline 事件、MessageChannel 同步、Background Sync、EventBus 整合
 
 **Android 安裝提示:**
 - [x] shouldShowAndroidPrompt - 檢查顯示條件
