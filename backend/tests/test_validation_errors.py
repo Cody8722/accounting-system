@@ -256,7 +256,12 @@ class TestDBExceptions:
             m.insert_one.side_effect = Exception("DB error")
             r = client.post(
                 "/admin/api/accounting/records",
-                json={"type": "expense", "amount": 100, "category": "測試", "date": TODAY},
+                json={
+                    "type": "expense",
+                    "amount": 100,
+                    "category": "測試",
+                    "date": TODAY,
+                },
                 headers=auth_headers,
             )
         assert r.status_code == 500
