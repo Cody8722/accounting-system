@@ -34,6 +34,9 @@ import { initBudget, loadBudget } from './budget.js';
 import { initExport } from './export.js';
 import { initSettings } from './settings.js';
 import { initPWA, showIOSInstallPrompt, showAndroidInstallPrompt } from './pwa.js';
+import { initAnalytics } from './analytics.js';
+import { initRecurring } from './recurring.js';
+import { initTheme } from './theme.js';
 
 /**
  * 認證狀態標記
@@ -65,9 +68,17 @@ function initializeModules() {
     initExport();
     initSettings();
     initPWA();
+    initAnalytics();
+    initRecurring();
+    initTheme();
 
     // 4. 初始化 UI 組件
     initializeUIComponents();
+
+    // 監聽登入成功事件，初始化日期預設值
+    EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, () => {
+        setTodayAsDefault();
+    });
 
     console.log('✅ 所有模組初始化完成！');
 }
@@ -153,6 +164,7 @@ async function handleDOMContentLoaded() {
         setTodayAsDefault();
         loadBudget();
         updateUserDisplay();
+        // loadRecurring 透過 AUTH_LOGIN_SUCCESS 事件由 recurring.js 自動觸發
 
         // 請求更新統計數據（透過事件）
         EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
