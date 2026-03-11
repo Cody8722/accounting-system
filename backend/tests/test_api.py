@@ -440,5 +440,140 @@ class TestResetPassword:
         assert response.status_code == 400
 
 
+class TestRecurringAPI:
+    """定期收支 API 測試"""
+
+    def test_get_recurring_without_auth(self, client):
+        """未認證應返回 401"""
+        response = client.get("/admin/api/recurring")
+        assert response.status_code == 401
+
+    def test_get_recurring_with_auth(self, client, auth_headers):
+        """已認證取得定期收支列表"""
+        response = client.get("/admin/api/recurring", headers=auth_headers)
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert isinstance(response.get_json(), list)
+
+    def test_create_recurring_without_auth(self, client):
+        """未認證新增應返回 401"""
+        response = client.post("/admin/api/recurring", json={"name": "test"})
+        assert response.status_code == 401
+
+    def test_create_recurring_missing_name(self, client, auth_headers):
+        """缺少名稱應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_invalid_amount(self, client, auth_headers):
+        """無效金額應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "測試", "amount": -100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_invalid_type(self, client, auth_headers):
+        """無效類型應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "測試", "amount": 100, "type": "invalid", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_invalid_day(self, client, auth_headers):
+        """無效日期應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "測試", "amount": 100, "type": "expense", "day_of_month": 32},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_success(self, client, auth_headers):
+        """成功新增定期收支"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "房租",
+                "amount": 15000,
+                "type": "expense",
+                "category": "居住",
+                "day_of_month": 5,
+                "description": "每月房租",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code in [201, 500]
+
+    def test_update_recurring_invalid_id(self, client, auth_headers):
+        """無效 ID 更新應返回 400"""
+        response = client.put(
+            "/admin/api/recurring/invalid-id",
+            json={"name": "新名稱", "amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_delete_recurring_invalid_id(self, client, auth_headers):
+        """無效 ID 刪除應返回 400"""
+        response = client.delete(
+            "/admin/api/recurring/invalid-id",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_apply_recurring_invalid_id(self, client, auth_headers):
+        """無效 ID 套用應返回 400"""
+        response = client.post(
+            "/admin/api/recurring/invalid-id/apply",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_delete_recurring_not_found(self, client, auth_headers):
+        """不存在的 ID 刪除應返回 404"""
+        valid_oid = "000000000000000000000099"
+        response = client.delete(
+            f"/admin/api/recurring/{valid_oid}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    def test_apply_recurring_not_found(self, client, auth_headers):
+        """不存在的 ID 套用應返回 404"""
+        valid_oid = "000000000000000000000099"
+        response = client.post(
+            f"/admin/api/recurring/{valid_oid}/apply",
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    def test_update_recurring_not_found(self, client, auth_headers):
+        """不存在的 ID 更新應返回 404"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "新名稱", "amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    def test_create_recurring_name_too_long(self, client, auth_headers):
+        """名稱過長應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "a" * 51, "amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

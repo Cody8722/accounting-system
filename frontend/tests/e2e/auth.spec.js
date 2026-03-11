@@ -201,12 +201,14 @@ test.describe('認證流程測試', () => {
   });
 
   test('未登入時訪問受保護頁面應跳轉到登入頁', async ({ page }) => {
-    // 確保未登入
-    await clearAuthState(page);
-
-    // 嘗試訪問受保護頁面
-    await page.goto('/#dashboard');
-    await page.waitForTimeout(1000);
+    // 清除 localStorage 並強制重新載入頁面，觸發 verifyToken()
+    await page.evaluate(() => {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('userData');
+    });
+    // 強制完整頁面重載（hash change 不會重跑 verifyToken）
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
 
     // 應該顯示登入 modal
     const loginModalVisible = await page.evaluate(() => {
