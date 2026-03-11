@@ -1238,14 +1238,16 @@ def update_recurring(item_id):
 
         result = recurring_collection.update_one(
             {"_id": oid, "user_id": ObjectId(request.user_id)},
-            {"$set": {
-                "name": name,
-                "amount": round(amount, 2),
-                "type": type_,
-                "category": category,
-                "day_of_month": day,
-                "description": description,
-            }}
+            {
+                "$set": {
+                    "name": name,
+                    "amount": round(amount, 2),
+                    "type": type_,
+                    "category": category,
+                    "day_of_month": day,
+                    "description": description,
+                }
+            },
         )
         if result.matched_count == 0:
             return jsonify({"error": "找不到項目"}), 404
@@ -1277,7 +1279,7 @@ def apply_recurring(item_id):
         # 使用定期收支設定的日期，超過當月天數時自動調整（如 31 號在二月 = 28 號）
         today_dt = datetime.now()
         max_day = monthrange(today_dt.year, today_dt.month)[1]
-        actual_day = min(item['day_of_month'], max_day)
+        actual_day = min(item["day_of_month"], max_day)
         record_date = today_dt.replace(day=actual_day).strftime("%Y-%m-%d")
         record = {
             "user_id": user_oid,
@@ -1289,7 +1291,9 @@ def apply_recurring(item_id):
             "created_at": datetime.now(),
         }
         result = accounting_records_collection.insert_one(record)
-        logger.info(f"套用定期支出 '{item['name']}' ${item['amount']} (user: {request.email})")
+        logger.info(
+            f"套用定期支出 '{item['name']}' ${item['amount']} (user: {request.email})"
+        )
         return jsonify({"id": str(result.inserted_id), "message": "記帳成功"}), 201
 
     except Exception as e:

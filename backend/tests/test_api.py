@@ -317,7 +317,7 @@ class TestAuthenticatedEndpoints:
 
     def test_set_budget_with_auth(self, client, auth_headers):
         """測試設定預算（已認證）"""
-        budget_data = {"budget": {"food": 5000, "transport": 3000}}
+        budget_data = {"budget": {"交通": 3000, "娛樂": 2000}}
         response = client.post(
             "/admin/api/accounting/budget", json=budget_data, headers=auth_headers
         )

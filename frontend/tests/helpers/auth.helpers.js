@@ -82,23 +82,15 @@ export async function registerUser(page, user) {
       }
     }
 
-    // 等待成功訊息
-    await page.waitForSelector('#register-error:not(.hidden)', { timeout: 10000 });
-    console.log('✓ Register message displayed');
-
+    // 等待成功後跳轉到登入頁（success message → modal close → #login）
     await page.waitForFunction(
       () => {
-        const el = document.getElementById('register-error');
-        return el && el.textContent.includes('註冊成功');
+        const loginModal = document.getElementById('login-modal');
+        return loginModal && !loginModal.classList.contains('hidden');
       },
       { timeout: 10000 }
     );
-    console.log('✓ Registration success message confirmed');
-
-    // 等待可能的 SweetAlert2 弹窗（前端可能使用 SweetAlert2 显示成功消息）
-    // 等待弹窗关闭后再继续，避免阻塞后续操作
-    await page.waitForTimeout(3000);  // 给 SweetAlert2 足够时间显示和自动关闭
-    console.log('✓ Waited for modal animations');
+    console.log('✓ Redirected to login page after registration');
 
     console.log('✅ Registration completed successfully!');
 
