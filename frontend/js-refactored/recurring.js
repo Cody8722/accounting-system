@@ -260,13 +260,8 @@ export async function applyRecurring(id, name) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || '記帳失敗');
 
-        // index-refactored.html (模組系統)：透過 EventBus 通知
         EventBus.emit(EVENTS.RECORD_ADDED, { source: 'recurring', name });
         EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
-
-        // index.html (舊版 inline 相容)：直接呼叫 window 函數
-        if (typeof window.updateAccountingStats === 'function') window.updateAccountingStats();
-        if (typeof window.loadAccountingRecords === 'function') window.loadAccountingRecords(false, 1);
 
         // 按鈕回饋
         const btn = document.activeElement;

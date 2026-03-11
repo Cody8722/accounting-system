@@ -35,13 +35,8 @@ export function setDateRange(period) {
     if (startEl) startEl.value = start;
     if (endEl) endEl.value = end;
 
-    // index-refactored.html (模組系統)：透過 EventBus 通知
     EventBus.emit(EVENTS.RECORDS_FILTERED);
     EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
-
-    // index.html (舊版 inline 相容)：直接呼叫 window 函數
-    if (typeof window.loadAccountingRecords === 'function') window.loadAccountingRecords(true, 1);
-    if (typeof window.updateAccountingStats === 'function') window.updateAccountingStats();
 }
 
 /**

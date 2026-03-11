@@ -208,8 +208,8 @@ export function initBudget() {
 
     // 監聽頁面載入事件
     EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
-        if (page === 'budget') {
-            // 預算設定頁載入時，載入預算數據
+        if (page === 'add') {
+            // 新增記帳頁載入時，載入預算數據
             loadBudget();
         }
     });
