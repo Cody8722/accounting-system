@@ -569,10 +569,211 @@ class TestRecurringAPI:
         """名稱過長應返回 400"""
         response = client.post(
             "/admin/api/recurring",
-            json={"name": "a" * 51, "amount": 100, "type": "expense", "day_of_month": 1},
+            json={
+                "name": "a" * 51,
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
             headers=auth_headers,
         )
         assert response.status_code == 400
+
+    def test_update_recurring_empty_name(self, client, auth_headers):
+        """空名稱更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "", "amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_name_too_long(self, client, auth_headers):
+        """名稱過長更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "a" * 51,
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_amount(self, client, auth_headers):
+        """無效金額更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": -100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_zero_amount(self, client, auth_headers):
+        """零金額更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "測試", "amount": 0, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_type(self, client, auth_headers):
+        """無效類型更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": 100,
+                "type": "invalid",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_day_zero(self, client, auth_headers):
+        """日期為 0 更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "測試", "amount": 100, "type": "expense", "day_of_month": 0},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_day_high(self, client, auth_headers):
+        """日期超過 31 更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 32,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_category_too_long(self, client, auth_headers):
+        """分類名稱過長更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+                "category": "a" * 31,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_and_apply_recurring(self, client, auth_headers):
+        """建立定期收支後套用為記帳記錄"""
+        # 先建立一筆定期收支
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "測試水電費",
+                "amount": 1000,
+                "type": "expense",
+                "category": "居住",
+                "day_of_month": 15,
+                "description": "每月水電",
+            },
+            headers=auth_headers,
+        )
+        # 若 DB 未連線則跳過
+        if create_resp.status_code != 201:
+            return
+        data = create_resp.get_json()
+        item_id = data.get("id")
+        assert item_id is not None
+
+        # 套用為實際記帳記錄
+        apply_resp = client.post(
+            f"/admin/api/recurring/{item_id}/apply",
+            headers=auth_headers,
+        )
+        assert apply_resp.status_code == 201
+        apply_data = apply_resp.get_json()
+        assert "id" in apply_data
+
+        # 清理：刪除測試資料
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_create_and_update_recurring(self, client, auth_headers):
+        """建立定期收支後更新"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "原始名稱",
+                "amount": 500,
+                "type": "income",
+                "category": "薪資",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        # 更新
+        update_resp = client.put(
+            f"/admin/api/recurring/{item_id}",
+            json={
+                "name": "新名稱",
+                "amount": 600,
+                "type": "income",
+                "category": "薪資",
+                "day_of_month": 5,
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 200
+
+        # 清理
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_create_and_delete_recurring(self, client, auth_headers):
+        """建立定期收支後刪除"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "待刪除項目",
+                "amount": 200,
+                "type": "expense",
+                "day_of_month": 10,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        delete_resp = client.delete(
+            f"/admin/api/recurring/{item_id}",
+            headers=auth_headers,
+        )
+        assert delete_resp.status_code == 200
 
 
 if __name__ == "__main__":

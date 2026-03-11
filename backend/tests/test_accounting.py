@@ -588,6 +588,7 @@ class TestExport:
         assert response.content_type == "text/csv; charset=utf-8"
         assert "Content-Disposition" in response.headers
         from urllib.parse import unquote
+
         assert "記帳記錄" in unquote(response.headers["Content-Disposition"])
 
         # 檢查 CSV 內容
@@ -623,7 +624,10 @@ class TestExport:
 
         assert response.status_code == 200
         from urllib.parse import unquote
-        assert "2024-01-01_至_2024-01-31" in unquote(response.headers["Content-Disposition"])
+
+        assert "2024-01-01_至_2024-01-31" in unquote(
+            response.headers["Content-Disposition"]
+        )
 
     def test_export_with_type_filter(self, client, auth_token):
         """測試帶類型篩選的匯出"""

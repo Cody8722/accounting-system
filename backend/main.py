@@ -79,9 +79,9 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=31536000; includeSubDomains"
-    )
+    response.headers[
+        "Strict-Transport-Security"
+    ] = "max-age=31536000; includeSubDomains"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
@@ -223,9 +223,7 @@ if MONGO_URI:
             )
 
             # 定期支出索引
-            recurring_collection.create_index(
-                [("user_id", ASCENDING)], background=True
-            )
+            recurring_collection.create_index([("user_id", ASCENDING)], background=True)
 
             logger.info("✅ 資料庫索引已建立（背景執行）")
         except Exception as index_error:
@@ -396,7 +394,9 @@ def get_accounting_records():
         # 獲取分頁參數
         try:
             page = max(1, int(request.args.get("page", 1)))
-            limit = min(MAX_PAGE_SIZE, max(1, int(request.args.get("limit", DEFAULT_PAGE_SIZE))))
+            limit = min(
+                MAX_PAGE_SIZE, max(1, int(request.args.get("limit", DEFAULT_PAGE_SIZE)))
+            )
         except (ValueError, TypeError):
             return jsonify({"error": "page 和 limit 必須為正整數"}), 400
 
@@ -439,13 +439,20 @@ def get_accounting_records():
             .limit(limit)
         )
 
-        return json.loads(json_util.dumps({
-            "records": records,
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "total_pages": total_pages,
-        })), 200
+        return (
+            json.loads(
+                json_util.dumps(
+                    {
+                        "records": records,
+                        "total": total,
+                        "page": page,
+                        "limit": limit,
+                        "total_pages": total_pages,
+                    }
+                )
+            ),
+            200,
+        )
     except Exception as e:
         logger.error(f"查詢記帳記錄失敗: {e}")
         return jsonify({"error": "查詢記錄失敗"}), 500
@@ -1052,14 +1059,16 @@ def get_period_comparison():
 
         def aggregate_period(start, end):
             pipeline = [
-                {"$match": {
-                    "user_id": user_oid,
-                    "date": {"$gte": start.strftime("%Y-%m-%d"), "$lt": end.strftime("%Y-%m-%d")}
-                }},
-                {"$group": {
-                    "_id": "$type",
-                    "total": {"$sum": "$amount"}
-                }}
+                {
+                    "$match": {
+                        "user_id": user_oid,
+                        "date": {
+                            "$gte": start.strftime("%Y-%m-%d"),
+                            "$lt": end.strftime("%Y-%m-%d"),
+                        },
+                    }
+                },
+                {"$group": {"_id": "$type", "total": {"$sum": "$amount"}}},
             ]
             result = {"income": 0.0, "expense": 0.0}
             for doc in accounting_records_collection.aggregate(pipeline):
@@ -1078,15 +1087,20 @@ def get_period_comparison():
                 return None
             return round((cur_val - prev_val) / prev_val * 100, 1)
 
-        return jsonify({
-            "current":  {**cur,  "label": cur_label},
-            "previous": {**prev, "label": prev_label},
-            "changes": {
-                "income_pct":  pct_change(cur["income"],  prev["income"]),
-                "expense_pct": pct_change(cur["expense"], prev["expense"]),
-                "balance_pct": pct_change(cur["balance"], prev["balance"])
-            }
-        }), 200
+        return (
+            jsonify(
+                {
+                    "current": {**cur, "label": cur_label},
+                    "previous": {**prev, "label": prev_label},
+                    "changes": {
+                        "income_pct": pct_change(cur["income"], prev["income"]),
+                        "expense_pct": pct_change(cur["expense"], prev["expense"]),
+                        "balance_pct": pct_change(cur["balance"], prev["balance"]),
+                    },
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         logger.error(f"取得環比資料失敗: {e}")
@@ -1105,7 +1119,9 @@ def get_recurring():
         return jsonify({"error": "資料庫未初始化"}), 500
     try:
         user_oid = ObjectId(request.user_id)
-        items = list(recurring_collection.find({"user_id": user_oid}).sort("day_of_month", 1))
+        items = list(
+            recurring_collection.find({"user_id": user_oid}).sort("day_of_month", 1)
+        )
         for item in items:
             item["_id"] = str(item["_id"])
             item["user_id"] = str(item["user_id"])
@@ -1185,7 +1201,9 @@ def delete_recurring(item_id):
     except Exception:
         return jsonify({"error": "無效的 ID"}), 400
     try:
-        result = recurring_collection.delete_one({"_id": oid, "user_id": ObjectId(request.user_id)})
+        result = recurring_collection.delete_one(
+            {"_id": oid, "user_id": ObjectId(request.user_id)}
+        )
         if result.deleted_count == 0:
             return jsonify({"error": "找不到項目"}), 404
         logger.info(f"刪除定期支出 {item_id} (user: {request.email})")
