@@ -21,6 +21,12 @@ import { showToast, showConfirm, escapeHtml } from './utils.js';
 const deletingRecordIds = new Set();
 
 /**
+ * 分頁狀態
+ */
+let currentPage = 1;
+let totalPages = 1;
+
+/**
  * 設定今天的日期為預設值
  */
 export function setTodayAsDefault() {
@@ -203,8 +209,11 @@ export async function deleteRecord(recordId, recordType, recordAmount) {
 /**
  * 載入記帳記錄
  * @param {boolean} showLoading - 是否顯示載入畫面
+ * @param {number} page - 頁碼（預設維持 currentPage）
  */
-export async function loadRecords(showLoading = true) {
+export async function loadRecords(showLoading = true, page = null) {
+    if (page !== null) currentPage = page;
+
     const startDate = document.getElementById('filter-start-date')?.value;
     const endDate = document.getElementById('filter-end-date')?.value;
     const filterType = document.getElementById('filter-type')?.value;
@@ -213,7 +222,7 @@ export async function loadRecords(showLoading = true) {
 
     if (!recordsList) return;
 
-    let url = `${backendUrl}/admin/api/accounting/records?`;
+    let url = `${backendUrl}/admin/api/accounting/records?page=${currentPage}&`;
     if (startDate) url += `start_date=${startDate}&`;
     if (endDate) url += `end_date=${endDate}&`;
     if (filterType) url += `type=${filterType}&`;
@@ -225,29 +234,72 @@ export async function loadRecords(showLoading = true) {
 
     try {
         const response = await apiCall(url, { cache: 'no-store' });
-        const records = await response.json();
+        const data = await response.json();
 
-        if (!response.ok) throw new Error(records.error || '載入失敗');
+        if (!response.ok) throw new Error(data.error || '載入失敗');
 
-        if (records.length === 0) {
+        const records = data.records ?? [];
+        totalPages = data.total_pages ?? 1;
+        currentPage = data.page ?? currentPage;
+
+        if (records.length === 0 && currentPage === 1) {
             recordsList.innerHTML = '<p class="text-center text-gray-700 py-8">目前沒有記錄</p>';
-            // 發送空記錄事件
+            renderPagination();
             EventBus.emit(EVENTS.RECORDS_LOADED, []);
             return;
         }
 
         // 渲染記錄列表
         renderRecords(records);
+        renderPagination();
 
-        // 發送記錄載入完成事件（這裡是關鍵：解耦！）
+        // 發送記錄載入完成事件（解耦）
         EventBus.emit(EVENTS.RECORDS_LOADED, records);
 
     } catch (error) {
         if (recordsList) {
-            recordsList.innerHTML = `<p class="text-center text-red-500 py-8">❌ ${error.message}</p>`;
+            recordsList.innerHTML = `<p class="text-center text-red-500 py-8">❌ ${escapeHtml(error.message)}</p>`;
         }
     }
 }
+
+/**
+ * 渲染分頁列
+ */
+function renderPagination() {
+    const container = document.getElementById('records-pagination');
+    if (!container) return;
+
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="flex items-center justify-center gap-3 py-3">
+            <button
+                onclick="window._recordsGoPage(${currentPage - 1})"
+                ${currentPage <= 1 ? 'disabled' : ''}
+                class="px-3 py-1 rounded border text-sm ${currentPage <= 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-purple-600 border-purple-400 hover:bg-purple-50'}">
+                ← 上一頁
+            </button>
+            <span class="text-sm text-gray-600">第 ${currentPage} 頁，共 ${totalPages} 頁</span>
+            <button
+                onclick="window._recordsGoPage(${currentPage + 1})"
+                ${currentPage >= totalPages ? 'disabled' : ''}
+                class="px-3 py-1 rounded border text-sm ${currentPage >= totalPages ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-purple-600 border-purple-400 hover:bg-purple-50'}">
+                下一頁 →
+            </button>
+        </div>
+    `;
+}
+
+// 讓 HTML inline onclick 能呼叫
+window._recordsGoPage = (page) => {
+    if (page < 1 || page > totalPages) return;
+    loadRecords(true, page);
+    document.getElementById('records-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 /**
  * 渲染記錄列表
@@ -321,18 +373,13 @@ function renderRecords(records) {
  */
 export async function openEditRecordModal(recordId) {
     try {
-        // 從後端獲取記錄
-        const response = await apiCall(`${backendUrl}/admin/api/accounting/records?`, {});
-        const records = await response.json();
+        // 直接用單筆 API 取得記錄
+        const response = await apiCall(`${backendUrl}/admin/api/accounting/records/${recordId}`, {});
+        const record = await response.json();
 
-        if (!response.ok) throw new Error(records.error || '載入記錄失敗');
+        if (!response.ok) throw new Error(record.error || '載入記錄失敗');
 
-        const record = records.find(r => {
-            const id = r._id.$oid || r._id;
-            return id === recordId;
-        });
-
-        if (!record) {
+        if (!record || !record._id) {
             showToast('找不到該記錄', 'error');
             return;
         }

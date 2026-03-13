@@ -7,7 +7,7 @@
 📁 **檔案位置**：`frontend/service-worker.js` (第 14 行)
 
 ```javascript
-const CACHE_NAME = 'accounting-system-v1.3.6';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.5.1';  // ← 記得更新這裡！
 ```
 
 ---
@@ -90,10 +90,10 @@ v1.2.3
 
 ```javascript
 // 修改前
-const CACHE_NAME = 'accounting-system-v1.3.6';
+const CACHE_NAME = 'accounting-system-v1.5.1';
 
 // 修改後（PATCH +1）
-const CACHE_NAME = 'accounting-system-v1.3.7';
+const CACHE_NAME = 'accounting-system-v1.5.2';
 ```
 
 **說明**：Bug 修復 → PATCH 版本 +1
@@ -102,14 +102,14 @@ const CACHE_NAME = 'accounting-system-v1.3.7';
 
 ### 範例 2：新增功能
 
-**情境**：新增匯出 CSV 功能
+**情境**：新增統計報表功能
 
 ```javascript
 // 修改前
-const CACHE_NAME = 'accounting-system-v1.3.7';
+const CACHE_NAME = 'accounting-system-v1.5.2';
 
 // 修改後（MINOR +1，PATCH 歸零）
-const CACHE_NAME = 'accounting-system-v1.4.0';
+const CACHE_NAME = 'accounting-system-v1.6.0';
 ```
 
 **說明**：新功能且向下兼容 → MINOR 版本 +1
@@ -138,14 +138,16 @@ const CACHE_NAME = 'accounting-system-v2.0.0';
 
 | 版本 | 日期 | 類型 | 更新內容 |
 |------|------|------|----------|
-| v1.3.6 | 2026-03-08 | PATCH | 安全加固、Bug 修復與文件改善（Beta v0.9.0） |
+| v1.5.1 | 2026-03-08 | MINOR | 前端重構模組化（js-refactored）、離線同步補全、模糊測試 |
+| v1.3.7 ~ v1.5.0 | — | — | 中間版本未逐一記錄，詳見 git log |
+| v1.3.6 | 2026-03-08 | PATCH | 安全加固、Bug 修復與文件改善 |
 | v1.1.0 ~ v1.3.5 | — | — | 中間版本未逐一記錄，詳見 git log |
 | v1.0.0 | 2026-02-16 | MAJOR | 採用語義化版本控制，改進自動更新機制 |
 | v0.8.0 | 2026-02-16 | MINOR | 添加更新橫幅功能 |
 | v0.7.0 | 2026-02-14 | MINOR | 添加離線功能支援 |
 
-**當前版本**: `v1.3.6`
-**下次更新**: 根據變更類型選擇 `v1.3.7`（修復）、`v1.4.0`（功能）或 `v2.0.0`（重大更新）
+**當前版本**: `v1.5.1`
+**下次更新**: 根據變更類型選擇 `v1.5.2`（修復）、`v1.6.0`（功能）或 `v2.0.0`（重大更新）
 
 ---
 
@@ -157,13 +159,13 @@ const CACHE_NAME = 'accounting-system-v2.0.0';
 
 ```bash
 # Bug 修復
-v1.3.6 → v1.3.7
+v1.5.1 → v1.5.2
 
 # 新增功能
-v1.3.7 → v1.4.0
+v1.5.2 → v1.6.0
 
 # 重大更新
-v1.4.0 → v2.0.0
+v1.6.0 → v2.0.0
 ```
 
 ### 步驟 2：修改版本號
@@ -171,14 +173,14 @@ v1.4.0 → v2.0.0
 打開 `frontend/service-worker.js`，修改第 14 行：
 
 ```javascript
-const CACHE_NAME = 'accounting-system-v1.3.7';  // ← 更新版本號
+const CACHE_NAME = 'accounting-system-v1.5.2';  // ← 更新版本號
 ```
 
 ### 步驟 3：提交變更
 
 ```bash
 git add frontend/service-worker.js
-git commit -m "chore: bump version to v1.3.7"
+git commit -m "chore: bump version to v1.5.2"
 git push
 ```
 
@@ -286,12 +288,12 @@ python -m http.server 8080
 
 | 變更類型 | 版本變化 | 範例 |
 |---------|---------|------|
-| 🐛 Bug 修復 | PATCH +1 | v1.3.6 → v1.3.7 |
-| ⚡ 效能優化 | PATCH +1 | v1.3.7 → v1.3.8 |
-| 📝 文案修正 | PATCH +1 | v1.3.8 → v1.3.9 |
-| ✨ 新增小功能 | MINOR +1 | v1.3.9 → v1.4.0 |
-| 📈 新增頁面 | MINOR +1 | v1.4.0 → v1.5.0 |
-| 🎨 UI 重新設計 | MAJOR +1 | v1.5.0 → v2.0.0 |
+| 🐛 Bug 修復 | PATCH +1 | v1.5.1 → v1.5.2 |
+| ⚡ 效能優化 | PATCH +1 | v1.5.2 → v1.5.3 |
+| 📝 文案修正 | PATCH +1 | v1.5.3 → v1.5.4 |
+| ✨ 新增小功能 | MINOR +1 | v1.5.4 → v1.6.0 |
+| 📈 新增頁面 | MINOR +1 | v1.6.0 → v1.7.0 |
+| 🎨 UI 重新設計 | MAJOR +1 | v1.7.0 → v2.0.0 |
 | 🔄 架構重構 | MAJOR +1 | v2.0.0 → v3.0.0 |
 
 **原則**：如果不確定，選擇較保守的版本號（PATCH 或 MINOR）。

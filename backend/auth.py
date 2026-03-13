@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, List
 from email_validator import validate_email, EmailNotValidError
 from passlib.hash import pbkdf2_sha256
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # JWT 配置
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -399,7 +402,7 @@ def contains_personal_info(
     Args:
         password: 密碼
         email: Email 地址
-        name: 姓名
+        name: 使用者名稱
 
     Returns:
         (是否包含個人資訊, 相關資訊)
@@ -453,7 +456,7 @@ def validate_password_strength_detailed(
     Args:
         password: 密碼
         email: Email（用於個人資訊檢查）
-        name: 姓名（用於個人資訊檢查）
+        name: 使用者名稱（用於個人資訊檢查）
 
     Returns:
         包含所有檢查結果的字典
@@ -660,7 +663,7 @@ def validate_password_strength(
     Args:
         password: 密碼
         email: Email（可選，用於個人資訊檢查）
-        name: 姓名（可選，用於個人資訊檢查）
+        name: 使用者名稱（可選，用於個人資訊檢查）
 
     Returns:
         (是否有效, 錯誤訊息或成功訊息)

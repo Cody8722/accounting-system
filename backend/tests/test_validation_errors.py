@@ -320,7 +320,7 @@ class TestDBExceptions:
             m.update_one.side_effect = Exception("DB error")
             r = client.post(
                 "/admin/api/accounting/budget",
-                json={"month": "2024-01", "budget": {"飲食": 3000}},
+                json={"month": "2024-01", "budget": {"交通": 3000}},
                 headers=auth_headers,
             )
         assert r.status_code == 500

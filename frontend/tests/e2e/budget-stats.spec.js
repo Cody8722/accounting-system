@@ -31,8 +31,8 @@ test.describe('預算與統計功能測試', () => {
   });
 
   test('使用者可以設定預算', async ({ page }) => {
-    // 導航到設定頁面
-    await page.click('.sidebar-item[data-page="settings"]');
+    // 導航到新增記帳頁面（預算區塊已整合到此頁）
+    await page.click('.sidebar-item[data-page="add"]');
     await page.waitForTimeout(500);
 
     // 找到預算輸入框
@@ -42,7 +42,7 @@ test.describe('預算與統計功能測試', () => {
       await lunchBudgetInput.fill(sampleBudgets.lunch.toString());
 
       // 找到並點擊儲存預算按鈕
-      const saveButton = page.locator('#budget-form button:has-text("儲存"), #page-settings button:has-text("儲存預算")');
+      const saveButton = page.locator('#budget-form button:has-text("儲存"), #page-add button:has-text("儲存預算")');
       if (await saveButton.count() > 0) {
         await saveButton.first().click();
 
@@ -52,8 +52,8 @@ test.describe('預算與統計功能測試', () => {
     }
 
     // 驗證頁面仍正常運作
-    const settingsPage = page.locator('#page-settings.active');
-    await expect(settingsPage).toBeVisible();
+    const addPage = page.locator('#page-add.active');
+    await expect(addPage).toBeVisible();
   });
 
   test('統計頁面應顯示正確的分析介面', async ({ page }) => {

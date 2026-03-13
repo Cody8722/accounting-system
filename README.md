@@ -9,6 +9,9 @@
 | 文件 | 說明 |
 |------|------|
 | `README.md`（本文） | 系統介紹、部署方式、API 參考 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 版本更新日誌 |
+| [`docs/API.md`](docs/API.md) | API 完整文件（含請求/回應範例） |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 開發指南（環境設定、測試、提交規範） |
 | [`frontend/PWA-README.md`](frontend/PWA-README.md) | PWA 安裝、離線功能、Service Worker 說明 |
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 每次更新前端的必做清單 |
 | [`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md) | 密碼強度規則與環境變數設定 |
@@ -82,9 +85,15 @@ pytest --cov=. --cov-report=term-missing   # 含覆蓋率
 - 依分類統計支出，搭配視覺化圓餅圖呈現
 - 支援日期範圍、類型、分類等多條件篩選
 
+### 定期收支管理
+
+- 設定每月固定收入 / 支出（房租、薪資、訂閱等）
+- 可指定每月幾號自動計算，超出月份天數時自動調整
+- 一鍵套用：將定期項目即時新增為一筆實際記帳記錄
+
 ### 預算管理
 
-- 為每個支出分類設定月度預算
+- 為每個支出分類設定月度預算（整合於定期收支頁面）
 - 追蹤預算執行情況
 
 ### 多用戶帳號系統
@@ -94,6 +103,10 @@ pytest --cov=. --cov-report=term-missing   # 含覆蓋率
 - JWT Token 認證，Token 有效期 7 天
 - **註冊目前為開放制**：任何人知道網址即可自行註冊帳號（無邀請碼機制）
 - API 速率限制：每用戶每日 200 次、每小時 50 次；註冊端點限制每小時 5 次
+
+### 主題設定
+
+- 深色 / 白天 / 跟隨系統三種主題模式，設定後持久保存
 
 ### PWA 功能
 
@@ -230,7 +243,7 @@ pytest
 
 ## 資料庫結構
 
-資料庫名稱：`accounting_db`，包含三個集合：
+資料庫名稱：`accounting_db`，包含四個集合：
 
 ### users（用戶帳號）
 
@@ -282,6 +295,22 @@ pytest
 }
 ```
 
+### recurring（定期收支）
+
+```javascript
+{
+  _id: ObjectId,
+  user_id: ObjectId,   // 所屬用戶
+  name: String,        // 名稱（1-50 字元）
+  amount: Number,      // 金額（正數）
+  type: String,        // 'income'（收入）或 'expense'（支出）
+  category: String,    // 分類（最多 30 字元）
+  day_of_month: Number,// 每月幾號（1-31，超出月份天數自動調整）
+  description: String, // 說明（可為空，最多 200 字元）
+  created_at: DateTime
+}
+```
+
 ---
 
 ## API 端點
@@ -327,6 +356,7 @@ Token 有效期：**7 天**。過期後需重新登入。
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | `GET` | `/admin/api/accounting/stats` | 當月收入 / 支出 / 結餘 / 分類統計 |
+| `GET` | `/admin/api/accounting/comparison` | 環比分析，支援 `period=month/quarter/year` |
 
 ### 預算管理（需 Token）
 
@@ -334,6 +364,16 @@ Token 有效期：**7 天**。過期後需重新登入。
 |------|------|------|
 | `GET` | `/admin/api/accounting/budget` | 查詢當月預算設定 |
 | `POST` | `/admin/api/accounting/budget` | 儲存預算設定 |
+
+### 定期收支（需 Token）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/admin/api/recurring` | 查詢所有定期收支項目 |
+| `POST` | `/admin/api/recurring` | 新增定期收支項目 |
+| `PUT` | `/admin/api/recurring/<id>` | 更新指定項目 |
+| `DELETE` | `/admin/api/recurring/<id>` | 刪除指定項目 |
+| `POST` | `/admin/api/recurring/<id>/apply` | 套用為一筆實際記帳記錄 |
 
 ---
 
@@ -360,8 +400,9 @@ Token 有效期：**7 天**。過期後需重新登入。
 2. **登入**：輸入 Email 與密碼，Token 有效期 7 天，到期前會自動登出
 3. **新增記帳**：填寫金額、分類、日期與說明，支出可選填支出類型
 4. **查詢記錄**：在「記錄」頁設定日期範圍 / 類型 / 分類後點擊「查詢」
-5. **設定預算**：在「設定」頁輸入各分類預算後點擊「儲存」
-6. **刪除記錄**：在記錄列表中向左滑動，或長按記錄選擇刪除
+5. **定期收支**：在「定期」頁新增固定收支項目，可一鍵套用為實際記帳
+6. **設定預算**：在「定期」頁設定各分類預算後點擊「儲存」
+7. **刪除記錄**：在記錄列表中向左滑動，或長按記錄選擇刪除
 
 ---
 
