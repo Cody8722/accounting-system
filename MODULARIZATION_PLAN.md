@@ -1,5 +1,7 @@
 # 前端模組化完整計劃
 
+> **✅ 模組化已完成（2026-03-11）**：所有 Phase 均已完成，index-refactored.html 已合併為 index.html。以下為歷史規劃記錄。
+
 ## 當前狀態
 - **檔案**: `frontend/index.html`
 - **行數**: 5221 行

@@ -6,6 +6,32 @@
 
 ---
 
+## [1.6.0] - 2026-03-13
+
+### Added
+- 定期收支功能（後端 + 前端完整實作）
+  - 後端 CRUD API：`GET/POST /admin/api/recurring`、`PUT/DELETE /admin/api/recurring/<id>`
+  - 一鍵套用 API：`POST /admin/api/recurring/<id>/apply`（套用為實際記帳記錄）
+  - 前端 `js-refactored/recurring.js` 模組
+- 環比分析 API：`GET /admin/api/accounting/comparison`（本期 vs 上期，支援 month/quarter/year）
+- 主題切換功能：深色 / 白天 / 跟隨系統（`js-refactored/theme.js`）
+
+### Changed
+- `index-refactored.html` 正式合併為 `index.html`，舊版移除，完成模組化重構
+- 預算管理整合至定期收支頁面，界面更為集中
+- 後端測試覆蓋率提升至 75%+（新增環比、定期收支驗證、整合鏈測試）
+
+### Fixed
+- E2E 測試修復：
+  - `registerUser` 等待登入 modal 顯示，而非不可見的錯誤元素
+  - 未登入保護頁跳轉：改用 `localStorage` 清除 + 完整頁面重載（解決 hash navigation 不觸發 `verifyToken` 問題）
+  - 預算測試：導航至正確頁面（add 而非 settings）
+  - 密碼變更：`settings.js` 改用正確端點 `POST /api/user/change-password`
+- `Content-Disposition` RFC 5987 URL 編碼測試（加 `unquote` 解碼後再 assert）
+- black 格式問題（`Strict-Transport-Security` 賦值、f-string 拆行、inline JSON dict 展開）
+
+---
+
 ## [1.5.1] - 2026-03-08
 
 ### Added
