@@ -440,6 +440,52 @@ class TestResetPassword:
         assert response.status_code == 400
 
 
+class TestComparisonAPI:
+    """環比資料 API 測試"""
+
+    def test_comparison_without_auth(self, client):
+        """未認證應返回 401"""
+        response = client.get("/admin/api/accounting/comparison")
+        assert response.status_code == 401
+
+    def test_comparison_invalid_period(self, client, auth_headers):
+        """無效 period 應返回 400"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=invalid",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_comparison_default_month(self, client, auth_headers):
+        """預設月份環比應返回 200 或 500（DB 未連線）"""
+        response = client.get(
+            "/admin/api/accounting/comparison",
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            data = response.get_json()
+            assert "current" in data
+            assert "previous" in data
+            assert "changes" in data
+
+    def test_comparison_quarter(self, client, auth_headers):
+        """季度環比應返回 200 或 500（DB 未連線）"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=quarter",
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 500]
+
+    def test_comparison_year(self, client, auth_headers):
+        """年度環比應返回 200 或 500（DB 未連線）"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=year",
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 500]
+
+
 class TestRecurringAPI:
     """定期收支 API 測試"""
 
@@ -516,7 +562,12 @@ class TestRecurringAPI:
         """無效 ID 更新應返回 400"""
         response = client.put(
             "/admin/api/recurring/invalid-id",
-            json={"name": "新名稱", "amount": 100, "type": "expense", "day_of_month": 1},
+            json={
+                "name": "新名稱",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
             headers=auth_headers,
         )
         assert response.status_code == 400
@@ -560,7 +611,12 @@ class TestRecurringAPI:
         valid_oid = "000000000000000000000099"
         response = client.put(
             f"/admin/api/recurring/{valid_oid}",
-            json={"name": "新名稱", "amount": 100, "type": "expense", "day_of_month": 1},
+            json={
+                "name": "新名稱",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
             headers=auth_headers,
         )
         assert response.status_code == 404
