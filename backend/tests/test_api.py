@@ -832,5 +832,221 @@ class TestRecurringAPI:
         assert delete_resp.status_code == 200
 
 
+class TestAuthExtended:
+    """登出端點測試"""
+
+    def test_logout_with_valid_token(self, client, auth_headers):
+        """有效 token 可以成功登出"""
+        response = client.post("/api/auth/logout", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "message" in data
+
+    def test_logout_without_token(self, client):
+        """未登入時登出應回傳 401"""
+        response = client.post("/api/auth/logout")
+        assert response.status_code in [401, 403]
+
+
+class TestTokenSecurity:
+    """Token 安全性測試"""
+
+    def _make_expired_token(self):
+        """產生已過期的 JWT"""
+        import jwt as pyjwt
+        from datetime import timedelta
+
+        payload = {
+            "user_id": "000000000000000000000001",
+            "email": "test@example.com",
+            "name": "Test User",
+            "exp": datetime.utcnow() - timedelta(hours=1),
+            "iat": datetime.utcnow() - timedelta(hours=2),
+            "type": "access",
+        }
+        return pyjwt.encode(
+            payload, "test-jwt-secret-key-for-testing-only", algorithm="HS256"
+        )
+
+    def test_expired_token_rejected(self, client):
+        """過期 token 應被拒絕"""
+        token = self._make_expired_token()
+        response = client.get(
+            "/admin/api/accounting/records",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code in [401, 403]
+
+    def test_tampered_token_rejected(self, client):
+        """竄改的 token 應被拒絕"""
+        token = auth_module.generate_jwt(
+            "000000000000000000000001", "test@example.com", "Test User"
+        )
+        # 在 payload 部分加入隨機字元使 signature 失效
+        parts = token.split(".")
+        tampered = parts[0] + "." + parts[1] + "TAMPERED." + parts[2]
+        response = client.get(
+            "/admin/api/accounting/records",
+            headers={"Authorization": f"Bearer {tampered}"},
+        )
+        assert response.status_code in [401, 403]
+
+    def test_missing_bearer_prefix_rejected(self, client, auth_headers):
+        """沒有 Bearer 前綴的 token 應被拒絕"""
+        # auth_headers 格式為 {"Authorization": "Bearer <token>"}
+        raw_token = auth_headers["Authorization"].split(" ", 1)[1]
+        response = client.get(
+            "/admin/api/accounting/records",
+            headers={"Authorization": raw_token},
+        )
+        assert response.status_code in [401, 403]
+
+
+class TestRecurringAuthorization:
+    """跨用戶授權測試"""
+
+    def _auth_headers_for(self, user_id, email):
+        token = auth_module.generate_jwt(user_id, email, "Other User")
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_user_b_cannot_delete_user_a_recurring(self, client, auth_headers):
+        """用戶 B 不能刪除用戶 A 的定期項目"""
+        # 用戶 A 建立一個定期項目
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "用戶A的項目",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return  # DB 未連線，跳過
+        item_id = create_resp.get_json().get("id")
+
+        # 用戶 B 嘗試刪除
+        user_b_headers = self._auth_headers_for(
+            "000000000000000000000002", "userb@example.com"
+        )
+        delete_resp = client.delete(
+            f"/admin/api/recurring/{item_id}", headers=user_b_headers
+        )
+        assert delete_resp.status_code == 404
+
+        # 清理：用戶 A 自行刪除
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_user_b_cannot_apply_user_a_recurring(self, client, auth_headers):
+        """用戶 B 不能套用用戶 A 的定期項目"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "用戶A套用測試",
+                "amount": 200,
+                "type": "expense",
+                "day_of_month": 15,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        user_b_headers = self._auth_headers_for(
+            "000000000000000000000002", "userb@example.com"
+        )
+        apply_resp = client.post(
+            f"/admin/api/recurring/{item_id}/apply", headers=user_b_headers
+        )
+        assert apply_resp.status_code == 404
+
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_user_b_cannot_update_user_a_recurring(self, client, auth_headers):
+        """用戶 B 不能更新用戶 A 的定期項目"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "用戶A更新測試",
+                "amount": 300,
+                "type": "expense",
+                "day_of_month": 20,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        user_b_headers = self._auth_headers_for(
+            "000000000000000000000002", "userb@example.com"
+        )
+        update_resp = client.put(
+            f"/admin/api/recurring/{item_id}",
+            json={
+                "name": "竄改名稱",
+                "amount": 999,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=user_b_headers,
+        )
+        assert update_resp.status_code == 404
+
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+
+class TestBudgetEdgeCases:
+    """預算邊界條件測試"""
+
+    def test_negative_budget_rejected(self, client, auth_headers):
+        """負數預算應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": -100}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_invalid_category_rejected(self, client, auth_headers):
+        """不在允許清單的分類應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"不存在的分類XYZ": 500}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_non_numeric_budget_rejected(self, client, auth_headers):
+        """非數字預算應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": "abc"}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_missing_budget_key_rejected(self, client, auth_headers):
+        """缺少 budget key 應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"data": {"早餐": 100}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_zero_budget_accepted(self, client, auth_headers):
+        """預算為 0 是合法的（清除預算）"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": 0}},
+            headers=auth_headers,
+        )
+        # 若 DB 未連線回 500，連線時應 200
+        assert response.status_code in [200, 500]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

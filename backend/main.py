@@ -79,9 +79,9 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=31536000; includeSubDomains"
-    )
+    response.headers[
+        "Strict-Transport-Security"
+    ] = "max-age=31536000; includeSubDomains"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
@@ -1133,6 +1133,48 @@ def get_recurring():
         return jsonify({"error": "取得定期支出失敗"}), 500
 
 
+def _validate_recurring_data(data):
+    """驗證定期收支資料。
+    回傳 (parsed_fields, None) 成功，或 (None, (response, status)) 失敗。
+    """
+    name = str(data.get("name", "")).strip()
+    if not name or len(name) > 50:
+        return None, (jsonify({"error": "名稱無效（1-50 字元）"}), 400)
+
+    try:
+        amount = float(data["amount"])
+        if amount <= 0:
+            raise ValueError
+    except (KeyError, ValueError, TypeError):
+        return None, (jsonify({"error": "金額必須為正數"}), 400)
+
+    type_ = data.get("type", "expense")
+    if type_ not in ("income", "expense"):
+        return None, (jsonify({"error": "類型必須為 income 或 expense"}), 400)
+
+    try:
+        day = int(data.get("day_of_month", 1))
+        if not 1 <= day <= 31:
+            raise ValueError
+    except (ValueError, TypeError):
+        return None, (jsonify({"error": "每月日期必須為 1-31"}), 400)
+
+    category = str(data.get("category", "其他")).strip() or "其他"
+    if len(category) > 30:
+        return None, (jsonify({"error": "分類名稱過長"}), 400)
+
+    description = str(data.get("description", "")).strip()[:200]
+
+    return {
+        "name": name,
+        "amount": round(amount, 2),
+        "type": type_,
+        "category": category,
+        "day_of_month": day,
+        "description": description,
+    }, None
+
+
 @app.route("/admin/api/recurring", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
@@ -1142,46 +1184,24 @@ def create_recurring():
         return jsonify({"error": "資料庫未初始化"}), 500
     try:
         data = request.json or {}
-
-        name = str(data.get("name", "")).strip()
-        if not name or len(name) > 50:
-            return jsonify({"error": "名稱無效（1-50 字元）"}), 400
-
-        try:
-            amount = float(data["amount"])
-            if amount <= 0:
-                raise ValueError
-        except (KeyError, ValueError, TypeError):
-            return jsonify({"error": "金額必須為正數"}), 400
-
-        type_ = data.get("type", "expense")
-        if type_ not in ("income", "expense"):
-            return jsonify({"error": "類型必須為 income 或 expense"}), 400
-
-        try:
-            day = int(data.get("day_of_month", 1))
-            if not 1 <= day <= 31:
-                raise ValueError
-        except (ValueError, TypeError):
-            return jsonify({"error": "每月日期必須為 1-31"}), 400
-
-        category = str(data.get("category", "其他")).strip() or "其他"
-        if len(category) > 30:
-            return jsonify({"error": "分類名稱過長"}), 400
-        description = str(data.get("description", "")).strip()[:200]
+        fields, err = _validate_recurring_data(data)
+        if err:
+            return err
 
         doc = {
             "user_id": ObjectId(request.user_id),
-            "name": name,
-            "amount": round(amount, 2),
-            "type": type_,
-            "category": category,
-            "day_of_month": day,
-            "description": description,
+            "name": fields["name"],
+            "amount": fields["amount"],
+            "type": fields["type"],
+            "category": fields["category"],
+            "day_of_month": fields["day_of_month"],
+            "description": fields["description"],
             "created_at": datetime.now(),
         }
         result = recurring_collection.insert_one(doc)
-        logger.info(f"新增定期支出: {name} ${amount} (user: {request.email})")
+        logger.info(
+            f"新增定期支出: {fields['name']} ${fields['amount']}" f" (user: {request.email})"
+        )
         return jsonify({"id": str(result.inserted_id), "message": "新增成功"}), 201
 
     except Exception as e:
@@ -1226,50 +1246,26 @@ def update_recurring(item_id):
         return jsonify({"error": "無效的 ID"}), 400
     try:
         data = request.json or {}
-
-        name = str(data.get("name", "")).strip()
-        if not name or len(name) > 50:
-            return jsonify({"error": "名稱無效（1-50 字元）"}), 400
-
-        try:
-            amount = float(data["amount"])
-            if amount <= 0:
-                raise ValueError
-        except (KeyError, ValueError, TypeError):
-            return jsonify({"error": "金額必須為正數"}), 400
-
-        type_ = data.get("type", "expense")
-        if type_ not in ("income", "expense"):
-            return jsonify({"error": "類型必須為 income 或 expense"}), 400
-
-        try:
-            day = int(data.get("day_of_month", 1))
-            if not 1 <= day <= 31:
-                raise ValueError
-        except (ValueError, TypeError):
-            return jsonify({"error": "每月日期必須為 1-31"}), 400
-
-        category = str(data.get("category", "其他")).strip() or "其他"
-        if len(category) > 30:
-            return jsonify({"error": "分類名稱過長"}), 400
-        description = str(data.get("description", "")).strip()[:200]
+        fields, err = _validate_recurring_data(data)
+        if err:
+            return err
 
         result = recurring_collection.update_one(
             {"_id": oid, "user_id": ObjectId(request.user_id)},
             {
                 "$set": {
-                    "name": name,
-                    "amount": round(amount, 2),
-                    "type": type_,
-                    "category": category,
-                    "day_of_month": day,
-                    "description": description,
+                    "name": fields["name"],
+                    "amount": fields["amount"],
+                    "type": fields["type"],
+                    "category": fields["category"],
+                    "day_of_month": fields["day_of_month"],
+                    "description": fields["description"],
                 }
             },
         )
         if result.matched_count == 0:
             return jsonify({"error": "找不到項目"}), 404
-        logger.info(f"更新定期收支 {item_id} → {name} (user: {request.email})")
+        logger.info(f"更新定期收支 {item_id} → {fields['name']} (user: {request.email})")
         return jsonify({"message": "更新成功"}), 200
 
     except Exception as e:

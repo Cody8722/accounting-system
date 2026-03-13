@@ -6,6 +6,19 @@
 
 ---
 
+## [1.6.1] - 2026-03-13
+
+### Security
+- 修復 3 處 XSS 漏洞：`showToast`、`showConfirm` 的 message 參數及 `budget.js` 分類名稱，改用 `escapeHtml()` 跳脫後再插入 innerHTML
+
+### Changed
+- 重構 `backend/main.py`：提取 `_validate_recurring_data()` 函數，消除 `create_recurring` 與 `update_recurring` 的重複驗證邏輯（~47 行）
+
+### Added
+- 新增測試（`test_api.py`）：登出端點、過期/竄改 token 拒絕、跨用戶操作授權（定期收支 delete/update/apply）、預算邊界條件（負數、非法分類、非數字）
+
+---
+
 ## [1.6.0] - 2026-03-13
 
 ### Added
