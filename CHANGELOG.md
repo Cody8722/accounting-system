@@ -6,6 +6,19 @@
 
 ---
 
+## [1.6.2] - 2026-03-14
+
+### Fixed
+- 修復記帳記錄無法顯示（`❌ records.map is not a function`）：`records.js` 加入 `Array.isArray()` 防禦性檢查，同時相容舊格式（flat array）和新分頁格式（`{records: [...], ...}`），消除瀏覽器 HTTP cache 版本不符導致的 TypeError
+- Service Worker：認證端點 GET 加 `.catch(() => Response.error())`，消除離線時 `Uncaught TypeError: Failed to fetch`
+- Service Worker：`CACHE_NAME` 更新至 `v1.6.2`，確保部署後用戶端舊快取被自動清除
+- 修復 5 個密碼輸入欄位未包含在 `<form>` 內的警告（重設密碼 modal 與設定頁修改密碼區塊）
+
+### Changed
+- CI lint：固定 `black>=26.0.0,<27.0.0`（對齊 CI 裝到的 26.3.1），防止本地與 CI black 版本不同導致 lint 失敗
+
+---
+
 ## [1.6.1] - 2026-03-13
 
 ### Security
