@@ -9,6 +9,7 @@
 
 import { EventBus, EVENTS } from './events.js';
 import { categoryData, getItemIcon } from './config.js';
+import { escapeHtml } from './utils.js';
 
 /**
  * 分類選擇器狀態
@@ -103,10 +104,14 @@ function renderCategoryModal() {
     if (tabsContainer) {
         tabsContainer.innerHTML = mainCategories.map(mainCat => `
             <div class="category-tab ${mainCat === currentMainCategory ? 'active' : ''}"
-                 onclick="switchCategory('${mainCat}')">
-                ${mainCat}
+                 data-cat="${escapeHtml(mainCat)}">
+                ${escapeHtml(mainCat)}
             </div>
         `).join('');
+        tabsContainer.onclick = (e) => {
+            const tab = e.target.closest('[data-cat]');
+            if (tab) switchCategory(tab.dataset.cat);
+        };
     }
 
     // 渲染細項
@@ -115,11 +120,15 @@ function renderCategoryModal() {
 
     if (itemsContainer) {
         itemsContainer.innerHTML = items.map(item => `
-            <div class="category-item" onclick="selectCategory('${item}')">
+            <div class="category-item" data-item="${escapeHtml(item)}">
                 <div class="category-item-icon">${getItemIcon(item)}</div>
-                <div class="category-item-text">${item}</div>
+                <div class="category-item-text">${escapeHtml(item)}</div>
             </div>
         `).join('');
+        itemsContainer.onclick = (e) => {
+            const itemEl = e.target.closest('[data-item]');
+            if (itemEl) selectCategory(itemEl.dataset.item);
+        };
     }
 }
 

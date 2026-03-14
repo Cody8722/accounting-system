@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+---
+
+## [1.6.4] - 2026-03-15
+
+### Security
+- 修復 `categories.js` XSS 漏洞：分類主標籤（`renderCategoryModal`）的 `${mainCat}` 和細項的 `${item}` 改用 `escapeHtml()` 轉義；同時以事件委派（`data-cat` / `data-item` attribute + click delegation）取代 inline `onclick`，消除 attribute injection 攻擊面
+- 新增 CSRF 防護：後端 `before_request` hook 對所有非公開的 POST/PUT/DELETE/PATCH 端點驗證 `Authorization` 或 `X-Requested-With` header 存在，利用 JWT Bearer token 架構本身抵禦跨站請求偽造
+- 新增登入失敗鎖定：同一 Email 在 15 分鐘內失敗 5 次即暫時鎖定（HTTP 429），防止暴力破解；鎖定期間過後自動解除，登入成功後立即清除計數
+
 ### Changed
 - E2E 測試重構：採 `beforeAll` per-spec-file 策略，每個 spec file 只 register 一次（省去重複 register），搭配 4 workers 並行執行 spec files，整體執行時間從 3-4 分鐘縮至約 50-60 秒；移除 `waitForLoadState('networkidle')` 改等特定 DOM 元素，避免 Service Worker 背景 fetch 導致的掛等；本地預設只跑 Chromium（`BROWSERS=all` 可啟用全瀏覽器）
 
