@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Changed
+- E2E 測試重構：採 `beforeAll` per-spec-file 策略，每個 spec file 只 register 一次（省去重複 register），搭配 4 workers 並行執行 spec files，整體執行時間從 3-4 分鐘縮至約 50-60 秒；移除 `waitForLoadState('networkidle')` 改等特定 DOM 元素，避免 Service Worker 背景 fetch 導致的掛等；本地預設只跑 Chromium（`BROWSERS=all` 可啟用全瀏覽器）
+
 ---
 
 ## [1.6.2] - 2026-03-14
