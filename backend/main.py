@@ -79,9 +79,9 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers[
-        "Strict-Transport-Security"
-    ] = "max-age=31536000; includeSubDomains"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=31536000; includeSubDomains"
+    )
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
@@ -1200,7 +1200,8 @@ def create_recurring():
         }
         result = recurring_collection.insert_one(doc)
         logger.info(
-            f"新增定期支出: {fields['name']} ${fields['amount']}" f" (user: {request.email})"
+            f"新增定期支出: {fields['name']} ${fields['amount']}"
+            f" (user: {request.email})"
         )
         return jsonify({"id": str(result.inserted_id), "message": "新增成功"}), 201
 
@@ -1265,7 +1266,9 @@ def update_recurring(item_id):
         )
         if result.matched_count == 0:
             return jsonify({"error": "找不到項目"}), 404
-        logger.info(f"更新定期收支 {item_id} → {fields['name']} (user: {request.email})")
+        logger.info(
+            f"更新定期收支 {item_id} → {fields['name']} (user: {request.email})"
+        )
         return jsonify({"message": "更新成功"}), 200
 
     except Exception as e:

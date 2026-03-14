@@ -126,7 +126,9 @@ def show_config():
         status = (
             "✅ 啟用"
             if current_value.lower() == "true"
-            else ("❌ 禁用" if current_value.lower() == "false" else f"📊 {current_value}")
+            else (
+                "❌ 禁用" if current_value.lower() == "false" else f"📊 {current_value}"
+            )
         )
         print(f"{info['env']:35} | {status:10} | {info['description']}")
 

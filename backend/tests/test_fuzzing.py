@@ -90,7 +90,8 @@ def assert_400(response):
       - 回應體必須是 JSON 且含 'error' 欄位
     """
     assert response.status_code == 400, (
-        f"期望 400，實際 {response.status_code}。" f"回應體: {response.get_data(as_text=True)}"
+        f"期望 400，實際 {response.status_code}。"
+        f"回應體: {response.get_data(as_text=True)}"
     )
     body = response.get_json()
     assert body is not None, "回應體應為 JSON 格式"
