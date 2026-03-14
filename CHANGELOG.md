@@ -9,6 +9,16 @@
 
 ---
 
+## [1.6.3] - 2026-03-14
+
+### Fixed
+- 修復進入網站後所有頁面顯示「載入中...」、需手動點按鈕才刷新的問題：
+  - `main.js` 登入驗證成功後補呼叫 `setAuthenticationStatus(true)`，同步 `components.js` 的認證標誌，使 Router 的 `onPageLoad` 能正常觸發 `PAGE_LOAD` 事件
+  - 補發初始頁面的 `PAGE_LOAD` 事件（Router 初始化時因認證尚未完成而跳過）
+  - `analytics.js`、`recurring.js`、`theme.js` 的 `PAGE_LOAD` 監聽器從 `(pageName)` 改為正確的 `({ page })` 解構，修復頁面名稱比對永不成立的 bug
+
+---
+
 ## [1.6.2] - 2026-03-14
 
 ### Fixed
