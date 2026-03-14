@@ -294,8 +294,8 @@ export function initRecurring() {
     EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, loadRecurring);
 
     // 切換到新增記帳頁時重新載入
-    EventBus.on(EVENTS.PAGE_LOAD, (pageName) => {
-        if (pageName === 'add') {
+    EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
+        if (page === 'add') {
             loadRecurring();
         }
     });

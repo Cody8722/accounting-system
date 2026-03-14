@@ -105,8 +105,8 @@ export function initAnalytics() {
     window.loadPeriodComparison = loadPeriodComparison;
 
     // 監聽頁面切換到 analytics 時自動載入
-    EventBus.on(EVENTS.PAGE_LOAD, (pageName) => {
-        if (pageName === 'analytics') {
+    EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
+        if (page === 'analytics') {
             loadPeriodComparison('month');
         }
     });

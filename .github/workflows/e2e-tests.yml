@@ -328,6 +328,7 @@ jobs:
           npx playwright test --project=firefox
         env:
           BASE_URL: http://localhost:8080
+          BROWSERS: all
 
       - name: Stop Servers
         if: always()

@@ -8,9 +8,11 @@ from bson import json_util, ObjectId
 from bson.errors import InvalidId
 from functools import wraps
 from typing import Tuple, Dict, Any, Optional
+from collections import defaultdict
 import json
 import math
 import os
+import time
 from dotenv import load_dotenv
 from calendar import monthrange
 from datetime import datetime
@@ -142,6 +144,60 @@ limiter = Limiter(
     storage_uri="memory://",
     enabled=os.getenv("TESTING", "false").lower() != "true",
 )
+
+
+# ── CSRF 防護 ────────────────────────────────────────────────────────────────
+# 本專案使用 JWT 放在 localStorage，前端以 Authorization: Bearer <token> 傳遞。
+# 瀏覽器跨站請求無法自動附上自訂 header，因此只要確認 Authorization 或
+# X-Requested-With 存在即可排除 CSRF 攻擊。
+@app.before_request
+def check_csrf():
+    # 測試環境跳過（與 limiter 行為一致）
+    if os.getenv("TESTING", "false").lower() == "true":
+        return
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # 公開端點（登入/註冊/重設密碼）不需要 Authorization header
+        public_paths = {
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+        }
+        if request.path in public_paths:
+            return
+        # 其餘端點必須帶有 Authorization 或 X-Requested-With
+        has_auth = bool(request.headers.get("Authorization"))
+        has_xhr = bool(request.headers.get("X-Requested-With"))
+        if not has_auth and not has_xhr:
+            logger.warning(f"CSRF check failed: {request.method} {request.path}")
+            return jsonify({"error": "無效請求"}), 403
+
+
+# ── 登入失敗鎖定 ──────────────────────────────────────────────────────────────
+# 同一 email 在 LOCKOUT_DURATION 秒內失敗 LOCKOUT_THRESHOLD 次即暫時鎖定。
+# 使用 in-memory dict，重啟後重置（足以防暴力破解；如需持久化可改存 MongoDB）。
+_login_failures: dict = defaultdict(list)
+LOCKOUT_THRESHOLD = 5
+LOCKOUT_DURATION = 15 * 60  # 15 分鐘
+
+
+def _is_locked_out(email: str) -> bool:
+    if os.getenv("TESTING", "false").lower() == "true":
+        return False
+    now = time.time()
+    _login_failures[email] = [
+        t for t in _login_failures[email] if now - t < LOCKOUT_DURATION
+    ]
+    return len(_login_failures[email]) >= LOCKOUT_THRESHOLD
+
+
+def _record_login_failure(email: str) -> None:
+    _login_failures[email].append(time.time())
+
+
+def _clear_login_failures(email: str) -> None:
+    _login_failures.pop(email, None)
+
 
 # 環境變數
 MONGO_URI = os.getenv("MONGO_URI")
@@ -1485,9 +1541,15 @@ def login():
         if not email or not password:
             return jsonify({"error": "Email 和密碼不能為空"}), 400
 
+        # 登入失敗鎖定檢查
+        if _is_locked_out(email):
+            logger.warning(f"登入鎖定: {email}")
+            return jsonify({"error": "登入失敗次數過多，請 15 分鐘後再試"}), 429
+
         # 查找用戶
         user = users_collection.find_one({"email": email})
         if not user:
+            _record_login_failure(email)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
 
         # 檢查帳號是否啟用
@@ -1496,7 +1558,11 @@ def login():
 
         # 驗證密碼
         if not auth.verify_password(password, user["password_hash"]):
+            _record_login_failure(email)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
+
+        # 登入成功，清除失敗記錄
+        _clear_login_failures(email)
 
         # 更新最後登入時間
         users_collection.update_one(

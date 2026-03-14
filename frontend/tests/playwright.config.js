@@ -3,100 +3,75 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright 配置文件
  * @see https://playwright.dev/docs/test-configuration
+ *
+ * 並行策略：
+ * - spec files 之間由 workers 並行（最多 4 個）
+ * - 同一 spec file 內的測試串行（保持帳號隔離）
+ * - 不使用 fullyParallel（避免同 file 的測試競搶同一 MongoDB 帳號的資料）
  */
 export default defineConfig({
   testDir: './e2e',
 
-  /* 測試超時時間 */
+  /** 測試超時時間 */
   timeout: 30000,
 
-  /* 每個測試的重試次數 */
+  /** 每個測試的重試次數 */
   retries: process.env.CI ? 2 : 0,
 
-  /* 並行執行的 worker 數量 */
-  workers: process.env.CI ? 1 : undefined,
+  /** 並行 worker 數量（spec files 之間並行） */
+  workers: process.env.CI ? 2 : 4,
 
-  /* Reporter 配置 */
+  /** Reporter 配置 */
   reporter: [
-    ['html', { outputFolder: '../playwright-report' }],
+    ['html', { outputFolder: '../playwright-report', open: 'never' }],
     ['list'],
-    ['json', { outputFile: '../test-results/results.json' }]
   ],
 
-  /* 共用設定 */
+  /** 共用設定 */
   use: {
-    /* 基礎 URL */
     baseURL: process.env.BASE_URL || 'http://localhost:8080',
 
-    /* 截圖設定 */
     screenshot: 'only-on-failure',
-
-    /* 錄影設定 */
     video: 'retain-on-failure',
-
-    /* 追蹤設定 */
     trace: 'on-first-retry',
 
-    /* 瀏覽器上下文選項 */
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
 
-    /* 等待設定 */
     actionTimeout: 10000,
-    navigationTimeout: 30000,
+    navigationTimeout: 20000,
   },
 
-  /* 測試項目配置 */
+  /**
+   * 測試項目配置
+   *
+   * 本地預設只跑 Chromium，避免跑 5 個瀏覽器導致速度過慢。
+   * 需要跑全部瀏覽器時：BROWSERS=all npx playwright test
+   */
   projects: [
     {
       name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        // 啟用 localStorage
-        storageState: undefined
-      },
+      use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        storageState: undefined
-      },
-    },
-
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        storageState: undefined
-      },
-    },
-
-    /* 手機測試 */
-    {
-      name: 'mobile-chrome',
-      use: {
-        ...devices['Pixel 5'],
-        storageState: undefined
-      },
-    },
-
-    {
-      name: 'mobile-safari',
-      use: {
-        ...devices['iPhone 12'],
-        storageState: undefined
-      },
-    },
+    ...(process.env.BROWSERS === 'all'
+      ? [
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+          { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
+          { name: 'mobile-safari', use: { ...devices['iPhone 12'] } },
+        ]
+      : []),
   ],
 
-  /* 本地開發伺服器配置 */
-  webServer: process.env.CI ? undefined : {
-    command: 'python3 -m http.server 8080',
-    cwd: '../',
-    port: 8080,
-    timeout: 120000,
-    reuseExistingServer: true,
-  },
+  /** 本地開發伺服器配置（靜態前端） */
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: 'python3 -m http.server 8080',
+        cwd: '../',
+        port: 8080,
+        timeout: 30000,
+        reuseExistingServer: true,
+      },
 });
