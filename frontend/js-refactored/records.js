@@ -238,7 +238,9 @@ export async function loadRecords(showLoading = true, page = null) {
 
         if (!response.ok) throw new Error(data.error || '載入失敗');
 
-        const records = data.records ?? [];
+        const records = Array.isArray(data) ? data
+            : Array.isArray(data.records) ? data.records
+            : [];
         totalPages = data.total_pages ?? 1;
         currentPage = data.page ?? currentPage;
 
