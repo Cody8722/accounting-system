@@ -145,6 +145,7 @@ limiter = Limiter(
     enabled=os.getenv("TESTING", "false").lower() != "true",
 )
 
+
 # ── CSRF 防護 ────────────────────────────────────────────────────────────────
 # 本專案使用 JWT 放在 localStorage，前端以 Authorization: Bearer <token> 傳遞。
 # 瀏覽器跨站請求無法自動附上自訂 header，因此只要確認 Authorization 或
@@ -181,6 +182,8 @@ LOCKOUT_DURATION = 15 * 60  # 15 分鐘
 
 
 def _is_locked_out(email: str) -> bool:
+    if os.getenv("TESTING", "false").lower() == "true":
+        return False
     now = time.time()
     _login_failures[email] = [
         t for t in _login_failures[email] if now - t < LOCKOUT_DURATION
