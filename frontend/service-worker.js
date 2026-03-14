@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.5.1';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.6.2';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
 // JWT Token 有效期為 7 天，API 快取超過此時限後視為過期，不在離線時回傳
@@ -101,7 +101,10 @@ self.addEventListener('fetch', (event) => {
     // 認證端點（GET）：永不快取，每次都去伺服器驗證
     // 只針對 GET，POST login 讓瀏覽器直接處理即可
     if (request.url.includes('/status') || request.url.includes('/api/auth/')) {
-      event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
+      event.respondWith(
+        fetch(new Request(request, { cache: 'no-store' }))
+          .catch(() => Response.error())
+      );
       return;
     }
 
