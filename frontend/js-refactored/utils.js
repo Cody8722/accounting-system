@@ -53,7 +53,7 @@ export function showToast(message, type = 'info', duration = 4000) {
         `right:calc(16px + env(safe-area-inset-right))`,
         'transition:opacity .3s ease'
     ].join(';');
-    toast.innerHTML = `<i class="fas fa-${icons[type] || icons.info}" style="margin-top:2px;flex-shrink:0"></i><span>${message}</span>`;
+    toast.innerHTML = `<i class="fas fa-${icons[type] || icons.info}" style="margin-top:2px;flex-shrink:0"></i><span>${escapeHtml(message)}</span>`;
 
     document.body.appendChild(toast);
 
@@ -91,7 +91,7 @@ export function showConfirm(message, confirmText = '確定', cancelText = '取�
 
         overlay.innerHTML = `
             <div style="background:${bgColor};width:100%;max-width:400px;border-radius:16px;padding:24px 20px;box-shadow:0 20px 40px rgba(0,0,0,0.2)">
-                <p style="text-align:center;font-size:16px;color:${textColor};margin-bottom:20px;line-height:1.5">${message}</p>
+                <p style="text-align:center;font-size:16px;color:${textColor};margin-bottom:20px;line-height:1.5">${escapeHtml(message)}</p>
                 <div style="display:flex;gap:12px">
                     <button id="sc-cancel" style="flex:1;padding:13px;border:1px solid ${cancelBorder};border-radius:10px;background:${cancelBg};font-size:15px;color:${cancelTextColor};cursor:pointer">${cancelText}</button>
                     <button id="sc-ok" style="flex:1;padding:13px;border:none;border-radius:10px;background:${confirmColor};color:#fff;font-size:15px;font-weight:600;cursor:pointer">${confirmText}</button>
