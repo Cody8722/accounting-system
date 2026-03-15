@@ -52,8 +52,8 @@ export function initTheme() {
     window.setTheme = setTheme;
 
     // 切換到設定頁時更新按鈕高亮
-    EventBus.on(EVENTS.PAGE_LOAD, (pageName) => {
-        if (pageName === 'settings') {
+    EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
+        if (page === 'settings') {
             updateThemeUI(localStorage.getItem('theme') || 'system');
         }
     });

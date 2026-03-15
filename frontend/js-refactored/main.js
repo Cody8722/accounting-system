@@ -21,7 +21,7 @@ import { apiCall } from './api.js';
 
 // ===== 功能模組 =====
 import { initAuth, verifyToken, hideAuthModals, showLoginModal, updateUserDisplay } from './auth.js';
-import { Router, CustomKeyboard, SwipeToDelete, LongPressMenu } from './components.js';
+import { Router, CustomKeyboard, SwipeToDelete, LongPressMenu, setAuthenticationStatus } from './components.js';
 import { initCategories } from './categories.js';
 
 // ===== 核心模組 =====
@@ -77,7 +77,13 @@ function initializeModules() {
 
     // 監聽登入成功事件，初始化日期預設值
     EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, () => {
+        isAuthenticated = true;
+        setAuthenticationStatus(true);   // 解鎖 Router.onPageLoad
         setTodayAsDefault();
+        loadBudget();
+        // 補發初始頁面的 PAGE_LOAD（與 auto-login 路徑一致）
+        const currentPage = window.router?.currentPage || 'add';
+        EventBus.emit(EVENTS.PAGE_LOAD, { page: currentPage });
     });
 
     console.log('✅ 所有模組初始化完成！');
@@ -154,6 +160,7 @@ async function handleDOMContentLoaded() {
 
     if (isLoggedIn) {
         isAuthenticated = true; // 解鎖 Router onPageLoad，允許發 API 請求
+        setAuthenticationStatus(true); // 同步 components.js 的認證狀態
 
         // 隱藏登入模態框，顯示主內容
         hideAuthModals();
@@ -168,6 +175,10 @@ async function handleDOMContentLoaded() {
 
         // 請求更新統計數據（透過事件）
         EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
+
+        // 補發初始頁面的 PAGE_LOAD（Router 初始化時因 auth 尚未就緒而跳過）
+        const initialPage = window.router?.currentPage || 'add';
+        EventBus.emit(EVENTS.PAGE_LOAD, { page: initialPage });
 
         console.log('✅ 已自動登入');
 

@@ -6,6 +6,50 @@
 
 ---
 
+## [1.7.1] - 2026-03-15
+
+### ✨ Added
+- 分析頁新增「本週」期間比較（`week` period）
+- 記錄搜尋支援關鍵字搜尋（`search` 參數，比對 `description` 欄位）
+- 記錄搜尋支援自訂排序（`sort_by` / `sort_order` 參數）
+- 記錄列表顯示總筆數（分頁回應新增 `total`、`total_pages` 欄位）
+
+### 🔄 Changed
+- 記錄篩選 UI 重構為主列 + 進階搜尋折疊面板
+- 類型篩選改為多選 checkbox（收入/支出），改動立即觸發查詢
+- 分類篩選 Modal 加入大分類 Tab 層級切換（類似記帳新增表單）
+- 排序合併為單一下拉選單（日期↓/↑、金額↓/↑），切換立即重排
+- service-worker 版本升至 v1.7.1
+
+### 🧪 Tests
+- 新增 TestRecordsSearch（7）、TestPeriodComparisonWeek（5）、TestStatsCacheInvalidation（3）等測試套件
+- 新增 TestChangePassword（6）、TestForgotResetPasswordFlow（6）認證測試
+- 測試覆蓋率從 80.33% 提升至 85.03%（共 290 個測試）
+
+---
+
+## [1.6.4] - 2026-03-15
+
+### Security
+- 修復 `categories.js` XSS 漏洞：分類主標籤（`renderCategoryModal`）的 `${mainCat}` 和細項的 `${item}` 改用 `escapeHtml()` 轉義；同時以事件委派（`data-cat` / `data-item` attribute + click delegation）取代 inline `onclick`，消除 attribute injection 攻擊面
+- 新增 CSRF 防護：後端 `before_request` hook 對所有非公開的 POST/PUT/DELETE/PATCH 端點驗證 `Authorization` 或 `X-Requested-With` header 存在，利用 JWT Bearer token 架構本身抵禦跨站請求偽造
+- 新增登入失敗鎖定：同一 Email 在 15 分鐘內失敗 5 次即暫時鎖定（HTTP 429），防止暴力破解；鎖定期間過後自動解除，登入成功後立即清除計數
+
+### Changed
+- E2E 測試重構：採 `beforeAll` per-spec-file 策略，每個 spec file 只 register 一次（省去重複 register），搭配 4 workers 並行執行 spec files，整體執行時間從 3-4 分鐘縮至約 50-60 秒；移除 `waitForLoadState('networkidle')` 改等特定 DOM 元素，避免 Service Worker 背景 fetch 導致的掛等；本地預設只跑 Chromium（`BROWSERS=all` 可啟用全瀏覽器）
+
+---
+
+## [1.6.3] - 2026-03-14
+
+### Fixed
+- 修復進入網站後所有頁面顯示「載入中...」、需手動點按鈕才刷新的問題：
+  - `main.js` 登入驗證成功後補呼叫 `setAuthenticationStatus(true)`，同步 `components.js` 的認證標誌，使 Router 的 `onPageLoad` 能正常觸發 `PAGE_LOAD` 事件
+  - 補發初始頁面的 `PAGE_LOAD` 事件（Router 初始化時因認證尚未完成而跳過）
+  - `analytics.js`、`recurring.js`、`theme.js` 的 `PAGE_LOAD` 監聽器從 `(pageName)` 改為正確的 `({ page })` 解構，修復頁面名稱比對永不成立的 bug
+
+---
+
 ## [1.6.2] - 2026-03-14
 
 ### Fixed

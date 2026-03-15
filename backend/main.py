@@ -1,19 +1,22 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from flask_compress import Compress
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import jwt as pyjwt
-from pymongo import MongoClient, ASCENDING
+from pymongo import MongoClient, ASCENDING, DESCENDING
 from bson import json_util, ObjectId
 from bson.errors import InvalidId
 from functools import wraps
 from typing import Tuple, Dict, Any, Optional
+from collections import defaultdict
 import json
 import math
 import os
+import time
 from dotenv import load_dotenv
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import re
 import csv
@@ -57,6 +60,17 @@ app = Flask(__name__)
 # 設定最大請求大小 (16MB)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
+# ==================== gzip 壓縮 ====================
+app.config["COMPRESS_MIMETYPES"] = [
+    "application/json",
+    "text/html",
+    "text/css",
+    "application/javascript",
+]
+app.config["COMPRESS_LEVEL"] = 6  # 平衡壓縮率與 CPU（1-9）
+app.config["COMPRESS_MIN_SIZE"] = 500  # 小於 500 bytes 不壓縮
+Compress(app)
+
 # CORS 設定 - 限制來源
 FRONTEND_URLS = os.getenv(
     "FRONTEND_URLS", "http://localhost:8080,https://accounting-system.zeabur.app"
@@ -70,6 +84,32 @@ CORS(
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
+
+
+# ==================== 簡易 TTL 快取（stats / comparison 端點） ====================
+_stats_cache: Dict[str, Any] = {}
+STATS_CACHE_TTL = 300  # 5 分鐘
+
+
+def _cache_key(*args: Any) -> str:
+    return ":".join(str(a) for a in args)
+
+
+def _cache_get(key: str) -> Optional[Any]:
+    entry = _stats_cache.get(key)
+    if entry and time.time() - entry["ts"] < STATS_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _cache_set(key: str, data: Any) -> None:
+    _stats_cache[key] = {"data": data, "ts": time.time()}
+
+
+def _cache_invalidate_user(user_id: str) -> None:
+    """寫入操作後清除該用戶所有快取"""
+    for k in [k for k in list(_stats_cache.keys()) if k.startswith(f"{user_id}:")]:
+        _stats_cache.pop(k, None)
 
 
 # 安全 headers
@@ -143,6 +183,60 @@ limiter = Limiter(
     enabled=os.getenv("TESTING", "false").lower() != "true",
 )
 
+
+# ── CSRF 防護 ────────────────────────────────────────────────────────────────
+# 本專案使用 JWT 放在 localStorage，前端以 Authorization: Bearer <token> 傳遞。
+# 瀏覽器跨站請求無法自動附上自訂 header，因此只要確認 Authorization 或
+# X-Requested-With 存在即可排除 CSRF 攻擊。
+@app.before_request
+def check_csrf():
+    # 測試環境跳過（與 limiter 行為一致）
+    if os.getenv("TESTING", "false").lower() == "true":
+        return
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # 公開端點（登入/註冊/重設密碼）不需要 Authorization header
+        public_paths = {
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+        }
+        if request.path in public_paths:
+            return
+        # 其餘端點必須帶有 Authorization 或 X-Requested-With
+        has_auth = bool(request.headers.get("Authorization"))
+        has_xhr = bool(request.headers.get("X-Requested-With"))
+        if not has_auth and not has_xhr:
+            logger.warning(f"CSRF check failed: {request.method} {request.path}")
+            return jsonify({"error": "無效請求"}), 403
+
+
+# ── 登入失敗鎖定 ──────────────────────────────────────────────────────────────
+# 同一 email 在 LOCKOUT_DURATION 秒內失敗 LOCKOUT_THRESHOLD 次即暫時鎖定。
+# 使用 in-memory dict，重啟後重置（足以防暴力破解；如需持久化可改存 MongoDB）。
+_login_failures: dict = defaultdict(list)
+LOCKOUT_THRESHOLD = 5
+LOCKOUT_DURATION = 15 * 60  # 15 分鐘
+
+
+def _is_locked_out(email: str) -> bool:
+    if os.getenv("TESTING", "false").lower() == "true":
+        return False
+    now = time.time()
+    _login_failures[email] = [
+        t for t in _login_failures[email] if now - t < LOCKOUT_DURATION
+    ]
+    return len(_login_failures[email]) >= LOCKOUT_THRESHOLD
+
+
+def _record_login_failure(email: str) -> None:
+    _login_failures[email].append(time.time())
+
+
+def _clear_login_failures(email: str) -> None:
+    _login_failures.pop(email, None)
+
+
 # 環境變數
 MONGO_URI = os.getenv("MONGO_URI")
 # Gmail SMTP 配置
@@ -200,6 +294,14 @@ if MONGO_URI:
             )
             accounting_records_collection.create_index(
                 [("user_id", ASCENDING), ("date", ASCENDING)], background=True
+            )
+            accounting_records_collection.create_index(
+                [("user_id", ASCENDING), ("type", ASCENDING), ("date", ASCENDING)],
+                background=True,
+            )
+            accounting_records_collection.create_index(
+                [("user_id", ASCENDING), ("category", ASCENDING), ("date", ASCENDING)],
+                background=True,
             )
 
             # 預算索引（更新為複合唯一索引）
@@ -405,6 +507,9 @@ def get_accounting_records():
         end_date = request.args.get("end_date")
         record_type = request.args.get("type")
         category = request.args.get("category")
+        search = request.args.get("search", "").strip()
+        sort_by = request.args.get("sort_by", "date")
+        sort_order = request.args.get("sort_order", "desc")
 
         # 建立查詢條件
         query = {}
@@ -427,14 +532,21 @@ def get_accounting_records():
         if category:
             query["category"] = category
 
+        if search:
+            query["description"] = {"$regex": re.escape(search), "$options": "i"}
+
+        # 排序設定
+        sort_field = "amount" if sort_by == "amount" else "date"
+        sort_dir = ASCENDING if sort_order == "asc" else DESCENDING
+
         # 取得總筆數
         total = accounting_records_collection.count_documents(query)
         total_pages = math.ceil(total / limit) if total > 0 else 1
 
-        # 查詢記錄，按日期降冪排序，套用分頁
+        # 查詢記錄，套用排序與分頁
         records = list(
             accounting_records_collection.find(query)
-            .sort("date", -1)
+            .sort(sort_field, sort_dir)
             .skip((page - 1) * limit)
             .limit(limit)
         )
@@ -525,6 +637,7 @@ def add_accounting_record():
         record["user_id"] = ObjectId(request.user_id)
 
         result = accounting_records_collection.insert_one(record)
+        _cache_invalidate_user(request.user_id)
         logger.info(f"新增記帳記錄: {result.inserted_id} (user: {request.email})")
         return (
             jsonify({"message": "記帳記錄已新增", "id": str(result.inserted_id)}),
@@ -615,6 +728,7 @@ def update_accounting_record(record_id):
         if result.matched_count == 0:
             return jsonify({"error": "找不到該記錄"}), 404
 
+        _cache_invalidate_user(request.user_id)
         logger.info(f"更新記帳記錄: {record_id} (user: {request.email})")
         return jsonify({"message": "記帳記錄已更新"}), 200
     except Exception as e:
@@ -646,6 +760,7 @@ def delete_accounting_record(record_id):
         if result.deleted_count == 0:
             return jsonify({"error": "找不到該記錄或無權限刪除"}), 404
 
+        _cache_invalidate_user(request.user_id)
         logger.info(f"刪除記帳記錄: {record_id} (user: {request.email})")
         return jsonify({"message": "記帳記錄已刪除"}), 200
     except Exception as e:
@@ -665,6 +780,12 @@ def get_accounting_stats():
         # 獲取日期範圍參數
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
+
+        # 快取命中檢查
+        ck = _cache_key(request.user_id, "stats", start_date or "", end_date or "")
+        cached = _cache_get(ck)
+        if cached is not None:
+            return jsonify(cached), 200
 
         query = {}
 
@@ -703,17 +824,14 @@ def get_accounting_stats():
             accounting_records_collection.aggregate(category_pipeline)
         )
 
-        return (
-            jsonify(
-                {
-                    "total_income": total_income,
-                    "total_expense": total_expense,
-                    "balance": total_income - total_expense,
-                    "category_stats": category_stats,
-                }
-            ),
-            200,
-        )
+        result = {
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "balance": total_income - total_expense,
+            "category_stats": category_stats,
+        }
+        _cache_set(ck, result)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"取得統計資料失敗: {e}")
         return jsonify({"error": "取得統計資料失敗"}), 500
@@ -1019,12 +1137,26 @@ def get_period_comparison():
         return jsonify({"error": "資料庫未初始化"}), 500
     try:
         period = request.args.get("period", "month")
-        if period not in ("month", "quarter", "year"):
-            return jsonify({"error": "period 必須為 month、quarter 或 year"}), 400
+        if period not in ("week", "month", "quarter", "year"):
+            return jsonify({"error": "period 必須為 week、month、quarter 或 year"}), 400
 
+        # 快取命中檢查（以當天為單位，key 含日期確保跨天失效）
         now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        ck = _cache_key(request.user_id, "comparison", period, today)
+        cached = _cache_get(ck)
+        if cached is not None:
+            return jsonify(cached), 200
 
-        if period == "month":
+        if period == "week":
+            weekday = now.weekday()  # 0=週一
+            cur_start = datetime(now.year, now.month, now.day) - timedelta(days=weekday)
+            prev_start = cur_start - timedelta(weeks=1)
+            prev_end = cur_start
+            cur_label = cur_start.strftime("%Y/%m/%d 週")
+            prev_label = prev_start.strftime("%Y/%m/%d 週")
+
+        elif period == "month":
             cur_start = datetime(now.year, now.month, 1)
             if now.month == 1:
                 prev_start = datetime(now.year - 1, 12, 1)
@@ -1087,20 +1219,17 @@ def get_period_comparison():
                 return None
             return round((cur_val - prev_val) / prev_val * 100, 1)
 
-        return (
-            jsonify(
-                {
-                    "current": {**cur, "label": cur_label},
-                    "previous": {**prev, "label": prev_label},
-                    "changes": {
-                        "income_pct": pct_change(cur["income"], prev["income"]),
-                        "expense_pct": pct_change(cur["expense"], prev["expense"]),
-                        "balance_pct": pct_change(cur["balance"], prev["balance"]),
-                    },
-                }
-            ),
-            200,
-        )
+        result = {
+            "current": {**cur, "label": cur_label},
+            "previous": {**prev, "label": prev_label},
+            "changes": {
+                "income_pct": pct_change(cur["income"], prev["income"]),
+                "expense_pct": pct_change(cur["expense"], prev["expense"]),
+                "balance_pct": pct_change(cur["balance"], prev["balance"]),
+            },
+        }
+        _cache_set(ck, result)
+        return jsonify(result), 200
 
     except Exception as e:
         logger.error(f"取得環比資料失敗: {e}")
@@ -1485,9 +1614,15 @@ def login():
         if not email or not password:
             return jsonify({"error": "Email 和密碼不能為空"}), 400
 
+        # 登入失敗鎖定檢查
+        if _is_locked_out(email):
+            logger.warning(f"登入鎖定: {email}")
+            return jsonify({"error": "登入失敗次數過多，請 15 分鐘後再試"}), 429
+
         # 查找用戶
         user = users_collection.find_one({"email": email})
         if not user:
+            _record_login_failure(email)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
 
         # 檢查帳號是否啟用
@@ -1496,7 +1631,11 @@ def login():
 
         # 驗證密碼
         if not auth.verify_password(password, user["password_hash"]):
+            _record_login_failure(email)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
+
+        # 登入成功，清除失敗記錄
+        _clear_login_failures(email)
 
         # 更新最後登入時間
         users_collection.update_one(

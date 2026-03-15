@@ -216,8 +216,12 @@ export async function loadRecords(showLoading = true, page = null) {
 
     const startDate = document.getElementById('filter-start-date')?.value;
     const endDate = document.getElementById('filter-end-date')?.value;
-    const filterType = document.getElementById('filter-type')?.value;
+    const incomeChecked = document.getElementById('filter-type-income')?.checked ?? true;
+    const expenseChecked = document.getElementById('filter-type-expense')?.checked ?? true;
     const filterCategory = document.getElementById('filter-category')?.value;
+    const filterKeyword = document.getElementById('filter-keyword')?.value?.trim();
+    const sortVal = document.getElementById('filter-sort')?.value || 'date-desc';
+    const [sortBy, sortOrder] = sortVal.split('-');
     const recordsList = document.getElementById('records-list');
 
     if (!recordsList) return;
@@ -225,8 +229,11 @@ export async function loadRecords(showLoading = true, page = null) {
     let url = `${backendUrl}/admin/api/accounting/records?page=${currentPage}&`;
     if (startDate) url += `start_date=${startDate}&`;
     if (endDate) url += `end_date=${endDate}&`;
-    if (filterType) url += `type=${filterType}&`;
+    if (incomeChecked && !expenseChecked) url += 'type=income&';
+    else if (!incomeChecked && expenseChecked) url += 'type=expense&';
     if (filterCategory) url += `category=${filterCategory}&`;
+    if (filterKeyword) url += `search=${encodeURIComponent(filterKeyword)}&`;
+    url += `sort_by=${sortBy}&sort_order=${sortOrder}&`;
 
     if (showLoading) {
         recordsList.innerHTML = '<p class="text-center text-gray-700 py-8"><span class="spinner"></span>載入中...</p>';
@@ -243,6 +250,12 @@ export async function loadRecords(showLoading = true, page = null) {
             : [];
         totalPages = data.total_pages ?? 1;
         currentPage = data.page ?? currentPage;
+
+        // 更新總筆數顯示
+        const totalCountEl = document.getElementById('records-total-count');
+        if (totalCountEl && data.total !== undefined) {
+            totalCountEl.textContent = `共 ${data.total} 筆`;
+        }
 
         if (records.length === 0 && currentPage === 1) {
             recordsList.innerHTML = '<p class="text-center text-gray-700 py-8">目前沒有記錄</p>';
@@ -294,6 +307,45 @@ function renderPagination() {
             </button>
         </div>
     `;
+}
+
+/**
+ * 清除所有篩選條件並重新載入
+ */
+export function clearFilters() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+    const startEl = document.getElementById('filter-start-date');
+    const endEl = document.getElementById('filter-end-date');
+    const incomeEl = document.getElementById('filter-type-income');
+    const expenseEl = document.getElementById('filter-type-expense');
+    const keywordEl = document.getElementById('filter-keyword');
+    const sortEl = document.getElementById('filter-sort');
+    const hiddenCatEl = document.getElementById('filter-category');
+    const displayCatEl = document.getElementById('filter-category-display');
+
+    if (startEl) startEl.value = firstDay;
+    if (endEl) endEl.value = today;
+    if (incomeEl) incomeEl.checked = true;
+    if (expenseEl) expenseEl.checked = true;
+    if (keywordEl) keywordEl.value = '';
+    if (sortEl) sortEl.value = 'date-desc';
+    if (hiddenCatEl) hiddenCatEl.value = '';
+    if (displayCatEl) displayCatEl.textContent = '全部分類';
+
+    loadRecords(true, 1);
+}
+
+/**
+ * 切換進階搜尋面板展開/收合
+ */
+export function toggleAdvancedFilter() {
+    const panel = document.getElementById('advanced-filter-panel');
+    const chevron = document.getElementById('advanced-filter-chevron');
+    if (!panel) return;
+    const isHidden = panel.classList.toggle('hidden');
+    if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
 }
 
 // 讓 HTML inline onclick 能呼叫
@@ -464,6 +516,26 @@ export function initRecords() {
     // ===== 設置表單事件監聽器 =====
     setupFormEventListeners();
 
+    // 排序 select / checkbox 改動後立即觸發查詢
+    ['filter-sort'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+    });
+    ['filter-type-income', 'filter-type-expense'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+    });
+
+    // 排序 select / checkbox 改動後立即觸發查詢
+    ['filter-sort'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+    });
+    ['filter-type-income', 'filter-type-expense'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+    });
+
     // 暴露到全局（供 HTML onclick 使用）
     window.deleteAccountingRecord = deleteRecord;
     window.loadAccountingRecords = loadRecords;
@@ -471,6 +543,8 @@ export function initRecords() {
     window.updateAccountingRecord = updateRecord;
     window.openEditRecordModal = openEditRecordModal;
     window.closeEditRecordModal = closeEditRecordModal;
+    window.clearFilters = clearFilters;
+    window.toggleAdvancedFilter = toggleAdvancedFilter;
 
     console.log('✅ [Records] 記錄管理模組已初始化');
 }

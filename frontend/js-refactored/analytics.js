@@ -15,13 +15,18 @@ import { escapeHtml } from './utils.js';
 
 /**
  * 設定日期範圍（供篩選器快速按鈕使用）
- * @param {string} period - 'month' | 'quarter' | 'year'
+ * @param {string} period - 'week' | 'month' | 'quarter' | 'year'
  */
 export function setDateRange(period) {
     const now = new Date();
     const end = now.toISOString().split('T')[0];
     let start;
-    if (period === 'month') {
+    if (period === 'week') {
+        const day = now.getDay() || 7; // 週一=1, 週日=7
+        const mon = new Date(now);
+        mon.setDate(now.getDate() - day + 1);
+        start = mon.toISOString().split('T')[0];
+    } else if (period === 'month') {
         start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     } else if (period === 'quarter') {
         const q = Math.floor(now.getMonth() / 3);
@@ -105,8 +110,8 @@ export function initAnalytics() {
     window.loadPeriodComparison = loadPeriodComparison;
 
     // 監聽頁面切換到 analytics 時自動載入
-    EventBus.on(EVENTS.PAGE_LOAD, (pageName) => {
-        if (pageName === 'analytics') {
+    EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
+        if (page === 'analytics') {
             loadPeriodComparison('month');
         }
     });
