@@ -138,6 +138,7 @@ const CACHE_NAME = 'accounting-system-v2.0.0';
 
 | 版本 | 日期 | 類型 | 更新內容 |
 |------|------|------|----------|
+| v1.6.5 | 2026-03-15 | PATCH | 修復表單登入後期間比較和定期收支不自動載入（setAuthenticationStatus、charts dashboard→analytics） |
 | v1.6.4 | 2026-03-15 | PATCH | XSS 修復（categories.js）、CSRF header 驗證、登入失敗鎖定、E2E 加速、載入 bug 修復 |
 | v1.6.3 | 2026-03-14 | PATCH | 修復初次進入頁面資料不顯示（isAuthenticated 同步、PAGE_LOAD 解構） |
 | v1.6.2 | 2026-03-14 | PATCH | 修復記錄顯示（Array.isArray）、SW 認證端點錯誤處理、密碼表單警告 |
@@ -150,7 +151,7 @@ const CACHE_NAME = 'accounting-system-v2.0.0';
 | v0.8.0 | 2026-02-16 | MINOR | 添加更新橫幅功能 |
 | v0.7.0 | 2026-02-14 | MINOR | 添加離線功能支援 |
 
-**當前版本**: `v1.6.4`
+**當前版本**: `v1.6.5`
 **下次更新**: 根據變更類型選擇 `v1.6.5`（修復）、`v1.7.0`（功能）或 `v2.0.0`（重大更新）
 
 ---

@@ -77,7 +77,13 @@ function initializeModules() {
 
     // 監聽登入成功事件，初始化日期預設值
     EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, () => {
+        isAuthenticated = true;
+        setAuthenticationStatus(true);   // 解鎖 Router.onPageLoad
         setTodayAsDefault();
+        loadBudget();
+        // 補發初始頁面的 PAGE_LOAD（與 auto-login 路徑一致）
+        const currentPage = window.router?.currentPage || 'add';
+        EventBus.emit(EVENTS.PAGE_LOAD, { page: currentPage });
     });
 
     console.log('✅ 所有模組初始化完成！');

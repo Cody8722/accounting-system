@@ -255,8 +255,8 @@ export function initCharts() {
 
     // 監聽頁面切換事件
     EventBus.on(EVENTS.PAGE_CHANGED, ({ page }) => {
-        // 切換到首頁時更新圖表
-        if (page === 'dashboard') {
+        // 切換到分析頁時更新圖表
+        if (page === 'analytics') {
             // 延遲更新，確保 DOM 已渲染
             setTimeout(() => {
                 updateTrendsChart();
@@ -266,7 +266,7 @@ export function initCharts() {
 
     // 監聽頁面載入事件
     EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
-        if (page === 'dashboard') {
+        if (page === 'analytics') {
             updateTrendsChart();
         }
     });
