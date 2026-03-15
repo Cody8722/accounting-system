@@ -16,9 +16,10 @@ import { backendUrl } from './config.js';
 import { showToast } from './utils.js';
 
 /**
- * 匯出記帳記錄為 CSV 檔案
+ * 匯出記帳記錄（支援 CSV / Excel 格式）
+ * @param {string} format - 'csv'（預設）或 'xlsx'
  */
-export async function exportAccountingRecords() {
+export async function exportAccountingRecords(format = 'csv') {
     try {
         // 發送匯出開始事件
         EventBus.emit(EVENTS.EXPORT_CSV_START);
@@ -33,6 +34,7 @@ export async function exportAccountingRecords() {
         if (startDate) params.append('start_date', startDate);
         if (endDate) params.append('end_date', endDate);
         if (type) params.append('type', type);
+        params.append('format', format);
 
         // 呼叫匯出 API
         const response = await apiCall(`${backendUrl}/admin/api/accounting/export?${params.toString()}`);
@@ -43,7 +45,8 @@ export async function exportAccountingRecords() {
 
             // 從 response headers 獲取檔案名稱
             const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = '記帳記錄.csv';
+            const defaultName = format === 'xlsx' ? '記帳記錄.xlsx' : '記帳記錄.csv';
+            let filename = defaultName;
             if (contentDisposition) {
                 const matches = /filename=([^;]+)/.exec(contentDisposition);
                 if (matches && matches[1]) {
@@ -63,6 +66,10 @@ export async function exportAccountingRecords() {
             // 清理
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
+
+            // 關閉下拉選單
+            const dropdown = document.getElementById('export-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
 
             // 顯示成功訊息
             showToast('匯出成功！', 'success');
@@ -92,10 +99,18 @@ export async function exportAccountingRecords() {
  * 初始化匯出模組
  */
 export function initExport() {
-    // 設定匯出按鈕事件
-    const exportRecordsBtn = document.getElementById('export-records-btn');
-    if (exportRecordsBtn) {
-        exportRecordsBtn.addEventListener('click', exportAccountingRecords);
+    // 下拉選單切換
+    const exportBtn = document.getElementById('export-records-btn');
+    const exportDropdown = document.getElementById('export-dropdown');
+    if (exportBtn && exportDropdown) {
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportDropdown.classList.toggle('hidden');
+        });
+        // 點選其他地方關閉下拉
+        document.addEventListener('click', () => {
+            exportDropdown.classList.add('hidden');
+        });
     }
 
     // 暴露到全局（供 HTML onclick 使用）

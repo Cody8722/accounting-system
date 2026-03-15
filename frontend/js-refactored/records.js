@@ -668,6 +668,21 @@ function setupFormEventListeners() {
     const editAmountError = document.getElementById('edit-amount-error');
     const editRecordMessage = document.getElementById('edit-record-message');
 
+    if (editRecordAmount && editAmountError) {
+        editRecordAmount.addEventListener('input', () => {
+            const amount = parseFloat(editRecordAmount.value);
+            const validation = validateAmount(amount);
+            if (!validation.valid && editRecordAmount.value !== '') {
+                editRecordAmount.classList.add('input-error');
+                editAmountError.textContent = validation.message;
+                editAmountError.classList.remove('hidden');
+            } else {
+                editRecordAmount.classList.remove('input-error');
+                editAmountError.classList.add('hidden');
+            }
+        });
+    }
+
     if (editRecordForm) {
         editRecordForm.addEventListener('submit', async (e) => {
             e.preventDefault();

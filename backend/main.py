@@ -20,7 +20,9 @@ from datetime import datetime, timedelta
 import logging
 import re
 import csv
-from io import StringIO
+from io import StringIO, BytesIO
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 
 # 導入認證模組
 import auth
@@ -326,6 +328,10 @@ if MONGO_URI:
 
             # 定期支出索引
             recurring_collection.create_index([("user_id", ASCENDING)], background=True)
+            recurring_collection.create_index(
+                [("user_id", ASCENDING), ("day_of_month", ASCENDING)],
+                background=True,
+            )
 
             logger.info("✅ 資料庫索引已建立（背景執行）")
         except Exception as index_error:
@@ -918,15 +924,16 @@ def set_accounting_budget():
 @require_auth
 def export_accounting_records():
     """
-    匯出記帳記錄為 CSV 檔案
+    匯出記帳記錄為 CSV 或 Excel 檔案
 
     Query Parameters:
         start_date: 開始日期 (YYYY-MM-DD, 可選)
         end_date: 結束日期 (YYYY-MM-DD, 可選)
         type: 記錄類型 (income/expense, 可選)
+        format: 匯出格式 (csv 預設 / xlsx)
 
     Returns:
-        CSV file download
+        CSV or Excel file download
     """
     if accounting_records_collection is None:
         return jsonify({"error": "資料庫未初始化"}), 500
@@ -936,6 +943,9 @@ def export_accounting_records():
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
         record_type = request.args.get("type")
+        export_format = request.args.get("format", "csv")
+        if export_format not in ("csv", "xlsx"):
+            export_format = "csv"
 
         # 建立查詢條件
         query = {}
@@ -956,67 +966,103 @@ def export_accounting_records():
             if valid:
                 query["type"] = record_type
 
-        # 建立 CSV
-        output = StringIO()
-        writer = csv.writer(output)
+        # 共用欄位定義
+        headers = ["日期", "類型", "分類", "金額", "描述", "支出類型"]
 
-        # 寫入標題列
-        writer.writerow(["日期", "類型", "分類", "金額", "描述", "支出類型"])
-
-        # 直接迭代 cursor，不將全部記錄載入記憶體
-        record_count = 0
+        # 讀取記錄並轉換
+        rows = []
         for record in accounting_records_collection.find(query).sort("date", -1):
-            # 類型轉換為中文
             type_zh = "收入" if record.get("type") == "income" else "支出"
-
-            # 支出類型轉換為中文
             expense_type = record.get("expense_type", "")
-            expense_type_zh = ""
-            if expense_type == "fixed":
-                expense_type_zh = "固定支出"
-            elif expense_type == "variable":
-                expense_type_zh = "變動支出"
-            elif expense_type == "onetime":
-                expense_type_zh = "一次性支出"
+            expense_type_zh = {"fixed": "固定支出", "variable": "變動支出", "onetime": "一次性支出"}.get(expense_type, "")
+            rows.append([
+                record.get("date", ""),
+                type_zh,
+                record.get("category", ""),
+                record.get("amount", 0),
+                record.get("description", ""),
+                expense_type_zh,
+            ])
 
-            writer.writerow(
-                [
-                    record.get("date", ""),
-                    type_zh,
-                    record.get("category", ""),
-                    record.get("amount", 0),
-                    record.get("description", ""),
-                    expense_type_zh,
-                ]
-            )
-            record_count += 1
+        record_count = len(rows)
 
-        # 準備檔案名稱
-        filename = "記帳記錄"
+        # 準備檔案名稱（不含副檔名）
+        filename_base = "記帳記錄"
         if start_date and end_date:
-            filename += f"_{start_date}_至_{end_date}"
+            filename_base += f"_{start_date}_至_{end_date}"
         else:
-            filename += f"_{datetime.now().strftime('%Y%m%d')}"
-        filename += ".csv"
+            filename_base += f"_{datetime.now().strftime('%Y%m%d')}"
 
-        # 建立 Response
-        output.seek(0)
+        from urllib.parse import quote
 
-        # 添加 BOM 以支援 Excel 正確顯示中文
-        bom_output = "\ufeff" + output.getvalue()
+        if export_format == "xlsx":
+            # 建立 Excel
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "記帳記錄"
 
-        response = Response(
-            bom_output.encode("utf-8"),
-            mimetype="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=\"records.csv\"; filename*=UTF-8''{__import__('urllib.parse', fromlist=['quote']).quote(filename)}",
-                "Content-Type": "text/csv; charset=utf-8-sig",  # BOM for Excel
-                "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
-                "Access-Control-Allow-Credentials": "true",
-            },
-        )
+            # 標題列樣式
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+            header_align = Alignment(horizontal="center")
 
-        logger.info(f"匯出 {record_count} 筆記帳記錄 (user: {request.email})")
+            ws.append(headers)
+            for col_idx, cell in enumerate(ws[1], start=1):
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_align
+
+            # 寫入資料
+            for row in rows:
+                ws.append(row)
+
+            # 固定首列
+            ws.freeze_panes = "A2"
+
+            # 自動欄寬
+            col_widths = [12, 8, 12, 10, 30, 12]
+            for i, width in enumerate(col_widths, start=1):
+                ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+            # 輸出到 BytesIO
+            xlsx_output = BytesIO()
+            wb.save(xlsx_output)
+            xlsx_output.seek(0)
+
+            filename = filename_base + ".xlsx"
+            response = Response(
+                xlsx_output.read(),
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"records.xlsx\"; filename*=UTF-8''{quote(filename)}",
+                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
+                    "Access-Control-Allow-Credentials": "true",
+                },
+            )
+        else:
+            # 建立 CSV（原有邏輯）
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(headers)
+            for row in rows:
+                writer.writerow(row)
+
+            filename = filename_base + ".csv"
+            output.seek(0)
+            bom_output = "\ufeff" + output.getvalue()
+
+            response = Response(
+                bom_output.encode("utf-8"),
+                mimetype="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"records.csv\"; filename*=UTF-8''{quote(filename)}",
+                    "Content-Type": "text/csv; charset=utf-8-sig",
+                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
+                    "Access-Control-Allow-Credentials": "true",
+                },
+            )
+
+        logger.info(f"匯出 {record_count} 筆記帳記錄 ({export_format}) (user: {request.email})")
         return response
 
     except Exception as e:

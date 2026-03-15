@@ -2220,10 +2220,23 @@
                                 class="ml-auto px-3 py-1.5 text-sm text-gray-500 border border-gray-300 rounded-md hover:bg-gray-50 transition">
                                 <i class="fas fa-times mr-1"></i>清除
                             </button>
-                            <button id="export-records-btn"
-                                class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 font-semibold transition">
-                                <i class="fas fa-download mr-1"></i>CSV
-                            </button>
+                            <div class="relative">
+                                <button id="export-records-btn"
+                                    class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 font-semibold transition flex items-center gap-1">
+                                    <i class="fas fa-download"></i>匯出 <i class="fas fa-chevron-down text-xs"></i>
+                                </button>
+                                <div id="export-dropdown"
+                                    class="hidden absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                                    <button onclick="exportAccountingRecords('csv')"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                        <i class="fas fa-file-csv text-green-600"></i>CSV
+                                    </button>
+                                    <button onclick="exportAccountingRecords('xlsx')"
+                                        class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                        <i class="fas fa-file-excel text-green-700"></i>Excel
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                     </div>
