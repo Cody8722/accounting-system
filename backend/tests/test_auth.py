@@ -368,5 +368,264 @@ class TestPasswordPolicy:
         assert "checks" in result
 
 
+class TestChangePassword:
+    """修改密碼功能測試"""
+
+    @pytest.fixture
+    def registered_user(self, client):
+        """建立並登入測試用戶，回傳 auth headers"""
+        import time
+
+        email = f"changepass{int(time.time()*1000)}@example.com"
+        password = "OldP@ss2026!Xy"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "name": "ChangePass User",
+            },
+        )
+        login_resp = client.post(
+            "/api/auth/login",
+            json={
+                "email": email,
+                "password": password,
+            },
+        )
+        if login_resp.status_code != 200:
+            pytest.skip("DB not available in test env")
+        token = login_resp.get_json().get("token")
+        return {"Authorization": f"Bearer {token}"}, email, password
+
+    def test_change_password_missing_fields(self, client):
+        """缺少 old_password 或 new_password 應回傳 400"""
+        import auth as auth_module
+        import time
+
+        test_user_id = "000000000000000000000001"
+        token = auth_module.generate_jwt(test_user_id, "test@example.com", "Test")
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.post(
+            "/api/user/change-password",
+            json={"old_password": "", "new_password": ""},
+            headers=headers,
+        )
+        assert response.status_code == 400
+
+    def test_change_password_no_body(self, client):
+        """無 body 應回傳 400"""
+        import auth as auth_module
+
+        test_user_id = "000000000000000000000001"
+        token = auth_module.generate_jwt(test_user_id, "test@example.com", "Test")
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.post(
+            "/api/user/change-password",
+            content_type="application/json",
+            data="",
+            headers=headers,
+        )
+        assert response.status_code == 400
+
+    def test_change_password_user_not_found(self, client):
+        """不存在的 user_id 應回傳 404"""
+        import auth as auth_module
+
+        test_user_id = "000000000000000000000099"
+        token = auth_module.generate_jwt(test_user_id, "ghost@example.com", "Ghost")
+        headers = {"Authorization": f"Bearer {token}"}
+        response = client.post(
+            "/api/user/change-password",
+            json={"old_password": "OldP@ss2026!Xy", "new_password": "NewP@ss2026!Xy"},
+            headers=headers,
+        )
+        assert response.status_code in [404, 500]
+
+    def test_change_password_wrong_old_password(self, client, registered_user):
+        """舊密碼錯誤應回傳 401"""
+        headers, email, password = registered_user
+        response = client.post(
+            "/api/user/change-password",
+            json={"old_password": "WrongOld!P@ss999", "new_password": "NewP@ss2026!Xy"},
+            headers=headers,
+        )
+        assert response.status_code == 401
+
+    def test_change_password_weak_new_password(self, client, registered_user):
+        """新密碼太弱應回傳 400"""
+        headers, email, password = registered_user
+        response = client.post(
+            "/api/user/change-password",
+            json={"old_password": password, "new_password": "weak"},
+            headers=headers,
+        )
+        assert response.status_code == 400
+
+    def test_change_password_success(self, client, registered_user):
+        """正確舊密碼 + 強新密碼應成功"""
+        headers, email, password = registered_user
+        response = client.post(
+            "/api/user/change-password",
+            json={"old_password": password, "new_password": "Br@nd!NewP@ss2026XyZ"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+
+
+class TestForgotResetPasswordFlow:
+    """忘記/重設密碼完整流程測試"""
+
+    @pytest.fixture
+    def user_with_reset_token(self, client):
+        """建立用戶並直接在 DB 寫入 reset token"""
+        import time
+        import main as main_module
+        from bson import ObjectId
+        from datetime import datetime, timedelta
+
+        email = f"resetflow{int(time.time()*1000)}@example.com"
+        password = "ResetP@ss2026!Xy"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "name": "Reset User",
+            },
+        )
+
+        if main_module.users_collection is None:
+            pytest.skip("DB not available")
+
+        token = "test-reset-token-12345"
+        expires = datetime.now() + timedelta(hours=1)
+        main_module.users_collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    "password_reset_token": token,
+                    "password_reset_expires": expires,
+                }
+            },
+        )
+        return email, token
+
+    def test_forgot_password_with_smtp_mock(self, client):
+        """模擬 SMTP 發送密碼重設信（mock send_reset_email）"""
+        import time
+        import main as main_module
+        from unittest.mock import patch
+
+        email = f"smtptest{int(time.time()*1000)}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": "SmtpP@ss2026!Xy",
+                "name": "SMTP Test",
+            },
+        )
+
+        with patch("main.send_reset_email", return_value=True) as mock_send:
+            response = client.post(
+                "/api/auth/forgot-password",
+                json={"email": email},
+            )
+            assert response.status_code == 200
+            # 若用戶存在，應呼叫 send_reset_email
+            if main_module.users_collection is not None:
+                mock_send.assert_called_once()
+
+    def test_forgot_password_smtp_fails(self, client):
+        """SMTP 失敗時應回傳 500"""
+        import time
+        import main as main_module
+        from unittest.mock import patch
+
+        email = f"smtpfail{int(time.time()*1000)}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": "SmtpP@ss2026!Xy",
+                "name": "SMTP Fail",
+            },
+        )
+
+        if main_module.users_collection is None:
+            pytest.skip("DB not available")
+
+        with patch("main.send_reset_email", return_value=False):
+            response = client.post(
+                "/api/auth/forgot-password",
+                json={"email": email},
+            )
+            assert response.status_code == 500
+
+    def test_reset_password_with_valid_token(self, client, user_with_reset_token):
+        """有效 token 應能重設密碼"""
+        email, token = user_with_reset_token
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "new_password": "Br@nd!NewP@ss2026XyZ"},
+        )
+        assert response.status_code == 200
+
+    def test_reset_password_expired_token(self, client):
+        """過期 token 應回傳 400"""
+        import time
+        import main as main_module
+        from datetime import datetime, timedelta
+
+        if main_module.users_collection is None:
+            pytest.skip("DB not available")
+
+        email = f"expiredtoken{int(time.time()*1000)}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": "ExpiredP@ss2026!Xy",
+                "name": "Expired Token",
+            },
+        )
+
+        token = "expired-token-99999"
+        expires = datetime.now() - timedelta(hours=2)  # 已過期
+        main_module.users_collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    "password_reset_token": token,
+                    "password_reset_expires": expires,
+                }
+            },
+        )
+
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "new_password": "Br@nd!NewP@ss2026XyZ"},
+        )
+        assert response.status_code == 400
+
+    def test_reset_password_weak_password(self, client, user_with_reset_token):
+        """有效 token 但弱密碼應回傳 400"""
+        email, token = user_with_reset_token
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "new_password": "weak"},
+        )
+        assert response.status_code == 400
+
+    def test_reset_password_missing_fields(self, client):
+        """缺少 token 或 new_password 應回傳 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": "", "new_password": ""},
+        )
+        assert response.status_code == 400
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

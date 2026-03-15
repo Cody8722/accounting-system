@@ -4,7 +4,7 @@ from flask_compress import Compress
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import jwt as pyjwt
-from pymongo import MongoClient, ASCENDING
+from pymongo import MongoClient, ASCENDING, DESCENDING
 from bson import json_util, ObjectId
 from bson.errors import InvalidId
 from functools import wraps
@@ -16,7 +16,7 @@ import os
 import time
 from dotenv import load_dotenv
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import re
 import csv
@@ -507,6 +507,9 @@ def get_accounting_records():
         end_date = request.args.get("end_date")
         record_type = request.args.get("type")
         category = request.args.get("category")
+        search = request.args.get("search", "").strip()
+        sort_by = request.args.get("sort_by", "date")
+        sort_order = request.args.get("sort_order", "desc")
 
         # 建立查詢條件
         query = {}
@@ -529,14 +532,21 @@ def get_accounting_records():
         if category:
             query["category"] = category
 
+        if search:
+            query["description"] = {"$regex": re.escape(search), "$options": "i"}
+
+        # 排序設定
+        sort_field = "amount" if sort_by == "amount" else "date"
+        sort_dir = ASCENDING if sort_order == "asc" else DESCENDING
+
         # 取得總筆數
         total = accounting_records_collection.count_documents(query)
         total_pages = math.ceil(total / limit) if total > 0 else 1
 
-        # 查詢記錄，按日期降冪排序，套用分頁
+        # 查詢記錄，套用排序與分頁
         records = list(
             accounting_records_collection.find(query)
-            .sort("date", -1)
+            .sort(sort_field, sort_dir)
             .skip((page - 1) * limit)
             .limit(limit)
         )
@@ -1127,8 +1137,8 @@ def get_period_comparison():
         return jsonify({"error": "資料庫未初始化"}), 500
     try:
         period = request.args.get("period", "month")
-        if period not in ("month", "quarter", "year"):
-            return jsonify({"error": "period 必須為 month、quarter 或 year"}), 400
+        if period not in ("week", "month", "quarter", "year"):
+            return jsonify({"error": "period 必須為 week、month、quarter 或 year"}), 400
 
         # 快取命中檢查（以當天為單位，key 含日期確保跨天失效）
         now = datetime.now()
@@ -1138,7 +1148,15 @@ def get_period_comparison():
         if cached is not None:
             return jsonify(cached), 200
 
-        if period == "month":
+        if period == "week":
+            weekday = now.weekday()  # 0=週一
+            cur_start = datetime(now.year, now.month, now.day) - timedelta(days=weekday)
+            prev_start = cur_start - timedelta(weeks=1)
+            prev_end = cur_start
+            cur_label = cur_start.strftime("%Y/%m/%d 週")
+            prev_label = prev_start.strftime("%Y/%m/%d 週")
+
+        elif period == "month":
             cur_start = datetime(now.year, now.month, 1)
             if now.month == 1:
                 prev_start = datetime(now.year - 1, 12, 1)

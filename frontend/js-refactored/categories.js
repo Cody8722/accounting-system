@@ -17,6 +17,7 @@ import { escapeHtml } from './utils.js';
 let currentCategoryType = 'expense';
 let currentMainCategory = null;
 let isEditMode = false;
+let currentFilterMainCategory = ''; // '' = 全部
 
 /**
  * 打開分類選擇器模態框
@@ -133,49 +134,76 @@ function renderCategoryModal() {
 }
 
 /**
+ * 渲染篩選分類 modal（大分類 tabs + 小分類卡片）
+ */
+function renderFilterCategoryModal(allMainCategories) {
+    const tabsContainer = document.getElementById('filter-category-tabs');
+    const itemsContainer = document.getElementById('filter-category-items');
+
+    // 渲染大分類 tabs（含「全部」）
+    if (tabsContainer) {
+        tabsContainer.innerHTML =
+            `<div class="category-tab ${currentFilterMainCategory === '' ? 'active' : ''}"
+                  onclick="switchFilterCategory('')">全部</div>` +
+            allMainCategories.map(([mainCat]) =>
+                `<div class="category-tab ${mainCat === currentFilterMainCategory ? 'active' : ''}"
+                      onclick="switchFilterCategory('${escapeHtml(mainCat)}')">${escapeHtml(mainCat)}</div>`
+            ).join('');
+    }
+
+    // 決定要顯示的小分類
+    let items;
+    if (currentFilterMainCategory === '') {
+        const all = new Set();
+        allMainCategories.forEach(([, subs]) => subs.forEach(s => all.add(s)));
+        items = Array.from(all).sort();
+    } else {
+        const found = allMainCategories.find(([k]) => k === currentFilterMainCategory);
+        items = found ? found[1] : [];
+    }
+
+    // 渲染小分類卡片
+    if (itemsContainer) {
+        itemsContainer.innerHTML = items.map(category => {
+            const icon = getItemIcon(category);
+            return `<button type="button"
+                class="category-item flex flex-col items-center justify-center p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition cursor-pointer"
+                onclick="selectFilterCategory('${escapeHtml(category)}', '${icon} ${escapeHtml(category)}')">
+                <span class="text-3xl mb-1">${icon}</span>
+                <span class="text-xs text-center text-gray-700 font-medium">${escapeHtml(category)}</span>
+            </button>`;
+        }).join('');
+    }
+}
+
+/**
  * 打開分類篩選器模態框（記錄頁面使用）
  */
 export function openFilterCategoryModal() {
     const modal = document.getElementById('filter-category-modal');
-    const itemsContainer = document.getElementById('filter-category-items');
+    if (!modal) return;
 
-    if (!modal || !itemsContainer) return;
+    const allMainCategories = [
+        ...Object.entries(categoryData.expense || {}),
+        ...Object.entries(categoryData.income || {})
+    ];
 
-    // 收集所有分類
-    const allCategories = new Set();
-    Object.values(categoryData.expense).forEach(items => {
-        items.forEach(item => allCategories.add(item));
-    });
-    Object.values(categoryData.income).forEach(items => {
-        items.forEach(item => allCategories.add(item));
-    });
-
-    // 清空並重新生成分類項目
-    itemsContainer.innerHTML = '';
-
-    // 按字母順序排序
-    const sortedCategories = Array.from(allCategories).sort();
-
-    // 生成分類卡片
-    sortedCategories.forEach(category => {
-        const icon = getItemIcon(category);
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'category-item flex flex-col items-center justify-center p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition cursor-pointer';
-        card.onclick = () => selectFilterCategory(category, `${icon} ${category}`);
-
-        card.innerHTML = `
-            <span class="text-3xl mb-1">${icon}</span>
-            <span class="text-xs text-center text-gray-700 font-medium">${category}</span>
-        `;
-
-        itemsContainer.appendChild(card);
-    });
-
-    // 顯示模態框
+    renderFilterCategoryModal(allMainCategories);
     modal.classList.remove('hidden');
 
     EventBus.emit(EVENTS.FILTER_CATEGORY_MODAL_OPENED);
+}
+
+/**
+ * 切換篩選分類大分類 tab
+ */
+export function switchFilterCategory(mainCategory) {
+    currentFilterMainCategory = mainCategory;
+    const allMainCategories = [
+        ...Object.entries(categoryData.expense || {}),
+        ...Object.entries(categoryData.income || {})
+    ];
+    renderFilterCategoryModal(allMainCategories);
 }
 
 /**
@@ -210,6 +238,9 @@ export function selectFilterCategory(category, displayText) {
     closeFilterCategoryModal();
 
     EventBus.emit(EVENTS.FILTER_CATEGORY_SELECTED, { category });
+
+    // 選完分類後立即觸發查詢
+    if (window.loadAccountingRecords) window.loadAccountingRecords(true, 1);
 }
 
 /**
@@ -226,6 +257,7 @@ export function initCategories() {
     window.openFilterCategoryModal = openFilterCategoryModal;
     window.closeFilterCategoryModal = closeFilterCategoryModal;
     window.selectFilterCategory = selectFilterCategory;
+    window.switchFilterCategory = switchFilterCategory;
 
     console.log('✅ [Categories] 分類選擇器已初始化');
 }

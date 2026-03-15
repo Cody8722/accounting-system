@@ -310,27 +310,37 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - `end_date`: 結束日期 (YYYY-MM-DD)
 - `type`: 記錄類型 (`income` 或 `expense`)
 - `category`: 分類名稱
+- `search`: 關鍵字搜尋（比對 `description` 欄位，不分大小寫）
+- `sort_by`: 排序欄位（`date`（預設）或 `amount`）
+- `sort_order`: 排序方向（`desc`（預設）或 `asc`）
+- `page`: 頁碼（預設 `1`）
+- `limit`: 每頁筆數（預設 `20`）
 
 **範例請求**:
 ```
-GET /admin/api/accounting/records?start_date=2024-02-01&end_date=2024-02-28&type=expense
+GET /admin/api/accounting/records?type=expense&search=午餐&sort_by=amount&sort_order=desc&page=1
 ```
 
 **回應 (200)**:
 ```json
-[
-  {
-    "_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d7"},
-    "type": "expense",
-    "amount": 1250.5,
-    "category": "餐飲",
-    "date": "2024-02-24",
-    "description": "午餐",
-    "expense_type": "variable",
-    "created_at": {"$date": "2024-02-24T10:30:00.000Z"},
-    "user_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d6"}
-  }
-]
+{
+  "records": [
+    {
+      "_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d7"},
+      "type": "expense",
+      "amount": 1250.5,
+      "category": "午餐",
+      "date": "2024-02-24",
+      "description": "午餐",
+      "expense_type": "variable",
+      "created_at": {"$date": "2024-02-24T10:30:00.000Z"},
+      "user_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d6"}
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "total_pages": 3
+}
 ```
 
 ---
@@ -423,27 +433,27 @@ GET /admin/api/accounting/stats?start_date=2024-02-01&end_date=2024-02-28
 **認證**: 需要 JWT Token
 
 **查詢參數** (可選):
-- `period`: `month`（預設）/ `quarter` / `year`
+- `period`: `month`（預設）/ `week` / `quarter` / `year`
 
 **範例請求**:
 ```
-GET /admin/api/accounting/comparison?period=month
+GET /admin/api/accounting/comparison?period=week
 ```
 
 **回應 (200)**:
 ```json
 {
   "current": {
-    "income": 50000,
-    "expense": 32000,
-    "balance": 18000,
-    "label": "2026-03"
+    "income": 5000,
+    "expense": 3200,
+    "balance": 1800,
+    "label": "2026/03/09 週"
   },
   "previous": {
-    "income": 48000,
-    "expense": 30000,
-    "balance": 18000,
-    "label": "2026-02"
+    "income": 4800,
+    "expense": 3000,
+    "balance": 1800,
+    "label": "2026/03/02 週"
   },
   "changes": {
     "income_pct": 4.2,
@@ -453,9 +463,11 @@ GET /admin/api/accounting/comparison?period=month
 }
 ```
 
+> `label` 格式依 period 不同：`week` 為 `"YYYY/MM/DD 週"`，`month` 為 `"YYYY-MM"`，`quarter` 為 `"YYYY-QN"`，`year` 為 `"YYYY"`。
+
 **錯誤 (400)**:
 ```json
-{ "error": "period 必須為 month、quarter 或 year" }
+{ "error": "period 必須為 week、month、quarter 或 year" }
 ```
 
 ---

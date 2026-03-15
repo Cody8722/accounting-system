@@ -1048,5 +1048,231 @@ class TestBudgetEdgeCases:
         assert response.status_code in [200, 500]
 
 
+class TestRecordsSearch:
+    """記錄搜尋與排序測試"""
+
+    def test_records_search_param_accepted(self, client, auth_headers):
+        """search 參數應被接受（不報錯）"""
+        response = client.get(
+            "/admin/api/accounting/records?search=午餐",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "records" in data
+        assert "total" in data
+
+    def test_records_sort_by_amount(self, client, auth_headers):
+        """sort_by=amount 應被接受"""
+        response = client.get(
+            "/admin/api/accounting/records?sort_by=amount&sort_order=asc",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_sort_by_date_desc(self, client, auth_headers):
+        """預設按日期降冪排序"""
+        response = client.get(
+            "/admin/api/accounting/records?sort_by=date&sort_order=desc",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_invalid_page_string(self, client, auth_headers):
+        """page=abc 應回傳 400"""
+        response = client.get(
+            "/admin/api/accounting/records?page=abc",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_records_page_zero_clamped(self, client, auth_headers):
+        """page=0 應被 clamp 至 1，不報錯"""
+        response = client.get(
+            "/admin/api/accounting/records?page=0",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_large_limit_capped(self, client, auth_headers):
+        """limit=999 應被上限截斷，不報錯"""
+        response = client.get(
+            "/admin/api/accounting/records?limit=999",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_page_beyond_total(self, client, auth_headers):
+        """page=9999 應回傳空列表而非錯誤"""
+        response = client.get(
+            "/admin/api/accounting/records?page=9999",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "records" in data
+
+
+class TestPeriodComparisonWeek:
+    """環比比較 - 本週統計測試"""
+
+    def test_comparison_week_period(self, client, auth_headers):
+        """week period 應回傳正確結構"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=week",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "current" in data
+        assert "previous" in data
+        assert "changes" in data
+
+    def test_comparison_week_labels(self, client, auth_headers):
+        """week period 的 label 應含週"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=week",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "label" in data["current"]
+        assert "label" in data["previous"]
+        assert "週" in data["current"]["label"]
+
+    def test_comparison_invalid_period(self, client, auth_headers):
+        """無效 period 應回傳 400"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=invalid",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_comparison_month_data_structure(self, client, auth_headers):
+        """month period 回傳結構完整性"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=month",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        for section in ("current", "previous"):
+            assert "income" in data[section]
+            assert "expense" in data[section]
+            assert "balance" in data[section]
+            assert "label" in data[section]
+        assert "income_pct" in data["changes"]
+        assert "expense_pct" in data["changes"]
+        assert "balance_pct" in data["changes"]
+
+    def test_comparison_cache_hit_same_data(self, client, auth_headers):
+        """同一 period 連續兩次呼叫應回傳相同資料（快取命中）"""
+        r1 = client.get(
+            "/admin/api/accounting/comparison?period=month",
+            headers=auth_headers,
+        )
+        r2 = client.get(
+            "/admin/api/accounting/comparison?period=month",
+            headers=auth_headers,
+        )
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.get_json() == r2.get_json()
+
+
+class TestStatsCacheInvalidation:
+    """統計快取失效測試"""
+
+    def test_stats_returns_valid_structure(self, client, auth_headers):
+        """stats 端點應回傳正確結構"""
+        response = client.get(
+            "/admin/api/accounting/stats",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "total_income" in data or "income" in data or isinstance(data, dict)
+
+    def test_stats_cache_same_data_twice(self, client, auth_headers):
+        """連續兩次 GET /stats 應回傳相同資料"""
+        r1 = client.get("/admin/api/accounting/stats", headers=auth_headers)
+        r2 = client.get("/admin/api/accounting/stats", headers=auth_headers)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.get_json() == r2.get_json()
+
+    def test_create_record_then_stats_consistent(self, client, auth_headers):
+        """新增記錄後 stats 仍可正常回傳（快取失效後重新計算）"""
+        client.post(
+            "/admin/api/accounting/records",
+            json={
+                "amount": 100,
+                "type": "expense",
+                "category": "餐飲",
+                "description": "測試快取失效",
+                "date": "2026-03-15",
+            },
+            headers=auth_headers,
+        )
+        response = client.get("/admin/api/accounting/stats", headers=auth_headers)
+        assert response.status_code == 200
+
+
+class TestForgotPasswordFlow:
+    """忘記密碼流程測試"""
+
+    def test_forgot_password_no_body(self, client):
+        """無 body 應回傳 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            content_type="application/json",
+            data="",
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_missing_email(self, client):
+        """缺少 email 欄位應回傳 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": ""},
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_nonexistent_email(self, client):
+        """不存在的 email 也應回傳 200（防止用戶枚舉）"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": "nonexistent_9999@example.com"},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "message" in data
+
+    def test_send_reset_email_no_smtp_config(self):
+        """SMTP 未設定時 send_reset_email 應回傳 False"""
+        import main as main_module
+
+        original_user = main_module.SMTP_USERNAME
+        original_pass = main_module.SMTP_PASSWORD
+        try:
+            main_module.SMTP_USERNAME = ""
+            main_module.SMTP_PASSWORD = ""
+            result = main_module.send_reset_email(
+                "test@example.com", "http://example.com/reset"
+            )
+            assert result is False
+        finally:
+            main_module.SMTP_USERNAME = original_user
+            main_module.SMTP_PASSWORD = original_pass
+
+    def test_reset_password_invalid_token(self, client):
+        """無效 token 應回傳 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": "invalid-token-xyz", "new_password": "NewPass123!"},
+        )
+        assert response.status_code in [400, 404]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

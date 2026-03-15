@@ -6,6 +6,28 @@
 
 ---
 
+## [1.7.1] - 2026-03-15
+
+### ✨ Added
+- 分析頁新增「本週」期間比較（`week` period）
+- 記錄搜尋支援關鍵字搜尋（`search` 參數，比對 `description` 欄位）
+- 記錄搜尋支援自訂排序（`sort_by` / `sort_order` 參數）
+- 記錄列表顯示總筆數（分頁回應新增 `total`、`total_pages` 欄位）
+
+### 🔄 Changed
+- 記錄篩選 UI 重構為主列 + 進階搜尋折疊面板
+- 類型篩選改為多選 checkbox（收入/支出），改動立即觸發查詢
+- 分類篩選 Modal 加入大分類 Tab 層級切換（類似記帳新增表單）
+- 排序合併為單一下拉選單（日期↓/↑、金額↓/↑），切換立即重排
+- service-worker 版本升至 v1.7.1
+
+### 🧪 Tests
+- 新增 TestRecordsSearch（7）、TestPeriodComparisonWeek（5）、TestStatsCacheInvalidation（3）等測試套件
+- 新增 TestChangePassword（6）、TestForgotResetPasswordFlow（6）認證測試
+- 測試覆蓋率從 80.33% 提升至 85.03%（共 290 個測試）
+
+---
+
 ## [1.6.4] - 2026-03-15
 
 ### Security
