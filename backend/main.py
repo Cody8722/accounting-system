@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from flask_compress import Compress
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import jwt as pyjwt
@@ -59,6 +60,17 @@ app = Flask(__name__)
 # 設定最大請求大小 (16MB)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
+# ==================== gzip 壓縮 ====================
+app.config["COMPRESS_MIMETYPES"] = [
+    "application/json",
+    "text/html",
+    "text/css",
+    "application/javascript",
+]
+app.config["COMPRESS_LEVEL"] = 6  # 平衡壓縮率與 CPU（1-9）
+app.config["COMPRESS_MIN_SIZE"] = 500  # 小於 500 bytes 不壓縮
+Compress(app)
+
 # CORS 設定 - 限制來源
 FRONTEND_URLS = os.getenv(
     "FRONTEND_URLS", "http://localhost:8080,https://accounting-system.zeabur.app"
@@ -72,6 +84,32 @@ CORS(
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 )
+
+
+# ==================== 簡易 TTL 快取（stats / comparison 端點） ====================
+_stats_cache: Dict[str, Any] = {}
+STATS_CACHE_TTL = 300  # 5 分鐘
+
+
+def _cache_key(*args: Any) -> str:
+    return ":".join(str(a) for a in args)
+
+
+def _cache_get(key: str) -> Optional[Any]:
+    entry = _stats_cache.get(key)
+    if entry and time.time() - entry["ts"] < STATS_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def _cache_set(key: str, data: Any) -> None:
+    _stats_cache[key] = {"data": data, "ts": time.time()}
+
+
+def _cache_invalidate_user(user_id: str) -> None:
+    """寫入操作後清除該用戶所有快取"""
+    for k in [k for k in list(_stats_cache.keys()) if k.startswith(f"{user_id}:")]:
+        _stats_cache.pop(k, None)
 
 
 # 安全 headers
@@ -256,6 +294,14 @@ if MONGO_URI:
             )
             accounting_records_collection.create_index(
                 [("user_id", ASCENDING), ("date", ASCENDING)], background=True
+            )
+            accounting_records_collection.create_index(
+                [("user_id", ASCENDING), ("type", ASCENDING), ("date", ASCENDING)],
+                background=True,
+            )
+            accounting_records_collection.create_index(
+                [("user_id", ASCENDING), ("category", ASCENDING), ("date", ASCENDING)],
+                background=True,
             )
 
             # 預算索引（更新為複合唯一索引）
@@ -581,6 +627,7 @@ def add_accounting_record():
         record["user_id"] = ObjectId(request.user_id)
 
         result = accounting_records_collection.insert_one(record)
+        _cache_invalidate_user(request.user_id)
         logger.info(f"新增記帳記錄: {result.inserted_id} (user: {request.email})")
         return (
             jsonify({"message": "記帳記錄已新增", "id": str(result.inserted_id)}),
@@ -671,6 +718,7 @@ def update_accounting_record(record_id):
         if result.matched_count == 0:
             return jsonify({"error": "找不到該記錄"}), 404
 
+        _cache_invalidate_user(request.user_id)
         logger.info(f"更新記帳記錄: {record_id} (user: {request.email})")
         return jsonify({"message": "記帳記錄已更新"}), 200
     except Exception as e:
@@ -702,6 +750,7 @@ def delete_accounting_record(record_id):
         if result.deleted_count == 0:
             return jsonify({"error": "找不到該記錄或無權限刪除"}), 404
 
+        _cache_invalidate_user(request.user_id)
         logger.info(f"刪除記帳記錄: {record_id} (user: {request.email})")
         return jsonify({"message": "記帳記錄已刪除"}), 200
     except Exception as e:
@@ -721,6 +770,12 @@ def get_accounting_stats():
         # 獲取日期範圍參數
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
+
+        # 快取命中檢查
+        ck = _cache_key(request.user_id, "stats", start_date or "", end_date or "")
+        cached = _cache_get(ck)
+        if cached is not None:
+            return jsonify(cached), 200
 
         query = {}
 
@@ -759,17 +814,14 @@ def get_accounting_stats():
             accounting_records_collection.aggregate(category_pipeline)
         )
 
-        return (
-            jsonify(
-                {
-                    "total_income": total_income,
-                    "total_expense": total_expense,
-                    "balance": total_income - total_expense,
-                    "category_stats": category_stats,
-                }
-            ),
-            200,
-        )
+        result = {
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "balance": total_income - total_expense,
+            "category_stats": category_stats,
+        }
+        _cache_set(ck, result)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"取得統計資料失敗: {e}")
         return jsonify({"error": "取得統計資料失敗"}), 500
@@ -1078,7 +1130,13 @@ def get_period_comparison():
         if period not in ("month", "quarter", "year"):
             return jsonify({"error": "period 必須為 month、quarter 或 year"}), 400
 
+        # 快取命中檢查（以當天為單位，key 含日期確保跨天失效）
         now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        ck = _cache_key(request.user_id, "comparison", period, today)
+        cached = _cache_get(ck)
+        if cached is not None:
+            return jsonify(cached), 200
 
         if period == "month":
             cur_start = datetime(now.year, now.month, 1)
@@ -1143,20 +1201,17 @@ def get_period_comparison():
                 return None
             return round((cur_val - prev_val) / prev_val * 100, 1)
 
-        return (
-            jsonify(
-                {
-                    "current": {**cur, "label": cur_label},
-                    "previous": {**prev, "label": prev_label},
-                    "changes": {
-                        "income_pct": pct_change(cur["income"], prev["income"]),
-                        "expense_pct": pct_change(cur["expense"], prev["expense"]),
-                        "balance_pct": pct_change(cur["balance"], prev["balance"]),
-                    },
-                }
-            ),
-            200,
-        )
+        result = {
+            "current": {**cur, "label": cur_label},
+            "previous": {**prev, "label": prev_label},
+            "changes": {
+                "income_pct": pct_change(cur["income"], prev["income"]),
+                "expense_pct": pct_change(cur["expense"], prev["expense"]),
+                "balance_pct": pct_change(cur["balance"], prev["balance"]),
+            },
+        }
+        _cache_set(ck, result)
+        return jsonify(result), 200
 
     except Exception as e:
         logger.error(f"取得環比資料失敗: {e}")
