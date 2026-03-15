@@ -18,6 +18,11 @@
 
 如需破壞性變更，必須先與使用者確認並在 CHANGELOG.md 標注為 Breaking Change。
 
+## Commit 頻率
+
+- 每約 5 個相關變更，或一個功能階段完成後才 commit
+- 不要每改一個檔案就 commit 一次，保持 git history 乾淨
+
 ## 每次 commit 前必須執行
 
 修改任何後端或前端程式碼後，commit 前須確認以下全部通過：

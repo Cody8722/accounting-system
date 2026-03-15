@@ -1274,5 +1274,103 @@ class TestForgotPasswordFlow:
         assert response.status_code in [400, 404]
 
 
+class TestImportExportJSON:
+    """JSON 備份匯出與匯入測試"""
+
+    def test_export_json_format(self, client, auth_headers):
+        """JSON 備份應回傳正確格式"""
+        response = client.get(
+            "/admin/api/accounting/export?format=json",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "version" in data
+        assert "exported_at" in data
+        assert "count" in data
+        assert "records" in data
+        assert isinstance(data["records"], list)
+
+    def test_import_valid_records(self, client, auth_headers):
+        """匯入合法記錄應回傳 imported 筆數"""
+        payload = {
+            "records": [
+                {
+                    "type": "expense",
+                    "amount": 150,
+                    "category": "午餐",
+                    "date": "2024-01-15",
+                    "description": "測試匯入",
+                    "expense_type": "variable",
+                }
+            ]
+        }
+        response = client.post(
+            "/admin/api/accounting/import",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "imported" in data
+        assert "duplicates" in data
+        assert "invalid" in data
+        assert "total" in data
+        assert data["total"] == 1
+
+    def test_import_duplicate_skipped(self, client, auth_headers):
+        """重複記錄應被略過"""
+        payload = {
+            "records": [
+                {
+                    "type": "expense",
+                    "amount": 999,
+                    "category": "午餐",
+                    "date": "2024-02-01",
+                    "description": "去重測試",
+                    "expense_type": "",
+                }
+            ]
+        }
+        # 第一次匯入
+        client.post("/admin/api/accounting/import", json=payload, headers=auth_headers)
+        # 第二次匯入相同資料
+        response = client.post(
+            "/admin/api/accounting/import",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["duplicates"] == 1
+        assert data["imported"] == 0
+
+    def test_import_invalid_records_skipped(self, client, auth_headers):
+        """不合法記錄應被略過"""
+        payload = {
+            "records": [
+                {"type": "invalid", "amount": -100, "category": "", "date": "bad-date"},
+            ]
+        }
+        response = client.post(
+            "/admin/api/accounting/import",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["invalid"] == 1
+        assert data["imported"] == 0
+
+    def test_import_missing_records_field(self, client, auth_headers):
+        """缺少 records 欄位應回傳 400"""
+        response = client.post(
+            "/admin/api/accounting/import",
+            json={"data": []},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

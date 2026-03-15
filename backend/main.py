@@ -944,7 +944,7 @@ def export_accounting_records():
         end_date = request.args.get("end_date")
         record_type = request.args.get("type")
         export_format = request.args.get("format", "csv")
-        if export_format not in ("csv", "xlsx"):
+        if export_format not in ("csv", "xlsx", "json"):
             export_format = "csv"
 
         # 建立查詢條件
@@ -953,49 +953,74 @@ def export_accounting_records():
         # 用戶數據隔離：只能匯出自己的記錄
         query["user_id"] = ObjectId(request.user_id)
 
-        # 日期範圍過濾
-        if start_date and end_date:
-            valid_start, _ = validate_date(start_date)
-            valid_end, _ = validate_date(end_date)
-            if valid_start and valid_end:
-                query["date"] = {"$gte": start_date, "$lte": end_date}
+        # JSON 備份匯出全部資料，不套用篩選
+        if export_format != "json":
+            # 日期範圍過濾
+            if start_date and end_date:
+                valid_start, _ = validate_date(start_date)
+                valid_end, _ = validate_date(end_date)
+                if valid_start and valid_end:
+                    query["date"] = {"$gte": start_date, "$lte": end_date}
 
-        # 記錄類型過濾
-        if record_type:
-            valid, _ = validate_record_type(record_type)
-            if valid:
-                query["type"] = record_type
+            # 記錄類型過濾
+            if record_type:
+                valid, _ = validate_record_type(record_type)
+                if valid:
+                    query["type"] = record_type
 
         # 共用欄位定義
         headers = ["日期", "類型", "分類", "金額", "描述", "支出類型"]
 
-        # 讀取記錄並轉換
-        rows = []
-        for record in accounting_records_collection.find(query).sort("date", -1):
-            type_zh = "收入" if record.get("type") == "income" else "支出"
-            expense_type = record.get("expense_type", "")
-            expense_type_zh = {"fixed": "固定支出", "variable": "變動支出", "onetime": "一次性支出"}.get(expense_type, "")
-            rows.append([
-                record.get("date", ""),
-                type_zh,
-                record.get("category", ""),
-                record.get("amount", 0),
-                record.get("description", ""),
-                expense_type_zh,
-            ])
-
-        record_count = len(rows)
+        # 讀取記錄
+        raw_records = list(accounting_records_collection.find(query).sort("date", -1))
+        record_count = len(raw_records)
 
         # 準備檔案名稱（不含副檔名）
-        filename_base = "記帳記錄"
-        if start_date and end_date:
+        filename_base = "記帳備份" if export_format == "json" else "記帳記錄"
+        if export_format != "json" and start_date and end_date:
             filename_base += f"_{start_date}_至_{end_date}"
         else:
             filename_base += f"_{datetime.now().strftime('%Y%m%d')}"
 
         from urllib.parse import quote
 
-        if export_format == "xlsx":
+        if export_format == "json":
+            # 建立 JSON 備份
+            backup_records = []
+            for record in raw_records:
+                backup_records.append({
+                    "type": record.get("type", ""),
+                    "amount": record.get("amount", 0),
+                    "category": record.get("category", ""),
+                    "date": record.get("date", ""),
+                    "description": record.get("description", ""),
+                    "expense_type": record.get("expense_type", ""),
+                })
+            backup_data = {
+                "version": "1.0",
+                "exported_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "count": record_count,
+                "records": backup_records,
+            }
+            filename = filename_base + ".json"
+            response = Response(
+                json.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8"),
+                mimetype="application/json",
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"backup.json\"; filename*=UTF-8''{quote(filename)}",
+                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Expose-Headers": "Content-Disposition",
+                },
+            )
+        elif export_format == "xlsx":
+            # 轉換為列資料
+            rows = []
+            for record in raw_records:
+                type_zh = "收入" if record.get("type") == "income" else "支出"
+                expense_type_zh = {"fixed": "固定支出", "variable": "變動支出", "onetime": "一次性支出"}.get(record.get("expense_type", ""), "")
+                rows.append([record.get("date", ""), type_zh, record.get("category", ""), record.get("amount", 0), record.get("description", ""), expense_type_zh])
+
             # 建立 Excel
             wb = openpyxl.Workbook()
             ws = wb.active
@@ -1037,10 +1062,17 @@ def export_accounting_records():
                     "Content-Disposition": f"attachment; filename=\"records.xlsx\"; filename*=UTF-8''{quote(filename)}",
                     "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
                     "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Expose-Headers": "Content-Disposition",
                 },
             )
         else:
             # 建立 CSV（原有邏輯）
+            rows = []
+            for record in raw_records:
+                type_zh = "收入" if record.get("type") == "income" else "支出"
+                expense_type_zh = {"fixed": "固定支出", "variable": "變動支出", "onetime": "一次性支出"}.get(record.get("expense_type", ""), "")
+                rows.append([record.get("date", ""), type_zh, record.get("category", ""), record.get("amount", 0), record.get("description", ""), expense_type_zh])
+
             output = StringIO()
             writer = csv.writer(output)
             writer.writerow(headers)
@@ -1059,6 +1091,7 @@ def export_accounting_records():
                     "Content-Type": "text/csv; charset=utf-8-sig",
                     "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
                     "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Expose-Headers": "Content-Disposition",
                 },
             )
 
@@ -1068,6 +1101,86 @@ def export_accounting_records():
     except Exception as e:
         logger.error(f"匯出記帳記錄失敗: {e}")
         return jsonify({"error": "匯出失敗"}), 500
+
+
+@app.route("/admin/api/accounting/import", methods=["POST"])
+@limiter.limit("5 per hour")
+@require_auth
+def import_accounting_records():
+    """
+    從 JSON 備份檔匯入記帳記錄
+
+    Body: { "records": [...] }
+
+    Returns:
+        { "imported": N, "duplicates": D, "invalid": I, "total": T }
+    """
+    if accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    try:
+        data = request.get_json()
+        if not data or "records" not in data or not isinstance(data["records"], list):
+            return jsonify({"error": "格式錯誤：需要包含 records 陣列"}), 400
+
+        user_oid = ObjectId(request.user_id)
+        imported = 0
+        duplicates = 0
+        invalid = 0
+
+        for item in data["records"]:
+            # 驗證必要欄位
+            record_type = item.get("type", "")
+            amount = item.get("amount")
+            category = item.get("category", "")
+            date = item.get("date", "")
+
+            valid_type, _ = validate_record_type(record_type)
+            valid_amount, _ = validate_amount(amount)
+            valid_date, _ = validate_date(date)
+            valid_category, _ = validate_category(str(category) if category else "")
+
+            if not (valid_type and valid_amount and valid_date and valid_category):
+                invalid += 1
+                continue
+
+            description = str(item.get("description", "")).strip()[:500]
+            expense_type = item.get("expense_type", "")
+            if expense_type not in ("fixed", "variable", "onetime"):
+                expense_type = ""
+
+            # 去重：比對 (user_id, date, type, amount, category, description)
+            existing = accounting_records_collection.find_one({
+                "user_id": user_oid,
+                "date": date,
+                "type": record_type,
+                "amount": float(amount),
+                "category": category,
+                "description": description,
+            })
+            if existing:
+                duplicates += 1
+                continue
+
+            accounting_records_collection.insert_one({
+                "user_id": user_oid,
+                "type": record_type,
+                "amount": float(amount),
+                "category": category,
+                "date": date,
+                "description": description,
+                "expense_type": expense_type,
+                "created_at": datetime.now(),
+            })
+            imported += 1
+
+        total = imported + duplicates + invalid
+        logger.info(f"匯入記帳記錄: 新增={imported}, 重複={duplicates}, 無效={invalid} (user: {request.email})")
+        return jsonify({"imported": imported, "duplicates": duplicates, "invalid": invalid, "total": total}), 200
+
+    except Exception as e:
+        logger.error(f"匯入記帳記錄失敗: {e}")
+        return jsonify({"error": "匯入失敗"}), 500
 
 
 @app.route("/admin/api/accounting/trends", methods=["GET"])
