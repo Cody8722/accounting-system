@@ -295,14 +295,14 @@ function renderPagination() {
             <button
                 onclick="window._recordsGoPage(${currentPage - 1})"
                 ${currentPage <= 1 ? 'disabled' : ''}
-                class="px-3 py-1 rounded border text-sm ${currentPage <= 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-purple-600 border-purple-400 hover:bg-purple-50'}">
+                class="px-4 py-2 min-w-[88px] rounded-lg border text-sm font-medium ${currentPage <= 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed bg-gray-50' : 'text-purple-600 border-purple-400 hover:bg-purple-50 active:bg-purple-100'}">
                 ← 上一頁
             </button>
-            <span class="text-sm text-gray-600">第 ${currentPage} 頁，共 ${totalPages} 頁</span>
+            <span class="text-sm text-gray-500">第 ${currentPage} / ${totalPages} 頁</span>
             <button
                 onclick="window._recordsGoPage(${currentPage + 1})"
                 ${currentPage >= totalPages ? 'disabled' : ''}
-                class="px-3 py-1 rounded border text-sm ${currentPage >= totalPages ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-purple-600 border-purple-400 hover:bg-purple-50'}">
+                class="px-4 py-2 min-w-[88px] rounded-lg border text-sm font-medium ${currentPage >= totalPages ? 'text-gray-400 border-gray-200 cursor-not-allowed bg-gray-50' : 'text-purple-600 border-purple-400 hover:bg-purple-50 active:bg-purple-100'}">
                 下一頁 →
             </button>
         </div>
@@ -384,14 +384,14 @@ function renderRecords(records) {
                         <i class="fas fa-trash"></i>刪除
                     </button>
                 </div>
-                <div class="record-card flex items-center justify-between p-4 bg-gray-50 rounded-lg transition" data-record-id="${record._id.$oid}" data-type="${record.type}" data-amount="${record.amount}">
+                <div class="record-card flex items-center justify-between p-4 bg-white border border-gray-100 shadow-sm rounded-xl transition border-l-4 ${record.type === 'income' ? 'border-l-green-500' : 'border-l-red-400'}" data-record-id="${record._id.$oid}" data-type="${record.type}" data-amount="${record.amount}">
                     <div class="flex-1">
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl ${typeClass}">${typeIcon}</span>
-                            <div>
-                                <p class="font-medium ${typeClass}">$${record.amount.toFixed(2)}</p>
-                                <p class="text-sm text-gray-800 font-medium">${escapedCategory}${escapedDescription ? '<span class="text-gray-700 font-normal"> - ' + escapedDescription + '</span>' : ''}</p>
-                                <p class="text-xs text-gray-700"><i class="fas fa-calendar mr-1"></i>${record.date}${expenseTypeBadge}</p>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl ${typeClass}">${typeIcon}</span>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-base ${typeClass}">$${record.amount.toFixed(2)}</p>
+                                <p class="text-sm text-gray-800 font-medium truncate">${escapedCategory}${escapedDescription ? '<span class="text-gray-500 font-normal"> · ' + escapedDescription + '</span>' : ''}</p>
+                                <p class="text-xs text-gray-400 mt-0.5"><i class="fas fa-calendar-alt mr-1"></i>${record.date}${expenseTypeBadge}</p>
                             </div>
                         </div>
                     </div>
