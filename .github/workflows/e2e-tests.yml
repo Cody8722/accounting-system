@@ -2,7 +2,7 @@ name: E2E Tests
 
 on:
   push:
-    branches: [main, develop, claude/**]
+    branches: [develop, release]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
@@ -229,7 +229,7 @@ jobs:
     name: E2E Tests (Firefox)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/release'
 
     services:
       mongodb:
