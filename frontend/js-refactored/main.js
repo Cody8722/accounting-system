@@ -37,6 +37,7 @@ import { initPWA, showIOSInstallPrompt, showAndroidInstallPrompt } from './pwa.j
 import { initAnalytics } from './analytics.js';
 import { initRecurring } from './recurring.js';
 import { initTheme } from './theme.js';
+import { initDebts } from './debts.js';
 
 /**
  * 認證狀態標記
@@ -71,6 +72,7 @@ function initializeModules() {
     initAnalytics();
     initRecurring();
     initTheme();
+    initDebts();
 
     // 4. 初始化 UI 組件
     initializeUIComponents();

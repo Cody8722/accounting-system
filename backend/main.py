@@ -255,6 +255,7 @@ accounting_records_collection = None
 accounting_budget_collection = None
 users_collection = None  # 新增：用戶集合
 recurring_collection = None  # 定期支出集合
+debts_collection = None  # 欠款追蹤集合
 
 if MONGO_URI:
     try:
@@ -278,6 +279,7 @@ if MONGO_URI:
         accounting_budget_collection = accounting_db["budget"]
         users_collection = accounting_db["users"]  # 新增：用戶集合
         recurring_collection = accounting_db["recurring"]  # 定期支出集合
+        debts_collection = accounting_db["debts"]  # 欠款追蹤集合
 
         # 建立索引以優化查詢效能（背景執行避免阻塞）
         try:
@@ -331,6 +333,15 @@ if MONGO_URI:
             recurring_collection.create_index(
                 [("user_id", ASCENDING), ("day_of_month", ASCENDING)],
                 background=True,
+            )
+
+            # 欠款追蹤索引
+            debts_collection.create_index([("user_id", ASCENDING)], background=True)
+            debts_collection.create_index(
+                [("user_id", ASCENDING), ("debt_type", ASCENDING)], background=True
+            )
+            debts_collection.create_index(
+                [("user_id", ASCENDING), ("is_settled", ASCENDING)], background=True
             )
 
             logger.info("✅ 資料庫索引已建立（背景執行）")
@@ -1630,6 +1641,343 @@ def apply_recurring(item_id):
     except Exception as e:
         logger.error(f"套用定期支出失敗: {e}")
         return jsonify({"error": "套用失敗"}), 500
+
+
+# ==================== 欠款追蹤 ====================
+
+
+@app.route("/admin/api/debts", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_debts():
+    """列出所有欠款記錄"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    try:
+        user_oid = ObjectId(request.user_id)
+        query = {"user_id": user_oid}
+
+        debt_type = request.args.get("type")
+        if debt_type in ("lent", "borrowed", "group"):
+            query["debt_type"] = debt_type
+
+        show_settled = request.args.get("show_settled", "false").lower() == "true"
+        if not show_settled:
+            query["is_settled"] = {"$ne": True}
+
+        items = list(debts_collection.find(query).sort("created_at", -1))
+        return json.loads(json_util.dumps(items)), 200
+    except Exception as e:
+        logger.error(f"取得欠款列表失敗: {e}")
+        return jsonify({"error": "取得欠款失敗"}), 500
+
+
+@app.route("/admin/api/debts", methods=["POST"])
+@limiter.limit("50 per minute")
+@require_auth
+def create_debt():
+    """新增欠款記錄"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        debt_type = data.get("debt_type")
+        if debt_type not in ("lent", "borrowed", "group"):
+            return jsonify({"error": "debt_type 必須為 lent/borrowed/group"}), 400
+
+        user_oid = ObjectId(request.user_id)
+        now = datetime.now()
+
+        if debt_type == "group":
+            # 群組分帳
+            if not data.get("title"):
+                return jsonify({"error": "請輸入群組名稱"}), 400
+            try:
+                total_amount = float(data.get("total_amount", 0))
+                if total_amount <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                return jsonify({"error": "請輸入有效金額"}), 400
+
+            members = data.get("members", [])
+            if not members:
+                return jsonify({"error": "請至少新增一位成員"}), 400
+
+            doc = {
+                "user_id": user_oid,
+                "debt_type": "group",
+                "title": str(data["title"])[:100],
+                "total_amount": total_amount,
+                "date": data.get("date", now.strftime("%Y-%m-%d")),
+                "reason": str(data.get("reason", ""))[:200],
+                "members": [
+                    {
+                        "name": str(m.get("name", ""))[:50],
+                        "share": float(m.get("share", 0)),
+                        "paid": bool(m.get("paid", False)),
+                    }
+                    for m in members
+                ],
+                "is_settled": False,
+                "created_at": now,
+            }
+        else:
+            # 個人欠款 (lent/borrowed)
+            if not data.get("person"):
+                return jsonify({"error": "請輸入對象姓名"}), 400
+            try:
+                amount = float(data.get("amount", 0))
+                if amount <= 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                return jsonify({"error": "請輸入有效金額"}), 400
+
+            doc = {
+                "user_id": user_oid,
+                "debt_type": debt_type,
+                "person": str(data["person"])[:50],
+                "amount": amount,
+                "reason": str(data.get("reason", ""))[:200],
+                "date": data.get("date", now.strftime("%Y-%m-%d")),
+                "paid_amount": 0.0,
+                "is_settled": False,
+                "repayments": [],
+                "created_at": now,
+            }
+
+        result = debts_collection.insert_one(doc)
+        logger.info(f"新增欠款記錄 (type={debt_type}, user: {request.email})")
+        return jsonify({"id": str(result.inserted_id), "message": "欠款記錄已新增"}), 201
+    except Exception as e:
+        logger.error(f"新增欠款失敗: {e}")
+        return jsonify({"error": "新增欠款失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_single_debt(debt_id):
+    """取得單筆欠款記錄"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        item = debts_collection.find_one(
+            {"_id": ObjectId(debt_id), "user_id": ObjectId(request.user_id)}
+        )
+        if not item:
+            return jsonify({"error": "找不到該記錄或無權限存取"}), 404
+        return json.loads(json_util.dumps(item)), 200
+    except Exception as e:
+        logger.error(f"取得單筆欠款失敗: {e}")
+        return jsonify({"error": "取得欠款失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>", methods=["PUT"])
+@limiter.limit("50 per minute")
+@require_auth
+def update_debt(debt_id):
+    """更新欠款記錄"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        user_oid = ObjectId(request.user_id)
+        existing = debts_collection.find_one(
+            {"_id": ObjectId(debt_id), "user_id": user_oid}
+        )
+        if not existing:
+            return jsonify({"error": "找不到該記錄或無權限修改"}), 404
+
+        update_fields = {}
+        debt_type = existing["debt_type"]
+
+        if debt_type == "group":
+            if "title" in data:
+                update_fields["title"] = str(data["title"])[:100]
+            if "total_amount" in data:
+                update_fields["total_amount"] = float(data["total_amount"])
+            if "reason" in data:
+                update_fields["reason"] = str(data["reason"])[:200]
+            if "date" in data:
+                update_fields["date"] = data["date"]
+            if "members" in data:
+                update_fields["members"] = [
+                    {
+                        "name": str(m.get("name", ""))[:50],
+                        "share": float(m.get("share", 0)),
+                        "paid": bool(m.get("paid", False)),
+                    }
+                    for m in data["members"]
+                ]
+        else:
+            if "person" in data:
+                update_fields["person"] = str(data["person"])[:50]
+            if "amount" in data:
+                update_fields["amount"] = float(data["amount"])
+            if "reason" in data:
+                update_fields["reason"] = str(data["reason"])[:200]
+            if "date" in data:
+                update_fields["date"] = data["date"]
+
+        if not update_fields:
+            return jsonify({"error": "沒有可更新的欄位"}), 400
+
+        debts_collection.update_one(
+            {"_id": ObjectId(debt_id)}, {"$set": update_fields}
+        )
+        logger.info(f"更新欠款記錄 {debt_id} (user: {request.email})")
+        return jsonify({"message": "欠款記錄已更新"}), 200
+    except Exception as e:
+        logger.error(f"更新欠款失敗: {e}")
+        return jsonify({"error": "更新欠款失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>", methods=["DELETE"])
+@limiter.limit("50 per minute")
+@require_auth
+def delete_debt(debt_id):
+    """刪除欠款記錄"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        result = debts_collection.delete_one(
+            {"_id": ObjectId(debt_id), "user_id": ObjectId(request.user_id)}
+        )
+        if result.deleted_count == 0:
+            return jsonify({"error": "找不到該記錄或無權限刪除"}), 404
+        logger.info(f"刪除欠款記錄 {debt_id} (user: {request.email})")
+        return jsonify({"message": "欠款記錄已刪除"}), 200
+    except Exception as e:
+        logger.error(f"刪除欠款失敗: {e}")
+        return jsonify({"error": "刪除欠款失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>/repay", methods=["POST"])
+@limiter.limit("50 per minute")
+@require_auth
+def add_repayment(debt_id):
+    """新增還款記錄"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        try:
+            repay_amount = float(data.get("amount", 0))
+            if repay_amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return jsonify({"error": "請輸入有效還款金額"}), 400
+
+        user_oid = ObjectId(request.user_id)
+        existing = debts_collection.find_one(
+            {"_id": ObjectId(debt_id), "user_id": user_oid}
+        )
+        if not existing:
+            return jsonify({"error": "找不到該記錄或無權限操作"}), 404
+        if existing.get("debt_type") == "group":
+            return jsonify({"error": "群組分帳請使用成員付款功能"}), 400
+
+        repayment = {
+            "amount": repay_amount,
+            "date": data.get("date", datetime.now().strftime("%Y-%m-%d")),
+            "note": str(data.get("note", ""))[:100],
+        }
+        new_paid = existing.get("paid_amount", 0) + repay_amount
+        is_settled = new_paid >= existing["amount"]
+
+        debts_collection.update_one(
+            {"_id": ObjectId(debt_id)},
+            {
+                "$push": {"repayments": repayment},
+                "$set": {"paid_amount": new_paid, "is_settled": is_settled},
+            },
+        )
+        logger.info(f"新增還款 {repay_amount} 到欠款 {debt_id} (user: {request.email})")
+        return jsonify({"message": "還款記錄已新增", "is_settled": is_settled}), 200
+    except Exception as e:
+        logger.error(f"新增還款失敗: {e}")
+        return jsonify({"error": "新增還款失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>/settle", methods=["POST"])
+@limiter.limit("50 per minute")
+@require_auth
+def toggle_settle_debt(debt_id):
+    """切換欠款結清狀態"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        user_oid = ObjectId(request.user_id)
+        existing = debts_collection.find_one(
+            {"_id": ObjectId(debt_id), "user_id": user_oid}
+        )
+        if not existing:
+            return jsonify({"error": "找不到該記錄或無權限操作"}), 404
+
+        new_settled = not existing.get("is_settled", False)
+        debts_collection.update_one(
+            {"_id": ObjectId(debt_id)}, {"$set": {"is_settled": new_settled}}
+        )
+        logger.info(f"切換欠款結清狀態 {debt_id} → {new_settled} (user: {request.email})")
+        return jsonify({"message": "狀態已更新", "is_settled": new_settled}), 200
+    except Exception as e:
+        logger.error(f"切換結清狀態失敗: {e}")
+        return jsonify({"error": "更新狀態失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>/members/<int:member_idx>/pay", methods=["PUT"])
+@limiter.limit("50 per minute")
+@require_auth
+def toggle_member_pay(debt_id, member_idx):
+    """群組分帳：切換成員已付款狀態"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        user_oid = ObjectId(request.user_id)
+        existing = debts_collection.find_one(
+            {"_id": ObjectId(debt_id), "user_id": user_oid}
+        )
+        if not existing:
+            return jsonify({"error": "找不到該記錄或無權限操作"}), 404
+        if existing.get("debt_type") != "group":
+            return jsonify({"error": "此功能僅適用於群組分帳"}), 400
+
+        members = existing.get("members", [])
+        if member_idx < 0 or member_idx >= len(members):
+            return jsonify({"error": "無效的成員索引"}), 400
+
+        members[member_idx]["paid"] = not members[member_idx].get("paid", False)
+        all_paid = all(m.get("paid", False) for m in members)
+
+        debts_collection.update_one(
+            {"_id": ObjectId(debt_id)},
+            {"$set": {"members": members, "is_settled": all_paid}},
+        )
+        return jsonify({"message": "成員付款狀態已更新", "is_settled": all_paid}), 200
+    except Exception as e:
+        logger.error(f"切換成員付款狀態失敗: {e}")
+        return jsonify({"error": "更新狀態失敗"}), 500
 
 
 # ==================== 系統狀態 ====================

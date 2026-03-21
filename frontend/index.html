@@ -1529,6 +1529,23 @@
             border-radius: 6px;
             -webkit-border-radius: 6px;
         }
+
+        /* 欠款分頁標籤 */
+        .debt-tab {
+            background: #f3f4f6;
+            color: #6b7280;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .debt-tab.active {
+            background: #0d9488;
+            color: white;
+            box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+        }
+        .debt-tab:not(.active):hover {
+            background: #e5e7eb;
+        }
     </style>
 </head>
 <body class="p-0">
@@ -1546,6 +1563,10 @@
         <div class="sidebar-item" data-page="analytics">
             <i class="fas fa-chart-pie"></i>
             <span>分析</span>
+        </div>
+        <div class="sidebar-item" data-page="debts">
+            <i class="fas fa-handshake"></i>
+            <span>欠款</span>
         </div>
         <div class="sidebar-item" data-page="settings">
             <i class="fas fa-cog"></i>
@@ -2401,6 +2422,138 @@
                 <div class="pb-24 sm:pb-6"></div>
             </div>
 
+            <!-- 欠款追蹤頁 -->
+            <div class="page" id="page-debts" data-page="debts">
+                <div class="bg-white p-4 rounded-xl shadow-lg mb-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-xl font-bold flex items-center text-gray-800">
+                            <i class="fas fa-handshake text-2xl mr-2 text-teal-600"></i>欠款追蹤
+                        </h2>
+                        <button onclick="showDebtForm()"
+                            class="px-3 py-1.5 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition font-medium">
+                            ＋ 新增
+                        </button>
+                    </div>
+
+                    <!-- 摘要卡片 -->
+                    <div id="debts-summary"></div>
+
+                    <!-- 分頁標籤 -->
+                    <div class="flex gap-1 mb-3">
+                        <button class="debt-tab active flex-1 py-1.5 text-sm font-medium rounded-lg transition" data-tab="lent" onclick="switchDebtTab('lent')">別人欠我</button>
+                        <button class="debt-tab flex-1 py-1.5 text-sm font-medium rounded-lg transition" data-tab="borrowed" onclick="switchDebtTab('borrowed')">我欠別人</button>
+                        <button class="debt-tab flex-1 py-1.5 text-sm font-medium rounded-lg transition" data-tab="group" onclick="switchDebtTab('group')">群組分帳</button>
+                    </div>
+
+                    <!-- 欠款列表 -->
+                    <div id="debts-list"></div>
+                </div>
+                <div class="pb-24 sm:pb-6"></div>
+
+                <!-- 新增/編輯欠款 Modal -->
+                <div id="debt-form-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+                    <div class="absolute inset-0 bg-black bg-opacity-40" onclick="hideDebtForm()"></div>
+                    <div class="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-5 shadow-xl">
+                        <h3 id="debt-form-title" class="text-lg font-bold text-gray-800 mb-4">新增欠款</h3>
+
+                        <!-- 類型選擇 -->
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">類型</label>
+                            <select id="debt-type" onchange="onDebtTypeChange()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                                <option value="lent">別人欠我</option>
+                                <option value="borrowed">我欠別人</option>
+                                <option value="group">群組分帳</option>
+                            </select>
+                        </div>
+
+                        <!-- 個人欄位 -->
+                        <div id="debt-individual-fields">
+                            <div class="mb-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+                                <input id="debt-person" type="text" placeholder="對方姓名"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                            </div>
+                        </div>
+
+                        <!-- 群組欄位 -->
+                        <div id="debt-group-fields" class="hidden">
+                            <div class="mb-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">群組標題</label>
+                                <input id="debt-title" type="text" placeholder="例：生日聚餐"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                            </div>
+                        </div>
+
+                        <!-- 金額 -->
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">總金額</label>
+                            <input id="debt-amount" type="number" min="0" step="0.01" placeholder="0"
+                                oninput="onDebtAmountChange()"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                        </div>
+
+                        <!-- 群組成員 -->
+                        <div id="debt-group-fields-members" class="hidden mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">成員</label>
+                            <div id="debt-members-list" class="mb-2"></div>
+                            <div class="flex gap-2">
+                                <input id="debt-members-input" type="text" placeholder="輸入成員姓名"
+                                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();addGroupMember();}">
+                                <button onclick="addGroupMember()" class="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition">新增</button>
+                            </div>
+                        </div>
+
+                        <!-- 原因 -->
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">原因</label>
+                            <input id="debt-reason" type="text" placeholder="例：幫忙付餐費"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                        </div>
+
+                        <!-- 日期 -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                            <input id="debt-date" type="date"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                        </div>
+
+                        <!-- 錯誤訊息 -->
+                        <div id="debt-error" class="hidden text-red-500 text-sm mb-3"></div>
+
+                        <!-- 按鈕 -->
+                        <div class="flex gap-2">
+                            <button onclick="hideDebtForm()" class="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition">取消</button>
+                            <button id="debt-submit-btn" onclick="submitDebt()" class="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 transition">新增</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 還款 Modal -->
+                <div id="repay-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+                    <div class="absolute inset-0 bg-black bg-opacity-40" onclick="hideRepayModal()"></div>
+                    <div class="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">記錄還款</h3>
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">還款金額</label>
+                            <input id="repay-amount" type="number" min="0" step="0.01" placeholder="0"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">備註（選填）</label>
+                            <input id="repay-note" type="text" placeholder="例：先還一部分"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                        </div>
+                        <div id="repay-error" class="hidden text-red-500 text-sm mb-3"></div>
+                        <div class="flex gap-2">
+                            <button onclick="hideRepayModal()" class="flex-1 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition">取消</button>
+                            <button onclick="submitRepay()" class="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 transition">確認還款</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 設定頁 -->
             <div class="page" id="page-settings" data-page="settings">
                 <!-- 外觀設定 -->
@@ -2570,6 +2723,10 @@
         <div class="mobile-nav-item" data-page="analytics">
             <i class="fas fa-chart-pie"></i>
             <span>分析</span>
+        </div>
+        <div class="mobile-nav-item" data-page="debts">
+            <i class="fas fa-handshake"></i>
+            <span>欠款</span>
         </div>
         <div class="mobile-nav-item" data-page="settings">
             <i class="fas fa-cog"></i>

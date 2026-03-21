@@ -174,7 +174,12 @@ export const EVENTS = {
     NETWORK_ONLINE: 'network:online',               // 網路連線恢復
     NETWORK_OFFLINE: 'network:offline',             // 網路連線中斷
     NETWORK_SYNC_COMPLETE: 'network:sync-complete', // 離線佇列同步完成
-    NETWORK_SYNC_FAILED: 'network:sync-failed'      // 離線佇列同步失敗
+    NETWORK_SYNC_FAILED: 'network:sync-failed',     // 離線佇列同步失敗
+
+    // ===== 欠款事件 =====
+    DEBT_ADDED: 'debt:added',           // 欠款新增完成
+    DEBT_UPDATED: 'debt:updated',       // 欠款更新完成
+    DEBT_DELETED: 'debt:deleted'        // 欠款刪除完成
 };
 
 // 開發環境下輸出事件列表
