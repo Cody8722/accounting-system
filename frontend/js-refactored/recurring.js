@@ -117,8 +117,8 @@ function renderRecurringList(items) {
             : `<span class="text-xs text-gray-400">每月 ${item.day_of_month} 日</span>`;
 
         return `
-            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <div class="flex-1 min-w-0">
+            <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 sm:flex sm:items-center sm:justify-between">
+                <div class="min-w-0 mb-2 sm:mb-0 sm:flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-semibold text-gray-800 text-sm">${escapeHtml(item.name)}</span>
                         <span class="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">${escapeHtml(item.category)}</span>
@@ -127,20 +127,20 @@ function renderRecurringList(items) {
                     <div class="flex items-center gap-2 mt-0.5">
                         <span class="${typeColor} font-bold text-sm">$${item.amount.toLocaleString()}</span>
                         <span class="text-xs text-gray-400">${typeLabel}</span>
-                        ${item.description ? `<span class="text-xs text-gray-400 truncate max-w-[120px]">${escapeHtml(item.description)}</span>` : ''}
+                        ${item.description ? `<span class="text-xs text-gray-400 truncate">${escapeHtml(item.description)}</span>` : ''}
                     </div>
                 </div>
-                <div class="flex gap-1.5 ml-2 shrink-0">
+                <div class="flex gap-1.5 sm:ml-2 sm:shrink-0">
                     <button onclick="applyRecurring('${item._id}', '${escapeHtml(item.name)}')"
-                        class="px-2.5 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition font-medium">
+                        class="flex-1 sm:flex-none px-2.5 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition font-medium">
                         一鍵記帳
                     </button>
                     <button onclick="editRecurring('${item._id}')"
-                        class="px-2.5 py-1.5 bg-blue-100 text-blue-600 text-xs rounded-lg hover:bg-blue-200 transition font-medium">
+                        class="flex-1 sm:flex-none px-2.5 py-1.5 bg-blue-100 text-blue-600 text-xs rounded-lg hover:bg-blue-200 transition font-medium">
                         編輯
                     </button>
                     <button onclick="deleteRecurring('${item._id}', '${escapeHtml(item.name)}')"
-                        class="px-2.5 py-1.5 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200 transition font-medium">
+                        class="flex-1 sm:flex-none px-2.5 py-1.5 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200 transition font-medium">
                         刪除
                     </button>
                 </div>

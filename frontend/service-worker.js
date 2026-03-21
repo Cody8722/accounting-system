@@ -11,7 +11,7 @@
 //   v1.0.1 → v1.1.0  (新增功能)
 //   v1.1.0 → v2.0.0  (重大更新)
 //
-const CACHE_NAME = 'accounting-system-v1.7.3';  // ← 記得更新這裡！
+const CACHE_NAME = 'accounting-system-v1.7.9';  // ← 記得更新這裡！
 const OFFLINE_QUEUE_NAME = 'offline-queue';
 const FETCH_TIMEOUT = 8000; // 8 seconds timeout for fetch requests
 // JWT Token 有效期為 7 天，API 快取超過此時限後視為過期，不在離線時回傳
@@ -104,6 +104,28 @@ self.addEventListener('fetch', (event) => {
       event.respondWith(
         fetch(new Request(request, { cache: 'no-store' }))
           .catch(() => Response.error())
+      );
+      return;
+    }
+
+    // JS 模塊（/js-refactored/）：Cache First 策略
+    // SW 升版 → activate 清除舊 CACHE_NAME → 下次重新從網路載入
+    // 解決：瀏覽器 HTTP heuristic caching 不受 SW 版本控制的問題
+    if (url.pathname.startsWith('/js-refactored/')) {
+      event.respondWith(
+        caches.match(request).then((cached) => {
+          if (cached) return cached;
+          return fetch(request).then((response) => {
+            if (response.ok) {
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, response.clone());
+              }).catch((err) => {
+                console.warn('Service Worker: JS 快取寫入失敗:', err.name);
+              });
+            }
+            return response;
+          });
+        })
       );
       return;
     }

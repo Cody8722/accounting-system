@@ -20,6 +20,15 @@ export function detectBackendUrl() {
         return 'http://localhost:5001';
     }
 
+    // 區域網路（同 Wi-Fi 手機存取）
+    if (
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.')      ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    ) {
+        return `http://${hostname}:5001`;
+    }
+
     // Zeabur 生產環境
     // 前端: accounting-system.zeabur.app
     // 後端: accounting-system-ghth.zeabur.app
