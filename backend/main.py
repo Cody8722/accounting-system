@@ -576,6 +576,32 @@ def get_accounting_records():
         return jsonify({"error": "查詢記錄失敗"}), 500
 
 
+@app.route("/admin/api/accounting/records/<record_id>", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_single_accounting_record(record_id):
+    """取得單筆記帳記錄"""
+    if accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    if not validate_objectid(record_id):
+        return jsonify({"error": "無效的記錄 ID"}), 400
+
+    try:
+        query = {
+            "_id": ObjectId(record_id),
+            "user_id": ObjectId(request.user_id),
+        }
+        record = accounting_records_collection.find_one(query)
+        if not record:
+            return jsonify({"error": "找不到該記錄或無權限存取"}), 404
+
+        return json.loads(json_util.dumps(record)), 200
+    except Exception as e:
+        logger.error(f"取得單筆記帳記錄失敗: {e}")
+        return jsonify({"error": "取得記錄失敗"}), 500
+
+
 @app.route("/admin/api/accounting/records", methods=["POST"])
 @limiter.limit("50 per minute")
 @require_auth
