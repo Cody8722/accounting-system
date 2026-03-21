@@ -396,9 +396,14 @@ function renderRecords(records) {
                         </div>
                     </div>
                 </div>
-                <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}','${record.type}',${record.amount})">
-                    <i class="fas fa-trash"></i>刪除
-                </button>
+                <div class="record-card-actions">
+                    <button class="record-card-edit-btn" onclick="openEditRecordModal('${record._id.$oid}')">
+                        <i class="fas fa-edit"></i>編輯
+                    </button>
+                    <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}','${record.type}',${record.amount})">
+                        <i class="fas fa-trash"></i>刪除
+                    </button>
+                </div>
             </div>
         `;
     }).join('');

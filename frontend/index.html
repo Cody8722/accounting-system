@@ -1351,37 +1351,53 @@
                 position: relative;
             }
 
-            .record-card-delete-btn {
+            .record-card-actions {
                 position: absolute;
                 right: 12px;
                 top: 50%;
                 transform: translateY(-50%);
-                background: #ef4444;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 6px;
-                border: none;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 600;
-                opacity: 0;
-                transition: opacity 0.2s, background 0.2s;
-                z-index: 10;
                 display: flex;
                 align-items: center;
                 gap: 6px;
+                opacity: 0;
+                transition: opacity 0.2s;
+                z-index: 10;
             }
 
-            .record-item-wrapper:hover .record-card-delete-btn {
+            .record-item-wrapper:hover .record-card-actions {
                 opacity: 1;
+            }
+
+            .record-card-edit-btn,
+            .record-card-delete-btn {
+                padding: 6px 12px;
+                border-radius: 6px;
+                border: none;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                transition: background 0.2s;
+            }
+
+            .record-card-edit-btn {
+                background: #3b82f6;
+                color: white;
+            }
+
+            .record-card-edit-btn:hover {
+                background: #2563eb;
+            }
+
+            .record-card-delete-btn {
+                background: #ef4444;
+                color: white;
             }
 
             .record-card-delete-btn:hover {
                 background: #dc2626;
-            }
-
-            .record-card-delete-btn:active {
-                transform: translateY(-50%) scale(0.95);
             }
         }
 
@@ -1391,8 +1407,8 @@
                 transform: none; /* 禁用 hover 效果，避免干擾滑動 */
             }
 
-            .record-card-delete-btn {
-                display: none !important; /* 手機版隱藏電腦版刪除按鈕 */
+            .record-card-actions {
+                display: none !important; /* 手機版隱藏電腦版按鈕組 */
             }
         }
 
