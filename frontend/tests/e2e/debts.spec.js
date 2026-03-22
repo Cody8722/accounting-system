@@ -132,13 +132,10 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await page.locator('.debt-card:has-text("RepayTest") button:has-text("確認還款")').click();
     await repayResponse;
 
-    // 確認 Toast 出現
+    // 確認 Toast 出現（toast 無 class/id，改用 body.innerText 偵測）
     await page.waitForFunction(
-      () => {
-        const toasts = document.querySelectorAll('[class*="toast"], [id*="toast"]');
-        return Array.from(toasts).some(t => t.textContent.includes('還款'));
-      },
-      { timeout: 8000 }
+      () => document.body.innerText.includes('還款'),
+      { timeout: 5000 }
     );
   });
 
@@ -187,13 +184,10 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await page.locator('.debt-card:has-text("SettleTest") button:has-text("結清")').click();
     await settleResponse;
 
-    // 確認 Toast 出現（含「結清」文字）
+    // 確認 Toast 出現（toast 無 class/id，改用 body.innerText 偵測）
     await page.waitForFunction(
-      () => {
-        const toasts = document.querySelectorAll('[class*="toast"], [id*="toast"]');
-        return Array.from(toasts).some(t => t.textContent.includes('結清'));
-      },
-      { timeout: 8000 }
+      () => document.body.innerText.includes('結清'),
+      { timeout: 5000 }
     );
   });
 
@@ -227,7 +221,7 @@ test.describe('欠款追蹤 E2E 測試', () => {
           headers: { Authorization: `Bearer ${t}` },
         });
       },
-      { debtId: debt._id, t: token }
+      { debtId: debt._id.$oid, t: token }
     );
 
     // reload 後確認卡片重新出現在未結清列表
