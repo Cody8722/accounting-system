@@ -61,18 +61,24 @@ test.describe('欠款追蹤 E2E 測試', () => {
 
   test('分頁切換正確隔離 lent/borrowed', async ({ page }) => {
     await navigateToDebts(page);
-    // 切到 lent tab
+
+    // 確保在 lent tab
     await page.click('.debt-tab[data-tab="lent"]');
     await page.waitForTimeout(500);
 
-    // lent tab 下不應看到 borrowed 的人
-    const lentList = await page.locator('#debt-list-lent .debt-card').count();
-    // borrowed tab 下的卡片不應在 lent list 中
+    // lent tab 下不應看到 borrowed 的人（Bob 是在先前測試建立的 borrowed 卡片）
     const borrowedInLent = await page
-      .locator('#debt-list-lent .debt-card:has-text("Bob")')
+      .locator('#debts-list .debt-card:has-text("Bob")')
       .count();
     expect(borrowedInLent).toBe(0);
-    void lentList; // suppress unused warning
+
+    // 切到 borrowed tab，Alice（lent）不應出現
+    await page.click('.debt-tab[data-tab="borrowed"]');
+    await page.waitForTimeout(500);
+    const lentInBorrowed = await page
+      .locator('#debts-list .debt-card:has-text("Alice")')
+      .count();
+    expect(lentInBorrowed).toBe(0);
   });
 
   // -----------------------------------------------------------------------
@@ -123,7 +129,7 @@ test.describe('欠款追蹤 E2E 測試', () => {
       (r) => r.url().includes('/repay') && r.status() === 200,
       { timeout: 10000 }
     );
-    await page.locator('.debt-card:has-text("RepayTest") button:has-text("還款")').click();
+    await page.locator('.debt-card:has-text("RepayTest") button:has-text("確認還款")').click();
     await repayResponse;
 
     // 確認 Toast 出現
@@ -150,7 +156,7 @@ test.describe('欠款追蹤 E2E 測試', () => {
       (r) => r.url().includes('/repay') && r.status() === 200,
       { timeout: 10000 }
     );
-    await page.locator('.debt-card:has-text("FullRepay") button:has-text("還款")').click();
+    await page.locator('.debt-card:has-text("FullRepay") button:has-text("確認還款")').click();
     await repayResponse;
 
     // 重新整理後已結清欠款不在未結清列表
@@ -204,21 +210,30 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await page.locator('.debt-card:has-text("ToggleSettle") button:has-text("結清")').click();
     await r1;
 
-    // 切到 show_settled=true 視圖，找「取消結清」按鈕
-    // 重新載入看已結清
+    // 結清後 UI 預設不顯示已結清卡片，透過 API 直接取消結清
+    const token = await page.evaluate(() => localStorage.getItem('authToken'));
+    const debts = await page.evaluate(async (t) => {
+      const r = await fetch('/admin/api/debts?show_settled=true', {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      return r.json();
+    }, token);
+    const debt = debts.find((d) => d.person === 'ToggleSettle');
+    // 再呼叫 settle 一次（toggle 回未結清）
+    await page.evaluate(
+      async ({ debtId, t }) => {
+        await fetch(`/admin/api/debts/${debtId}/settle`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${t}` },
+        });
+      },
+      { debtId: debt._id, t: token }
+    );
+
+    // reload 後確認卡片重新出現在未結清列表
     await page.reload({ waitUntil: 'domcontentloaded' });
     await navigateToDebts(page);
-    // 切換顯示已結清
-    await page.click('.debt-tab[data-tab="lent"]');
-
-    // 若有「顯示已結清」切換功能，這裡改用 show_settled 參數會更穩定
-    // 直接透過 API 驗證狀態已改變
-    const overviewResponse = await page.waitForResponse(
-      (r) => r.url().includes('/settle') || r.url().includes('/debts'),
-      { timeout: 5000 }
-    ).catch(() => null);
-    void overviewResponse;
-    // 主要驗證：測試沒有 crash，功能流程完整執行
+    await page.waitForSelector('.debt-card:has-text("ToggleSettle")', { timeout: 8000 });
   });
 
   // -----------------------------------------------------------------------
@@ -266,11 +281,7 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await page.click('.debt-card:has-text("DeleteTest") .p-3.cursor-pointer');
     await page.waitForTimeout(300);
 
-    // 等待確認 dialog
-    page.once('dialog', async (dialog) => {
-      await dialog.accept();
-    });
-
+    // 等待自訂 showConfirm() DOM overlay（非 native dialog）
     const deleteResponse = page.waitForResponse(
       (r) =>
         r.url().includes('/admin/api/debts/') &&
@@ -279,6 +290,8 @@ test.describe('欠款追蹤 E2E 測試', () => {
       { timeout: 10000 }
     );
     await page.locator('.debt-card:has-text("DeleteTest") button:has-text("刪除")').click();
+    await page.waitForSelector('#sc-ok', { timeout: 5000 });
+    await page.click('#sc-ok');
     await deleteResponse;
 
     // 卡片消失
@@ -295,12 +308,10 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await page.click('.debt-card:has-text("CancelDelete") .p-3.cursor-pointer');
     await page.waitForTimeout(300);
 
-    // 取消確認 dialog
-    page.once('dialog', async (dialog) => {
-      await dialog.dismiss();
-    });
-
     await page.locator('.debt-card:has-text("CancelDelete") button:has-text("刪除")').click();
+    // 等待自訂 showConfirm() DOM overlay，點取消
+    await page.waitForSelector('#sc-cancel', { timeout: 5000 });
+    await page.click('#sc-cancel');
     await page.waitForTimeout(500);
 
     // 卡片依然存在
@@ -317,9 +328,9 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await navigateToDebts(page);
     await addDebt(page, { debt_type: 'lent', person: 'OverviewTest', amount: 800 });
 
-    // 導航到財務概覽（dashboard 或 add 頁面有 #total-receivable）
-    await page.click('.sidebar-item[data-page="add"]');
-    await page.waitForSelector('#page-add.active', { timeout: 5000 });
+    // 導航到財務概覽（analytics 頁有 #total-receivable）
+    await page.click('.sidebar-item[data-page="analytics"]');
+    await page.waitForSelector('#page-analytics.active', { timeout: 5000 });
 
     // 等待 overview 載入（不再是 ---）
     await page.waitForFunction(

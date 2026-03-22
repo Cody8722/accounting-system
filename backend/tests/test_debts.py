@@ -20,7 +20,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from main import app
 import auth as auth_module
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -213,7 +212,9 @@ class TestCreateDebt:
         r = client.post("/admin/api/debts", json={}, headers=auth_headers)
         assert r.status_code == 400
 
-    def test_create_with_members_returns_201(self, client, auth_headers, members_payload):
+    def test_create_with_members_returns_201(
+        self, client, auth_headers, members_payload
+    ):
         r = client.post("/admin/api/debts", json=members_payload, headers=auth_headers)
         assert r.status_code == 201
 
@@ -277,25 +278,33 @@ class TestGetDebts:
         assert created_debt_id in ids
 
     def test_list_filter_by_type_borrowed(self, client, auth_headers, borrowed_payload):
-        cr = client.post("/admin/api/debts", json=borrowed_payload, headers=auth_headers)
+        cr = client.post(
+            "/admin/api/debts", json=borrowed_payload, headers=auth_headers
+        )
         debt_id = cr.get_json()["id"]
         r = client.get("/admin/api/debts?type=borrowed", headers=auth_headers)
         ids = [i["_id"]["$oid"] for i in r.get_json()]
         assert debt_id in ids
 
-    def test_list_excludes_settled_by_default(self, client, auth_headers, created_debt_id):
+    def test_list_excludes_settled_by_default(
+        self, client, auth_headers, created_debt_id
+    ):
         client.post(f"/admin/api/debts/{created_debt_id}/settle", headers=auth_headers)
         r = client.get("/admin/api/debts", headers=auth_headers)
         ids = [i["_id"]["$oid"] for i in r.get_json()]
         assert created_debt_id not in ids
 
-    def test_list_show_settled_includes_settled(self, client, auth_headers, created_debt_id):
+    def test_list_show_settled_includes_settled(
+        self, client, auth_headers, created_debt_id
+    ):
         client.post(f"/admin/api/debts/{created_debt_id}/settle", headers=auth_headers)
         r = client.get("/admin/api/debts?show_settled=true", headers=auth_headers)
         ids = [i["_id"]["$oid"] for i in r.get_json()]
         assert created_debt_id in ids
 
-    def test_get_single_returns_200_with_fields(self, client, auth_headers, created_debt_id):
+    def test_get_single_returns_200_with_fields(
+        self, client, auth_headers, created_debt_id
+    ):
         r = client.get(f"/admin/api/debts/{created_debt_id}", headers=auth_headers)
         assert r.status_code == 200
         data = r.get_json()
@@ -303,14 +312,18 @@ class TestGetDebts:
             assert field in data
 
     def test_get_single_nonexistent_returns_404(self, client, auth_headers):
-        r = client.get("/admin/api/debts/000000000000000000000099", headers=auth_headers)
+        r = client.get(
+            "/admin/api/debts/000000000000000000000099", headers=auth_headers
+        )
         assert r.status_code == 404
 
     def test_get_single_invalid_id_returns_400(self, client, auth_headers):
         r = client.get("/admin/api/debts/not-an-objectid", headers=auth_headers)
         assert r.status_code == 400
 
-    def test_user_isolation(self, client, auth_headers, other_auth_headers, created_debt_id):
+    def test_user_isolation(
+        self, client, auth_headers, other_auth_headers, created_debt_id
+    ):
         """用戶 B 無法存取用戶 A 的欠款"""
         r = client.get(
             f"/admin/api/debts/{created_debt_id}", headers=other_auth_headers
@@ -327,7 +340,9 @@ class TestGetDebts:
 class TestUpdateDebt:
     """更新欠款測試"""
 
-    def test_update_fields_returns_200_and_persisted(self, client, auth_headers, created_debt_id):
+    def test_update_fields_returns_200_and_persisted(
+        self, client, auth_headers, created_debt_id
+    ):
         r = client.put(
             f"/admin/api/debts/{created_debt_id}",
             json={"person": "NewPerson", "amount": 999},
@@ -340,9 +355,7 @@ class TestUpdateDebt:
         assert data["amount"] == 999
 
     def test_update_no_auth_returns_401(self, client, created_debt_id):
-        r = client.put(
-            f"/admin/api/debts/{created_debt_id}", json={"person": "X"}
-        )
+        r = client.put(f"/admin/api/debts/{created_debt_id}", json={"person": "X"})
         assert r.status_code in [401, 403]
 
     def test_update_nonexistent_returns_404(self, client, auth_headers):
@@ -372,7 +385,9 @@ class TestUpdateDebt:
     def test_update_with_members_persisted(self, client, auth_headers, created_debt_id):
         r = client.put(
             f"/admin/api/debts/{created_debt_id}",
-            json={"members": [{"name": "X", "share": 250}, {"name": "Y", "share": 250}]},
+            json={
+                "members": [{"name": "X", "share": 250}, {"name": "Y", "share": 250}]
+            },
             headers=auth_headers,
         )
         assert r.status_code == 200
@@ -389,7 +404,9 @@ class TestUpdateDebt:
 class TestDeleteDebt:
     """刪除欠款測試"""
 
-    def test_delete_returns_200_and_get_returns_404(self, client, auth_headers, created_debt_id):
+    def test_delete_returns_200_and_get_returns_404(
+        self, client, auth_headers, created_debt_id
+    ):
         r = client.delete(f"/admin/api/debts/{created_debt_id}", headers=auth_headers)
         assert r.status_code == 200
         gr = client.get(f"/admin/api/debts/{created_debt_id}", headers=auth_headers)
@@ -409,7 +426,9 @@ class TestDeleteDebt:
         r = client.delete("/admin/api/debts/not-an-id", headers=auth_headers)
         assert r.status_code == 400
 
-    def test_delete_marks_auto_records_debt_deleted(self, client, auth_headers, created_debt_id):
+    def test_delete_marks_auto_records_debt_deleted(
+        self, client, auth_headers, created_debt_id
+    ):
         """刪除欠款後，由還款自動產生的記帳記錄應被標記 debt_deleted=True"""
         # 先還款（觸發自動記帳）
         client.post(
@@ -442,7 +461,9 @@ class TestDeleteDebt:
 class TestRepayDebt:
     """單人還款測試"""
 
-    def test_partial_repay_updates_paid_amount(self, client, auth_headers, created_debt_id):
+    def test_partial_repay_updates_paid_amount(
+        self, client, auth_headers, created_debt_id
+    ):
         r = client.post(
             f"/admin/api/debts/{created_debt_id}/repay",
             json={"amount": 200},
@@ -494,8 +515,12 @@ class TestRepayDebt:
         assert records[-1]["type"] == "income"
         assert records[-1]["category"] == "債務收回"
 
-    def test_borrowed_repay_creates_expense_record(self, client, auth_headers, borrowed_payload):
-        cr = client.post("/admin/api/debts", json=borrowed_payload, headers=auth_headers)
+    def test_borrowed_repay_creates_expense_record(
+        self, client, auth_headers, borrowed_payload
+    ):
+        cr = client.post(
+            "/admin/api/debts", json=borrowed_payload, headers=auth_headers
+        )
         debt_id = cr.get_json()["id"]
         client.post(
             f"/admin/api/debts/{debt_id}/repay",
@@ -756,9 +781,7 @@ class TestToggleMemberPay:
         assert r.status_code == 200
         assert r.get_json()["is_settled"] is True
 
-    def test_non_group_debt_returns_400(
-        self, client, auth_headers, created_debt_id
-    ):
+    def test_non_group_debt_returns_400(self, client, auth_headers, created_debt_id):
         r = client.put(
             f"/admin/api/debts/{created_debt_id}/members/0/pay",
             headers=auth_headers,
