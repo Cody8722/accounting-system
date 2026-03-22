@@ -55,6 +55,8 @@ ALLOWED_CATEGORIES = [
     "醫療",
     "教育",
     "居住",
+    "債務收回",  # 系統自動產生（lent 還款收入），不顯示於前端手動選項
+    "債務償還",  # 系統自動產生（borrowed 還款支出），不顯示於前端手動選項
 ]
 
 app = Flask(__name__)
@@ -880,6 +882,75 @@ def get_accounting_stats():
         return jsonify({"error": "取得統計資料失敗"}), 500
 
 
+@app.route("/admin/api/stats/overview", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_stats_overview():
+    """整合統計：記帳 + 欠款合併財務概覽"""
+    if accounting_records_collection is None or debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    try:
+        user_oid = ObjectId(request.user_id)
+
+        # 1. cash_balance（全時間範圍，不含日期篩選）
+        income_result = list(accounting_records_collection.aggregate([
+            {"$match": {"user_id": user_oid, "type": "income"}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+        ]))
+        expense_result = list(accounting_records_collection.aggregate([
+            {"$match": {"user_id": user_oid, "type": "expense"}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+        ]))
+        cash_balance = (income_result[0]["total"] if income_result else 0) - \
+                       (expense_result[0]["total"] if expense_result else 0)
+
+        # 2. 欠款統計（只計算未結清）
+        active_debts = list(debts_collection.find({
+            "user_id": user_oid,
+            "is_settled": {"$ne": True},
+        }))
+
+        receivable = 0
+        payable = 0
+        group_receivable = 0
+        lent_count = 0
+        borrowed_count = 0
+        group_count = 0
+
+        for d in active_debts:
+            dt = d.get("debt_type")
+            if dt == "lent":
+                lent_count += 1
+                remaining = max(0, d.get("amount", 0) - d.get("paid_amount", 0))
+                receivable += remaining
+            elif dt == "borrowed":
+                borrowed_count += 1
+                remaining = max(0, d.get("amount", 0) - d.get("paid_amount", 0))
+                payable += remaining
+            elif dt == "group":
+                group_count += 1
+                members = d.get("members", [])
+                group_receivable += sum(
+                    m.get("share", 0) for m in members if not m.get("paid", False)
+                )
+
+        net_balance = cash_balance + receivable + group_receivable - payable
+
+        return jsonify({
+            "cash_balance": cash_balance,
+            "receivable": receivable,
+            "payable": payable,
+            "group_receivable": group_receivable,
+            "net_balance": net_balance,
+            "lent_count": lent_count,
+            "borrowed_count": borrowed_count,
+            "group_count": group_count,
+        }), 200
+    except Exception as e:
+        logger.error(f"取得整合統計失敗: {e}")
+        return jsonify({"error": "取得整合統計失敗"}), 500
+
+
 @app.route("/admin/api/accounting/budget", methods=["GET"])
 @limiter.limit("100 per minute")
 @require_auth
@@ -1646,6 +1717,18 @@ def apply_recurring(item_id):
 # ==================== 欠款追蹤 ====================
 
 
+def _enrich_debt(item):
+    """群組分帳附加動態計算欄位（pending_receivable / total_members / paid_members）"""
+    if item.get("debt_type") == "group":
+        members = item.get("members", [])
+        item["total_members"] = len(members)
+        item["paid_members"] = sum(1 for m in members if m.get("paid", False))
+        item["pending_receivable"] = sum(
+            m.get("share", 0) for m in members if not m.get("paid", False)
+        )
+    return item
+
+
 @app.route("/admin/api/debts", methods=["GET"])
 @limiter.limit("100 per minute")
 @require_auth
@@ -1666,6 +1749,7 @@ def get_debts():
             query["is_settled"] = {"$ne": True}
 
         items = list(debts_collection.find(query).sort("created_at", -1))
+        items = [_enrich_debt(i) for i in items]
         return json.loads(json_util.dumps(items)), 200
     except Exception as e:
         logger.error(f"取得欠款列表失敗: {e}")
@@ -1771,6 +1855,7 @@ def get_single_debt(debt_id):
         )
         if not item:
             return jsonify({"error": "找不到該記錄或無權限存取"}), 404
+        item = _enrich_debt(item)
         return json.loads(json_util.dumps(item)), 200
     except Exception as e:
         logger.error(f"取得單筆欠款失敗: {e}")
@@ -1857,6 +1942,14 @@ def delete_debt(debt_id):
         )
         if result.deleted_count == 0:
             return jsonify({"error": "找不到該記錄或無權限刪除"}), 404
+
+        # 標記由此欠款還款自動產生的記帳記錄（保留記錄，僅加 debt_deleted 標記）
+        if accounting_records_collection is not None:
+            accounting_records_collection.update_many(
+                {"debt_id": ObjectId(debt_id), "auto_generated": True},
+                {"$set": {"debt_deleted": True}},
+            )
+
         logger.info(f"刪除欠款記錄 {debt_id} (user: {request.email})")
         return jsonify({"message": "欠款記錄已刪除"}), 200
     except Exception as e:
@@ -1909,6 +2002,33 @@ def add_repayment(debt_id):
                 "$set": {"paid_amount": new_paid, "is_settled": is_settled},
             },
         )
+
+        # 同步寫入現金流記帳記錄
+        debt_type = existing.get("debt_type")  # 'lent' 或 'borrowed'
+        sync_type = "income" if debt_type == "lent" else "expense"
+        sync_category = "債務收回" if debt_type == "lent" else "債務償還"
+        person = existing.get("person", "")
+        try:
+            sync_record = {
+                "type": sync_type,
+                "amount": repay_amount,
+                "category": sync_category,
+                "date": repayment["date"],
+                "description": f"還款：{person}",
+                "debt_id": ObjectId(debt_id),
+                "auto_generated": True,
+                "created_at": datetime.now(),
+                "user_id": user_oid,
+            }
+            accounting_records_collection.insert_one(sync_record)
+        except Exception as sync_err:
+            logger.error(f"還款同步寫入記帳失敗: {sync_err}")
+            return jsonify({
+                "message": "還款記錄已新增，但記帳同步失敗，請手動補記",
+                "is_settled": is_settled,
+                "sync_failed": True,
+            }), 200
+
         logger.info(f"新增還款 {repay_amount} 到欠款 {debt_id} (user: {request.email})")
         return jsonify({"message": "還款記錄已新增", "is_settled": is_settled}), 200
     except Exception as e:

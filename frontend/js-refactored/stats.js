@@ -207,6 +207,37 @@ export function setLastKnownStats(stats) {
 }
 
 /**
+ * 載入整合財務概覽（記帳 + 欠款）
+ */
+async function loadOverviewStats() {
+    try {
+        const data = await apiCall(`${backendUrl}/admin/api/stats/overview`);
+        const fmt = (n) => `$${Math.abs(n).toLocaleString()}`;
+
+        const netEl = document.getElementById('net-balance');
+        const recEl = document.getElementById('total-receivable');
+        const payEl = document.getElementById('total-payable');
+        const cntEl = document.getElementById('debt-counts');
+
+        if (netEl) {
+            netEl.textContent = fmt(data.net_balance);
+            netEl.className = `text-xl font-bold ${data.net_balance >= 0 ? 'text-blue-600' : 'text-red-500'}`;
+        }
+        if (recEl) recEl.textContent = `+${fmt(data.receivable + data.group_receivable)}`;
+        if (payEl) payEl.textContent = `-${fmt(data.payable)}`;
+        if (cntEl) {
+            const parts = [];
+            if (data.lent_count) parts.push(`借出 ${data.lent_count}`);
+            if (data.borrowed_count) parts.push(`借入 ${data.borrowed_count}`);
+            if (data.group_count) parts.push(`群組 ${data.group_count}`);
+            cntEl.textContent = parts.length ? parts.join(' / ') : '無未結清';
+        }
+    } catch (e) {
+        console.warn('[Stats] 整合統計載入失敗:', e);
+    }
+}
+
+/**
  * 初始化統計模組
  */
 export function initStats() {
@@ -218,6 +249,7 @@ export function initStats() {
     // 監聽統計更新請求事件
     EventBus.on(EVENTS.STATS_REQUEST_UPDATE, () => {
         updateAccountingStats(false);
+        loadOverviewStats();
     });
 
     // 監聽記錄變更事件，自動更新統計
@@ -250,8 +282,9 @@ export function initStats() {
 
     // 監聽頁面載入事件
     EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
-        if (page === 'dashboard' || page === 'add') {
+        if (page === 'dashboard' || page === 'add' || page === 'analytics') {
             updateAccountingStats(false);
+            loadOverviewStats();
         }
     });
 

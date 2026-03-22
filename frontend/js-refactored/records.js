@@ -21,6 +21,11 @@ import { showToast, showConfirm, escapeHtml } from './utils.js';
 const deletingRecordIds = new Set();
 
 /**
+ * 欠款連動：目前選取的方向（'lent' | 'borrowed'）
+ */
+let _debtDirection = 'lent';
+
+/**
  * 分頁狀態
  */
 let currentPage = 1;
@@ -372,6 +377,9 @@ function renderRecords(records) {
                     record.expense_type === 'variable' ? '變動支出' :
                     '一次性支出'
                 }</span>` : '';
+        const autoGenBadge = record.auto_generated
+            ? `<span class="text-xs bg-teal-50 text-teal-600 border border-teal-200 rounded px-1.5 py-0.5 ml-2"><i class="fas fa-link mr-0.5"></i>自動</span>`
+            : '';
 
         // Apply XSS protection to user input
         const escapedCategory = escapeHtml(record.category);
@@ -391,7 +399,7 @@ function renderRecords(records) {
                             <div class="min-w-0">
                                 <p class="font-semibold text-base ${typeClass}">$${record.amount.toFixed(2)}</p>
                                 <p class="text-sm text-gray-800 font-medium truncate">${escapedCategory}${escapedDescription ? '<span class="text-gray-500 font-normal"> · ' + escapedDescription + '</span>' : ''}</p>
-                                <p class="text-xs text-gray-400 mt-0.5"><i class="fas fa-calendar-alt mr-1"></i>${record.date}${expenseTypeBadge}</p>
+                                <p class="text-xs text-gray-400 mt-0.5"><i class="fas fa-calendar-alt mr-1"></i>${record.date}${expenseTypeBadge}${autoGenBadge}</p>
                             </div>
                         </div>
                     </div>
@@ -551,6 +559,30 @@ export function initRecords() {
     window.clearFilters = clearFilters;
     window.toggleAdvancedFilter = toggleAdvancedFilter;
 
+    // 欠款連動開關控制
+    window.onDebtLinkToggle = function() {
+        const checked = document.getElementById('debt-link-toggle')?.checked;
+        document.getElementById('debt-link-fields')?.classList.toggle('hidden', !checked);
+    };
+
+    window.setDebtDirection = function(dir) {
+        _debtDirection = dir;
+        const lentBtn = document.getElementById('debt-dir-lent');
+        const borrowedBtn = document.getElementById('debt-dir-borrowed');
+        if (lentBtn) {
+            lentBtn.classList.toggle('bg-teal-600', dir === 'lent');
+            lentBtn.classList.toggle('text-white', dir === 'lent');
+            lentBtn.classList.toggle('bg-gray-100', dir !== 'lent');
+            lentBtn.classList.toggle('text-gray-600', dir !== 'lent');
+        }
+        if (borrowedBtn) {
+            borrowedBtn.classList.toggle('bg-teal-600', dir === 'borrowed');
+            borrowedBtn.classList.toggle('text-white', dir === 'borrowed');
+            borrowedBtn.classList.toggle('bg-gray-100', dir !== 'borrowed');
+            borrowedBtn.classList.toggle('text-gray-600', dir !== 'borrowed');
+        }
+    };
+
     console.log('✅ [Records] 記錄管理模組已初始化');
 }
 
@@ -593,6 +625,20 @@ function setupFormEventListeners() {
                 recordAmount.classList.remove('input-error');
                 amountError.classList.add('hidden');
             }
+
+            // 同步預填欠款金額（使用者可覆寫）
+            const debtAmountInput = document.getElementById('debt-link-amount');
+            if (debtAmountInput && !debtAmountInput.dataset.userModified) {
+                debtAmountInput.value = recordAmount.value;
+            }
+        });
+    }
+
+    // 使用者手動修改欠款金額後，標記不再自動同步
+    const debtAmountInput = document.getElementById('debt-link-amount');
+    if (debtAmountInput) {
+        debtAmountInput.addEventListener('input', () => {
+            debtAmountInput.dataset.userModified = 'true';
         });
     }
 
@@ -634,6 +680,29 @@ function setupFormEventListeners() {
             try {
                 await addRecord(recordData);
 
+                // 欠款連動：記帳成功後同步建立欠款記錄
+                const debtToggle = document.getElementById('debt-link-toggle');
+                if (debtToggle?.checked) {
+                    const person = document.getElementById('debt-link-person')?.value.trim();
+                    if (person) {
+                        try {
+                            await apiCall(`${backendUrl}/admin/api/debts`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    debt_type: _debtDirection,
+                                    person,
+                                    amount: parseFloat(document.getElementById('debt-link-amount')?.value) || amount,
+                                    reason: recordDescription.value || '',
+                                    date: recordDate.value
+                                })
+                            });
+                        } catch (debtErr) {
+                            console.warn('欠款連動建立失敗（記帳已成功）:', debtErr);
+                        }
+                    }
+                }
+
                 if (accountingMessage) {
                     accountingMessage.textContent = '✅ 記帳記錄已新增';
                     accountingMessage.className = 'text-center text-sm font-medium text-green-600';
@@ -647,6 +716,15 @@ function setupFormEventListeners() {
                 if (recordAmount) recordAmount.classList.remove('input-error');
                 if (amountError) amountError.classList.add('hidden');
                 setTodayAsDefault();
+
+                // 重置欠款連動欄位（開關保留，讓使用者連續記帳）
+                const debtPersonEl = document.getElementById('debt-link-person');
+                if (debtPersonEl) debtPersonEl.value = '';
+                const debtAmountEl = document.getElementById('debt-link-amount');
+                if (debtAmountEl) {
+                    debtAmountEl.value = '';
+                    delete debtAmountEl.dataset.userModified;
+                }
 
                 // 靜默刷新記錄和統計
                 await loadRecords(false);

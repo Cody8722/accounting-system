@@ -2057,6 +2057,40 @@
                                 <option value="onetime">一次性支出</option>
                             </select>
                         </div>
+                        <!-- 順便記欠款開關 -->
+                        <div class="flex items-center justify-between py-2 border-t border-gray-100 mt-1">
+                            <label for="debt-link-toggle" class="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                                <i class="fas fa-handshake mr-1 text-teal-600"></i>順便記欠款
+                            </label>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="debt-link-toggle" class="sr-only peer" onchange="onDebtLinkToggle()">
+                                <div class="relative w-11 h-6 bg-gray-200 rounded-full
+                                            peer-checked:bg-teal-600
+                                            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                                            after:bg-white after:rounded-full after:h-5 after:w-5
+                                            after:transition-all peer-checked:after:translate-x-5">
+                                </div>
+                            </label>
+                        </div>
+                        <!-- 展開的欠款欄位（預設隱藏） -->
+                        <div id="debt-link-fields" class="hidden rounded-xl bg-teal-50 border border-teal-200 p-3 space-y-2">
+                            <div class="flex gap-2">
+                                <button type="button" id="debt-dir-lent"
+                                    class="flex-1 py-1.5 text-sm font-medium rounded-lg bg-teal-600 text-white transition"
+                                    onclick="setDebtDirection('lent')">別人欠我</button>
+                                <button type="button" id="debt-dir-borrowed"
+                                    class="flex-1 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 transition"
+                                    onclick="setDebtDirection('borrowed')">我欠別人</button>
+                            </div>
+                            <input type="text" id="debt-link-person" placeholder="對象姓名（必填）"
+                                class="w-full border border-teal-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
+                            <div>
+                                <label class="block text-xs text-teal-700 mb-1">欠款金額<span class="text-teal-400 ml-1">（預設與記帳金額同步，可修改）</span></label>
+                                <input type="number" id="debt-link-amount" min="0.01" step="0.01" placeholder="0"
+                                    class="w-full border border-teal-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
+                            </div>
+                        </div>
+
                         <button type="submit" class="w-full bg-purple-600 text-white py-3 px-4 rounded-md hover:bg-purple-700 font-semibold transition shadow-md hover:shadow-lg">
                             <i class="fas fa-check mr-2"></i>新增記帳
                         </button>
@@ -2367,6 +2401,31 @@
                             <div class="hidden sm:flex text-4xl text-blue-500 ml-1 flex-shrink-0">
                                 <i class="fas fa-chart-line"></i>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 整合財務概覽 -->
+                <div id="finance-overview" class="bg-white p-4 rounded-xl shadow-lg mt-6">
+                    <h2 class="text-base font-bold flex items-center text-gray-700 mb-3">
+                        <i class="fas fa-handshake text-teal-600 mr-2"></i>整合財務概覽
+                    </h2>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-blue-50 rounded-lg p-3 text-center">
+                            <div class="text-xs text-gray-500 mb-1">淨餘額</div>
+                            <div id="net-balance" class="text-xl font-bold text-blue-600">—</div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-3 text-center">
+                            <div class="text-xs text-gray-500 mb-1">應收（含群組）</div>
+                            <div id="total-receivable" class="text-xl font-bold text-green-600">—</div>
+                        </div>
+                        <div class="bg-red-50 rounded-lg p-3 text-center">
+                            <div class="text-xs text-gray-500 mb-1">應付</div>
+                            <div id="total-payable" class="text-xl font-bold text-red-500">—</div>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3 text-center">
+                            <div class="text-xs text-gray-500 mb-1">未結清筆數</div>
+                            <div id="debt-counts" class="text-sm font-medium text-gray-600">—</div>
                         </div>
                     </div>
                 </div>
