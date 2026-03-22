@@ -211,7 +211,8 @@ export function setLastKnownStats(stats) {
  */
 async function loadOverviewStats() {
     try {
-        const data = await apiCall(`${backendUrl}/admin/api/stats/overview`);
+        const response = await apiCall(`${backendUrl}/admin/api/stats/overview`);
+        const data = await response.json();
         const fmt = (n) => `$${Math.abs(n).toLocaleString()}`;
 
         const netEl = document.getElementById('net-balance');
