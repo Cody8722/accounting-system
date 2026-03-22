@@ -912,39 +912,42 @@ def get_stats_overview():
 
         receivable = 0
         payable = 0
-        group_receivable = 0
         lent_count = 0
         borrowed_count = 0
-        group_count = 0
 
         for d in active_debts:
             dt = d.get("debt_type")
+            members = d.get("members") or []
             if dt == "lent":
                 lent_count += 1
-                remaining = max(0, d.get("amount", 0) - d.get("paid_amount", 0))
-                receivable += remaining
+                if members:
+                    receivable += sum(
+                        max(0, m.get("share", 0) - m.get("paid_amount", 0))
+                        for m in members if not m.get("is_settled", False)
+                    )
+                else:
+                    receivable += max(0, d.get("amount", 0) - d.get("paid_amount", 0))
             elif dt == "borrowed":
                 borrowed_count += 1
-                remaining = max(0, d.get("amount", 0) - d.get("paid_amount", 0))
-                payable += remaining
-            elif dt == "group":
-                group_count += 1
-                members = d.get("members", [])
-                group_receivable += sum(
-                    m.get("share", 0) for m in members if not m.get("paid", False)
-                )
+                if members:
+                    payable += sum(
+                        max(0, m.get("share", 0) - m.get("paid_amount", 0))
+                        for m in members if not m.get("is_settled", False)
+                    )
+                else:
+                    payable += max(0, d.get("amount", 0) - d.get("paid_amount", 0))
 
-        net_balance = cash_balance + receivable + group_receivable - payable
+        net_balance = cash_balance + receivable - payable
 
         return jsonify({
             "cash_balance": cash_balance,
             "receivable": receivable,
             "payable": payable,
-            "group_receivable": group_receivable,
+            "group_receivable": 0,
             "net_balance": net_balance,
             "lent_count": lent_count,
             "borrowed_count": borrowed_count,
-            "group_count": group_count,
+            "group_count": 0,
         }), 200
     except Exception as e:
         logger.error(f"取得整合統計失敗: {e}")
@@ -1718,13 +1721,14 @@ def apply_recurring(item_id):
 
 
 def _enrich_debt(item):
-    """群組分帳附加動態計算欄位（pending_receivable / total_members / paid_members）"""
-    if item.get("debt_type") == "group":
-        members = item.get("members", [])
+    """多人分帳欠款附加動態計算欄位（pending_receivable / total_members / paid_members）"""
+    members = item.get("members") or []
+    if members:
         item["total_members"] = len(members)
-        item["paid_members"] = sum(1 for m in members if m.get("paid", False))
+        item["paid_members"] = sum(1 for m in members if m.get("is_settled", False))
         item["pending_receivable"] = sum(
-            m.get("share", 0) for m in members if not m.get("paid", False)
+            max(0, m.get("share", 0) - m.get("paid_amount", 0))
+            for m in members if not m.get("is_settled", False)
         )
     return item
 
@@ -1769,68 +1773,49 @@ def create_debt():
             return jsonify({"error": "無效的請求資料"}), 400
 
         debt_type = data.get("debt_type")
-        if debt_type not in ("lent", "borrowed", "group"):
-            return jsonify({"error": "debt_type 必須為 lent/borrowed/group"}), 400
+        if debt_type not in ("lent", "borrowed"):
+            return jsonify({"error": "debt_type 必須為 lent 或 borrowed"}), 400
 
         user_oid = ObjectId(request.user_id)
         now = datetime.now()
 
-        if debt_type == "group":
-            # 群組分帳
-            if not data.get("title"):
-                return jsonify({"error": "請輸入群組名稱"}), 400
-            try:
-                total_amount = float(data.get("total_amount", 0))
-                if total_amount <= 0:
-                    raise ValueError()
-            except (ValueError, TypeError):
-                return jsonify({"error": "請輸入有效金額"}), 400
+        if not data.get("person"):
+            return jsonify({"error": "請輸入對象姓名或標題"}), 400
+        try:
+            amount = float(data.get("amount", 0))
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return jsonify({"error": "請輸入有效金額"}), 400
 
-            members = data.get("members", [])
-            if not members:
-                return jsonify({"error": "請至少新增一位成員"}), 400
-
-            doc = {
-                "user_id": user_oid,
-                "debt_type": "group",
-                "title": str(data["title"])[:100],
-                "total_amount": total_amount,
-                "date": data.get("date", now.strftime("%Y-%m-%d")),
-                "reason": str(data.get("reason", ""))[:200],
-                "members": [
-                    {
-                        "name": str(m.get("name", ""))[:50],
-                        "share": float(m.get("share", 0)),
-                        "paid": bool(m.get("paid", False)),
-                    }
-                    for m in members
-                ],
-                "is_settled": False,
-                "created_at": now,
-            }
-        else:
-            # 個人欠款 (lent/borrowed)
-            if not data.get("person"):
-                return jsonify({"error": "請輸入對象姓名"}), 400
-            try:
-                amount = float(data.get("amount", 0))
-                if amount <= 0:
-                    raise ValueError()
-            except (ValueError, TypeError):
-                return jsonify({"error": "請輸入有效金額"}), 400
-
-            doc = {
-                "user_id": user_oid,
-                "debt_type": debt_type,
-                "person": str(data["person"])[:50],
-                "amount": amount,
-                "reason": str(data.get("reason", ""))[:200],
-                "date": data.get("date", now.strftime("%Y-%m-%d")),
+        # 多人分帳成員（選填）
+        raw_members = data.get("members") or []
+        members = []
+        for m in raw_members:
+            name = str(m.get("name", "")).strip()[:50]
+            if not name:
+                continue
+            share = float(m.get("share", 0))
+            members.append({
+                "name": name,
+                "share": share,
                 "paid_amount": 0.0,
                 "is_settled": False,
-                "repayments": [],
-                "created_at": now,
-            }
+            })
+
+        doc = {
+            "user_id": user_oid,
+            "debt_type": debt_type,
+            "person": str(data["person"])[:50],
+            "amount": amount,
+            "reason": str(data.get("reason", ""))[:200],
+            "date": data.get("date", now.strftime("%Y-%m-%d")),
+            "paid_amount": 0.0,
+            "is_settled": False,
+            "repayments": [],
+            "members": members,
+            "created_at": now,
+        }
 
         result = debts_collection.insert_one(doc)
         logger.info(f"新增欠款記錄 (type={debt_type}, user: {request.email})")
@@ -1884,35 +1869,28 @@ def update_debt(debt_id):
             return jsonify({"error": "找不到該記錄或無權限修改"}), 404
 
         update_fields = {}
-        debt_type = existing["debt_type"]
 
-        if debt_type == "group":
-            if "title" in data:
-                update_fields["title"] = str(data["title"])[:100]
-            if "total_amount" in data:
-                update_fields["total_amount"] = float(data["total_amount"])
-            if "reason" in data:
-                update_fields["reason"] = str(data["reason"])[:200]
-            if "date" in data:
-                update_fields["date"] = data["date"]
-            if "members" in data:
-                update_fields["members"] = [
-                    {
-                        "name": str(m.get("name", ""))[:50],
-                        "share": float(m.get("share", 0)),
-                        "paid": bool(m.get("paid", False)),
-                    }
-                    for m in data["members"]
-                ]
-        else:
-            if "person" in data:
-                update_fields["person"] = str(data["person"])[:50]
-            if "amount" in data:
-                update_fields["amount"] = float(data["amount"])
-            if "reason" in data:
-                update_fields["reason"] = str(data["reason"])[:200]
-            if "date" in data:
-                update_fields["date"] = data["date"]
+        if "person" in data:
+            update_fields["person"] = str(data["person"])[:50]
+        if "amount" in data:
+            update_fields["amount"] = float(data["amount"])
+        if "reason" in data:
+            update_fields["reason"] = str(data["reason"])[:200]
+        if "date" in data:
+            update_fields["date"] = data["date"]
+        if "members" in data:
+            members = []
+            for m in (data["members"] or []):
+                name = str(m.get("name", "")).strip()[:50]
+                if not name:
+                    continue
+                members.append({
+                    "name": name,
+                    "share": float(m.get("share", 0)),
+                    "paid_amount": float(m.get("paid_amount", 0)),
+                    "is_settled": bool(m.get("is_settled", False)),
+                })
+            update_fields["members"] = members
 
         if not update_fields:
             return jsonify({"error": "沒有可更新的欄位"}), 400
@@ -1984,8 +1962,8 @@ def add_repayment(debt_id):
         )
         if not existing:
             return jsonify({"error": "找不到該記錄或無權限操作"}), 404
-        if existing.get("debt_type") == "group":
-            return jsonify({"error": "群組分帳請使用成員付款功能"}), 400
+        if existing.get("members"):
+            return jsonify({"error": "多人分帳請使用分帳成員還款功能"}), 400
 
         repayment = {
             "amount": repay_amount,
@@ -2034,6 +2012,80 @@ def add_repayment(debt_id):
     except Exception as e:
         logger.error(f"新增還款失敗: {e}")
         return jsonify({"error": "新增還款失敗"}), 500
+
+
+@app.route("/admin/api/debts/<debt_id>/members/<int:member_idx>/repay", methods=["POST"])
+@limiter.limit("50 per minute")
+@require_auth
+def repay_member(debt_id, member_idx):
+    """分帳成員還款"""
+    if debts_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(debt_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        try:
+            repay_amount = float(data.get("amount", 0))
+            if repay_amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return jsonify({"error": "請輸入有效還款金額"}), 400
+
+        user_oid = ObjectId(request.user_id)
+        existing = debts_collection.find_one(
+            {"_id": ObjectId(debt_id), "user_id": user_oid}
+        )
+        if not existing:
+            return jsonify({"error": "找不到該記錄或無權限操作"}), 404
+
+        members = existing.get("members") or []
+        if member_idx < 0 or member_idx >= len(members):
+            return jsonify({"error": "無效的成員索引"}), 400
+
+        member = members[member_idx]
+        new_paid = member.get("paid_amount", 0) + repay_amount
+        member["paid_amount"] = new_paid
+        member["is_settled"] = new_paid >= member.get("share", 0)
+
+        top_paid = sum(m.get("paid_amount", 0) for m in members)
+        all_settled = all(m.get("is_settled", False) for m in members)
+
+        debts_collection.update_one(
+            {"_id": ObjectId(debt_id)},
+            {"$set": {"members": members, "paid_amount": top_paid, "is_settled": all_settled}},
+        )
+
+        # 同步寫入現金流記帳記錄
+        debt_type = existing.get("debt_type")
+        sync_type = "income" if debt_type == "lent" else "expense"
+        sync_category = "債務收回" if debt_type == "lent" else "債務償還"
+        member_name = member.get("name", "")
+        repay_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+        try:
+            sync_record = {
+                "type": sync_type,
+                "amount": repay_amount,
+                "category": sync_category,
+                "date": repay_date,
+                "description": f"還款：{member_name}",
+                "debt_id": ObjectId(debt_id),
+                "auto_generated": True,
+                "created_at": datetime.now(),
+                "user_id": user_oid,
+            }
+            accounting_records_collection.insert_one(sync_record)
+        except Exception as sync_err:
+            logger.error(f"成員還款同步寫入記帳失敗: {sync_err}")
+
+        logger.info(f"成員還款 {repay_amount} (debt={debt_id}, member={member_idx}, user: {request.email})")
+        return jsonify({"message": "還款已記錄", "is_settled": all_settled}), 200
+    except Exception as e:
+        logger.error(f"成員還款失敗: {e}")
+        return jsonify({"error": "還款失敗"}), 500
 
 
 @app.route("/admin/api/debts/<debt_id>/settle", methods=["POST"])
@@ -2718,6 +2770,52 @@ def reset_password():
     except Exception as e:
         logger.error(f"重設密碼失敗: {e}")
         return jsonify({"error": "系統錯誤"}), 500
+
+
+def migrate_group_debts():
+    """一次性遷移：將 debt_type='group' 的舊文件轉為 debt_type='lent' 新格式（幂等）"""
+    if debts_collection is None:
+        return
+    try:
+        old_docs = list(debts_collection.find({"debt_type": "group"}))
+        if not old_docs:
+            return
+        migrated = 0
+        for doc in old_docs:
+            old_members = doc.get("members", [])
+            new_members = []
+            total_paid = 0.0
+            for m in old_members:
+                share = float(m.get("share", 0))
+                paid = bool(m.get("paid", False))
+                paid_amount = share if paid else 0.0
+                total_paid += paid_amount
+                new_members.append({
+                    "name": m.get("name", ""),
+                    "share": share,
+                    "paid_amount": paid_amount,
+                    "is_settled": paid,
+                })
+            all_settled = all(m["is_settled"] for m in new_members) if new_members else False
+            debts_collection.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {
+                    "debt_type": "lent",
+                    "person": doc.get("title", "群組分帳"),
+                    "amount": float(doc.get("total_amount", 0)),
+                    "paid_amount": total_paid,
+                    "is_settled": all_settled,
+                    "repayments": [],
+                    "members": new_members,
+                }, "$unset": {"title": "", "total_amount": ""}},
+            )
+            migrated += 1
+        logger.info(f"[Migration] 群組分帳遷移完成：共遷移 {migrated} 筆")
+    except Exception as e:
+        logger.error(f"[Migration] 群組分帳遷移失敗: {e}")
+
+
+migrate_group_debts()
 
 
 if __name__ == "__main__":

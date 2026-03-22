@@ -1,10 +1,10 @@
 /**
- * 欠款追蹤模組 - 管理個人借貸與群組分帳
+ * 欠款追蹤模組 - 管理個人借貸（支援多人分帳）
  *
  * 功能：
  * - 別人欠我（lent）/ 我欠別人（borrowed）— 雙向追蹤
- * - 群組分帳（group）— 一筆費用多人分攤
- * - 部分還款紀錄、結清狀態切換
+ * - 單筆欠款可加入多個分帳對象，各自追蹤還款進度
+ * - 部分還款記錄、結清狀態切換
  *
  * 使用事件驅動架構解耦依賴
  */
@@ -12,10 +12,10 @@
 import { EventBus, EVENTS } from './events.js';
 import { apiCall } from './api.js';
 import { backendUrl } from './config.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, showToast, showConfirm, skeletonCards } from './utils.js';
 
 /**
- * 目前顯示的分頁（'lent' | 'borrowed' | 'group'）
+ * 目前顯示的分頁（'lent' | 'borrowed'）
  */
 let _currentTab = 'lent';
 
@@ -25,25 +25,30 @@ let _currentTab = 'lent';
 let _editingId = null;
 
 /**
- * 目前正在還款的欠款 ID
- */
-let _repayingId = null;
-
-/**
  * 全部欠款資料（快取，避免重複請求）
  */
 let _debtsCache = [];
+
+/**
+ * 目前已展開的欠款卡片 ID 集合（跨 re-render 保留狀態）
+ */
+let _expandedCards = new Set();
+
+/**
+ * 表單中暫存的分帳成員列表 {name, share}
+ */
+let _formMembers = [];
 
 // ==================== 分頁切換 ====================
 
 /**
  * 切換欠款分頁
- * @param {string} tab - 'lent' | 'borrowed' | 'group'
+ * @param {string} tab - 'lent' | 'borrowed'（傳入 'group' 自動導向 'lent'）
  */
 export function switchDebtTab(tab) {
-    _currentTab = tab;
+    _currentTab = (tab === 'group') ? 'lent' : tab;
     document.querySelectorAll('.debt-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
+        btn.classList.toggle('active', btn.dataset.tab === _currentTab);
     });
     renderDebtsForCurrentTab();
 }
@@ -56,7 +61,7 @@ export function switchDebtTab(tab) {
 export async function loadDebts() {
     const container = document.getElementById('debts-list');
     if (!container) return;
-    container.innerHTML = '<div class="text-center text-gray-400 py-6 text-sm">載入中...</div>';
+    container.innerHTML = skeletonCards(3);
     try {
         const response = await apiCall(`${backendUrl}/admin/api/debts`);
         const data = await response.json();
@@ -83,12 +88,22 @@ function renderDebtsForCurrentTab() {
  * @param {Array} items
  */
 function renderSummary(items) {
+    const calcRemaining = (d) => {
+        const members = d.members || [];
+        if (members.length > 0) {
+            return members
+                .filter(m => !m.is_settled)
+                .reduce((s, m) => s + Math.max(0, (m.share || 0) - (m.paid_amount || 0)), 0);
+        }
+        return Math.max(0, d.amount - (d.paid_amount || 0));
+    };
+
     const lentTotal = items
         .filter(d => d.debt_type === 'lent' && !d.is_settled)
-        .reduce((s, d) => s + (d.amount - (d.paid_amount || 0)), 0);
+        .reduce((s, d) => s + calcRemaining(d), 0);
     const borrowedTotal = items
         .filter(d => d.debt_type === 'borrowed' && !d.is_settled)
-        .reduce((s, d) => s + (d.amount - (d.paid_amount || 0)), 0);
+        .reduce((s, d) => s + calcRemaining(d), 0);
 
     const summaryEl = document.getElementById('debts-summary');
     if (!summaryEl) return;
@@ -118,111 +133,300 @@ function renderDebtsList(items) {
         return;
     }
 
-    container.innerHTML = items.map(item => {
-        if (item.debt_type === 'group') return renderGroupCard(item);
-        return renderDebtCard(item);
-    }).join('');
+    container.innerHTML = items.map(item => renderDebtCard(item)).join('');
 }
 
 /**
- * 渲染個人欠款卡片（lent / borrowed）
+ * 渲染欠款卡片（lent / borrowed，含多人分帳）— Accordion 設計
  * @param {object} item
  */
 function renderDebtCard(item) {
     const isLent = item.debt_type === 'lent';
-    const remaining = item.amount - (item.paid_amount || 0);
-    const pct = item.amount > 0 ? Math.round((item.paid_amount || 0) / item.amount * 100) : 0;
-    const settledClass = item.is_settled ? 'opacity-50' : '';
-    const settledBadge = item.is_settled
-        ? '<span class="text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">已結清</span>'
-        : (remaining < item.amount && remaining > 0
-            ? `<span class="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">部分還款</span>`
-            : '');
-    const directionColor = isLent ? 'text-green-600' : 'text-red-600';
+    const id = item._id.$oid;
+    const members = item.members || [];
+    const hasMembers = members.length > 0;
 
-    return `
-        <div class="debt-card p-3 bg-gray-50 rounded-xl border border-gray-100 mb-2 ${settledClass}">
-            <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 flex-wrap mb-0.5">
-                        <span class="font-semibold text-gray-800 text-sm">${escapeHtml(item.person)}</span>
-                        ${settledBadge}
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="${directionColor} font-bold text-sm">$${item.amount.toLocaleString()}</span>
-                        ${item.paid_amount > 0 ? `<span class="text-xs text-gray-400">已還 $${(item.paid_amount).toLocaleString()}</span>` : ''}
-                    </div>
-                    ${item.reason ? `<div class="text-xs text-gray-400 mt-0.5 truncate">${escapeHtml(item.reason)}</div>` : ''}
-                    <div class="text-xs text-gray-400">${item.date || ''}</div>
-                    ${item.amount > 0 ? `
-                    <div class="mt-1.5 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div class="h-full ${isLent ? 'bg-green-500' : 'bg-red-500'} rounded-full transition-all" style="width:${pct}%"></div>
-                    </div>` : ''}
-                </div>
-                <div class="flex flex-col gap-1 shrink-0">
-                    ${!item.is_settled ? `
-                    <button onclick="showRepayModal('${item._id.$oid}')" class="px-2 py-1 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition font-medium">還款</button>
-                    ` : ''}
-                    <button onclick="settleDebt('${item._id.$oid}', ${item.is_settled})" class="px-2 py-1 ${item.is_settled ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-600'} text-xs rounded-lg hover:opacity-80 transition font-medium">${item.is_settled ? '取消結清' : '結清'}</button>
-                    <button onclick="editDebt('${item._id.$oid}')" class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition">編輯</button>
-                    <button onclick="deleteDebt('${item._id.$oid}', '${escapeHtml(item.person)}')" class="px-2 py-1 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200 transition">刪除</button>
+    // 進度計算
+    let paid, total, pct;
+    if (hasMembers) {
+        total = members.reduce((s, m) => s + (m.share || 0), 0);
+        paid = members.reduce((s, m) => s + (m.paid_amount || 0), 0);
+    } else {
+        total = item.amount || 0;
+        paid = item.paid_amount || 0;
+    }
+    pct = total > 0 ? Math.round(paid / total * 100) : 0;
+
+    const isExpanded = _expandedCards.has(id);
+    const settledClass = item.is_settled ? 'opacity-60' : '';
+    const directionIcon = isLent ? '🟢' : '🔴';
+    const directionLabel = isLent ? '別人欠我' : '我欠別人';
+    const directionLabelClass = isLent ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50';
+    const progressColor = isLent ? 'bg-green-500' : 'bg-red-500';
+
+    // 角落 badge
+    let badge = '';
+    if (item.is_settled) {
+        badge = '<span class="text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">已結清</span>';
+    } else if (hasMembers) {
+        const paidCount = members.filter(m => m.is_settled).length;
+        if (paidCount === members.length) {
+            badge = '<span class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">全數已付</span>';
+        } else {
+            badge = `<span class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">${paidCount}/${members.length} 已付</span>`;
+        }
+    } else if (paid > 0 && paid < total) {
+        badge = '<span class="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">部分還款</span>';
+    }
+
+    // 多人分帳成員列表（展開時）
+    const memberRows = hasMembers ? members.map((m, idx) => {
+        const mPaid = m.paid_amount || 0;
+        const mShare = m.share || 0;
+        const mPct = mShare > 0 ? Math.round(mPaid / mShare * 100) : 0;
+        const mSettled = m.is_settled;
+        return `
+        <div class="py-2 border-b border-gray-50 last:border-0">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-sm font-medium text-gray-700">${escapeHtml(m.name)}</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">$${mPaid.toLocaleString()} / $${mShare.toLocaleString()}</span>
+                    ${mSettled ? '<span class="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">已結清</span>' : ''}
                 </div>
             </div>
+            <div class="h-1 bg-gray-100 rounded-full overflow-hidden mb-1.5">
+                <div class="h-full ${progressColor} rounded-full" style="width:${mPct}%"></div>
+            </div>
+            ${!mSettled && !item.is_settled ? `
+            <div class="flex items-center gap-1.5">
+                <input id="member-repay-input-${id}-${idx}" type="number" min="0.01" step="0.01"
+                    placeholder="還款金額"
+                    class="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-teal-400">
+                <button onclick="submitMemberRepay('${id}', ${idx})"
+                    class="px-2.5 py-1 bg-teal-600 text-white text-xs font-medium rounded-lg hover:bg-teal-700 transition shrink-0">
+                    確定
+                </button>
+            </div>` : ''}
         </div>`;
+    }).join('') : '';
+
+    // 展開區塊
+    const expandedHtml = isExpanded ? `
+        <div class="px-3 pb-3 border-t border-gray-100 pt-2">
+            <div class="flex justify-between text-xs text-gray-500 mb-2">
+                ${item.reason ? `<span>原因：${escapeHtml(item.reason)}</span>` : '<span></span>'}
+                ${item.date ? `<span>日期：${item.date}</span>` : ''}
+            </div>
+            ${hasMembers ? `<div class="mb-2">${memberRows}</div>` : ''}
+            ${!hasMembers && !item.is_settled ? `
+            <div class="flex items-center gap-2 mb-2">
+                <input id="repay-input-${id}" type="number" min="0.01" step="0.01" placeholder="還款金額"
+                    class="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-teal-400">
+                <button onclick="submitInlineRepay('${id}')"
+                    class="px-3 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-lg hover:bg-teal-700 transition shrink-0">
+                    確認還款
+                </button>
+            </div>` : ''}
+            <div class="flex gap-1.5">
+                <button onclick="settleDebt('${id}', ${item.is_settled})"
+                    class="flex-1 py-1.5 ${item.is_settled ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-600'} text-xs font-medium rounded-lg hover:opacity-80 transition">
+                    ${item.is_settled ? '取消結清' : '結清'}
+                </button>
+                <button onclick="editDebt('${id}')"
+                    class="flex-1 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition">編輯</button>
+                <button onclick="deleteDebt('${id}', '${escapeHtml(item.person)}')"
+                    class="flex-1 py-1.5 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200 transition">刪除</button>
+            </div>
+        </div>` : '';
+
+    return `
+        <div class="debt-card bg-white rounded-xl border border-gray-100 mb-2 shadow-sm overflow-hidden ${settledClass}">
+            <div class="p-3 cursor-pointer select-none" onclick="toggleDebtCard('${id}')">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                        <span>${directionIcon}</span>
+                        <span class="font-semibold text-gray-800 text-sm">${escapeHtml(item.person)}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded-full ${directionLabelClass}">${directionLabel}</span>
+                        ${badge}
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="${isLent ? 'text-green-600' : 'text-red-600'} font-bold text-sm">$${(item.amount || 0).toLocaleString()}</span>
+                        <span class="text-gray-400 text-xs inline-block ${isExpanded ? 'rotate-180' : ''}">▼</span>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div class="h-full ${progressColor} rounded-full" style="width:${pct}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400 mt-0.5">
+                        <span>已還 $${paid.toLocaleString()} / $${total.toLocaleString()}</span>
+                        <span>${pct}%</span>
+                    </div>
+                </div>
+            </div>
+            ${expandedHtml}
+        </div>`;
+}
+
+// ==================== 卡片展開/收合 ====================
+
+/**
+ * 切換欠款卡片展開狀態
+ * @param {string} id
+ */
+export function toggleDebtCard(id) {
+    if (_expandedCards.has(id)) {
+        _expandedCards.delete(id);
+    } else {
+        _expandedCards.add(id);
+    }
+    renderDebtsForCurrentTab();
+}
+
+// ==================== 還款 ====================
+
+/**
+ * 提交單人 inline 還款
+ * @param {string} id
+ */
+export async function submitInlineRepay(id) {
+    const inputEl = document.getElementById(`repay-input-${id}`);
+    const amount = parseFloat(inputEl?.value);
+    if (!amount || amount <= 0) {
+        showToast('請輸入有效還款金額', 'error');
+        return;
+    }
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const response = await apiCall(`${backendUrl}/admin/api/debts/${id}/repay`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, date: today })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '還款記錄失敗');
+        showToast('還款已記錄', 'success');
+        await loadDebts();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
 
 /**
- * 渲染群組分帳卡片
- * @param {object} item
+ * 提交分帳成員還款
+ * @param {string} debtId
+ * @param {number} memberIdx
  */
-function renderGroupCard(item) {
-    const members = item.members || [];
-    const paidCount = members.filter(m => m.paid).length;
-    const totalShare = members.reduce((s, m) => s + (m.share || 0), 0);
-    const paidShare = members.filter(m => m.paid).reduce((s, m) => s + (m.share || 0), 0);
-    const settledClass = item.is_settled ? 'opacity-50' : '';
-    const settledBadge = item.is_settled
-        ? '<span class="text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">已結清</span>'
-        : (paidCount === members.length && members.length > 0
-            ? '<span class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">全數已付</span>'
-            : `<span class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">${paidCount}/${members.length} 已付</span>`);
-
-    const memberRows = members.map((m, idx) => `
-        <div class="flex items-center justify-between py-0.5">
-            <span class="text-xs text-gray-600">${escapeHtml(m.name)}</span>
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-500">$${(m.share || 0).toLocaleString()}</span>
-                <button onclick="toggleMemberPaid('${item._id.$oid}', ${idx}, ${m.paid})"
-                    class="text-xs px-1.5 py-0.5 rounded ${m.paid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'} hover:opacity-80 transition">
-                    ${m.paid ? '✓ 已付' : '未付'}
-                </button>
-            </div>
-        </div>`).join('');
-
-    return `
-        <div class="debt-card p-3 bg-gray-50 rounded-xl border border-gray-100 mb-2 ${settledClass}">
-            <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 flex-wrap mb-0.5">
-                        <span class="font-semibold text-gray-800 text-sm">${escapeHtml(item.title)}</span>
-                        ${settledBadge}
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-blue-600 font-bold text-sm">$${(item.total_amount || 0).toLocaleString()}</span>
-                        <span class="text-xs text-gray-400">已收 $${paidShare.toLocaleString()}</span>
-                    </div>
-                    ${item.reason ? `<div class="text-xs text-gray-400 truncate">${escapeHtml(item.reason)}</div>` : ''}
-                    <div class="text-xs text-gray-400">${item.date || ''}</div>
-                    <div class="mt-2 border-t border-gray-100 pt-2">${memberRows}</div>
-                </div>
-                <div class="flex flex-col gap-1 shrink-0">
-                    <button onclick="settleDebt('${item._id.$oid}', ${item.is_settled})" class="px-2 py-1 ${item.is_settled ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-600'} text-xs rounded-lg hover:opacity-80 transition font-medium">${item.is_settled ? '取消結清' : '結清'}</button>
-                    <button onclick="editDebt('${item._id.$oid}')" class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition">編輯</button>
-                    <button onclick="deleteDebt('${item._id.$oid}', '${escapeHtml(item.title)}')" class="px-2 py-1 bg-red-100 text-red-600 text-xs rounded-lg hover:bg-red-200 transition">刪除</button>
-                </div>
-            </div>
-        </div>`;
+export async function submitMemberRepay(debtId, memberIdx) {
+    const inputEl = document.getElementById(`member-repay-input-${debtId}-${memberIdx}`);
+    const amount = parseFloat(inputEl?.value);
+    if (!amount || amount <= 0) {
+        showToast('請輸入有效還款金額', 'error');
+        return;
+    }
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const response = await apiCall(`${backendUrl}/admin/api/debts/${debtId}/members/${memberIdx}/repay`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, date: today })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '還款記錄失敗');
+        showToast('還款已記錄', 'success');
+        await loadDebts();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
+
+// ==================== 表單 type 按鈕組 ====================
+
+/**
+ * 設定新增表單的欠款類型（按鈕組使用）
+ * @param {string} type - 'lent' | 'borrowed'
+ */
+export function setDebtFormType(type) {
+    const selectEl = document.getElementById('debt-type');
+    if (selectEl) selectEl.value = type;
+    document.querySelectorAll('.debt-type-btn').forEach(btn => {
+        const isActive = btn.dataset.type === type;
+        btn.classList.toggle('bg-teal-600', isActive);
+        btn.classList.toggle('text-white', isActive);
+        btn.classList.toggle('bg-gray-100', !isActive);
+        btn.classList.toggle('text-gray-600', !isActive);
+    });
+}
+
+// ==================== 表單成員管理 ====================
+
+/**
+ * 新增分帳成員（從輸入框）
+ */
+export function addDebtMember() {
+    const input = document.getElementById('debt-member-name-input');
+    const name = input?.value.trim();
+    if (!name) return;
+    _formMembers.push({ name, share: 0 });
+    input.value = '';
+    recalcMemberShares();
+    renderFormMembers();
+}
+
+/**
+ * 移除分帳成員
+ * @param {number} idx
+ */
+export function removeDebtMember(idx) {
+    _formMembers.splice(idx, 1);
+    recalcMemberShares();
+    renderFormMembers();
+}
+
+/**
+ * 平分金額給所有成員
+ */
+function recalcMemberShares() {
+    const total = parseFloat(document.getElementById('debt-amount')?.value) || 0;
+    if (_formMembers.length === 0) return;
+    const share = Math.round(total / _formMembers.length * 100) / 100;
+    _formMembers.forEach(m => { m.share = share; });
+}
+
+/**
+ * 重新計算分攤（金額改變時觸發）
+ */
+export function onDebtAmountChange() {
+    recalcMemberShares();
+    renderFormMembers();
+}
+
+/**
+ * 渲染表單中的成員列表
+ */
+function renderFormMembers() {
+    const container = document.getElementById('debt-form-members');
+    if (!container) return;
+    if (!_formMembers.length) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = _formMembers.map((m, idx) => `
+        <div class="flex items-center gap-2 py-1">
+            <span class="text-sm text-gray-700 flex-1">${escapeHtml(m.name)}</span>
+            <input type="number" value="${m.share}" min="0" step="0.01"
+                oninput="_formMemberShareChange(${idx}, this.value)"
+                class="w-20 text-sm border border-gray-200 rounded px-1.5 py-0.5 text-right">
+            <button type="button" onclick="removeDebtMember(${idx})" class="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+        </div>`).join('');
+}
+
+/**
+ * 修改成員分攤金額（由 oninput 呼叫）
+ */
+window._formMemberShareChange = function(idx, val) {
+    if (_formMembers[idx]) _formMembers[idx].share = parseFloat(val) || 0;
+};
 
 // ==================== 表單顯示 / 隱藏 ====================
 
@@ -231,7 +435,7 @@ function renderGroupCard(item) {
  */
 export function showDebtForm() {
     _editingId = null;
-    _groupMembers = [];
+    _formMembers = [];
     resetDebtForm();
     const modal = document.getElementById('debt-form-modal');
     if (modal) {
@@ -239,12 +443,7 @@ export function showDebtForm() {
         document.getElementById('debt-form-title').textContent = '新增欠款';
         document.getElementById('debt-submit-btn').textContent = '新增';
     }
-    // 同步表單的 debt_type 預設為目前分頁
-    const typeEl = document.getElementById('debt-type');
-    if (typeEl) {
-        typeEl.value = _currentTab === 'group' ? 'group' : _currentTab;
-        onDebtTypeChange();
-    }
+    setDebtFormType(_currentTab === 'group' ? 'lent' : _currentTab);
 }
 
 /**
@@ -260,107 +459,15 @@ export function hideDebtForm() {
  * 重置表單欄位
  */
 function resetDebtForm() {
-    ['debt-person', 'debt-title', 'debt-amount', 'debt-reason', 'debt-date', 'debt-members-input'].forEach(id => {
+    ['debt-person', 'debt-amount', 'debt-reason', 'debt-date', 'debt-member-name-input'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    _formMembers = [];
+    renderFormMembers();
     const errEl = document.getElementById('debt-error');
     if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
-    renderMembersList([]);
 }
-
-/**
- * 依 debt_type 切換顯示個人欄位 vs 群組欄位
- */
-export function onDebtTypeChange() {
-    const type = document.getElementById('debt-type')?.value;
-    const individualFields = document.getElementById('debt-individual-fields');
-    const groupFields = document.getElementById('debt-group-fields');
-    const groupMembersFields = document.getElementById('debt-group-fields-members');
-    if (individualFields) individualFields.classList.toggle('hidden', type === 'group');
-    if (groupFields) groupFields.classList.toggle('hidden', type !== 'group');
-    if (groupMembersFields) groupMembersFields.classList.toggle('hidden', type !== 'group');
-}
-
-// ==================== 群組成員管理 ====================
-
-/**
- * 暫存群組成員列表
- */
-let _groupMembers = [];
-
-/**
- * 新增成員（從輸入框）
- */
-export function addGroupMember() {
-    const input = document.getElementById('debt-members-input');
-    const name = input?.value.trim();
-    if (!name) return;
-    _groupMembers.push({ name, share: 0, paid: false });
-    input.value = '';
-    recalcEqualShares();
-    renderMembersList(_groupMembers);
-}
-
-/**
- * 移除成員
- * @param {number} idx
- */
-export function removeGroupMember(idx) {
-    _groupMembers.splice(idx, 1);
-    recalcEqualShares();
-    renderMembersList(_groupMembers);
-}
-
-/**
- * 平分金額給所有成員
- */
-function recalcEqualShares() {
-    const total = parseFloat(document.getElementById('debt-amount')?.value) || 0;
-    if (_groupMembers.length === 0) return;
-    const share = Math.round(total / _groupMembers.length * 100) / 100;
-    _groupMembers.forEach(m => { m.share = share; });
-}
-
-/**
- * 重新計算分攤（金額改變時觸發）
- */
-export function onDebtAmountChange() {
-    if (document.getElementById('debt-type')?.value === 'group') {
-        recalcEqualShares();
-        renderMembersList(_groupMembers);
-    }
-}
-
-/**
- * 渲染群組成員列表
- * @param {Array} members
- */
-function renderMembersList(members) {
-    const container = document.getElementById('debt-members-list');
-    if (!container) return;
-    if (!members.length) {
-        container.innerHTML = '<div class="text-xs text-gray-400 py-1">尚未新增成員</div>';
-        return;
-    }
-    container.innerHTML = members.map((m, idx) => `
-        <div class="flex items-center gap-2 py-1">
-            <span class="text-sm text-gray-700 flex-1">${escapeHtml(m.name)}</span>
-            <input type="number" value="${m.share}" min="0" step="0.01"
-                onchange="_groupMemberShareChange(${idx}, this.value)"
-                class="w-20 text-sm border border-gray-200 rounded px-1.5 py-0.5 text-right">
-            <button onclick="removeGroupMember(${idx})" class="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
-        </div>`).join('');
-}
-
-/**
- * 修改成員分攤金額
- * @param {number} idx
- * @param {string} val
- */
-window._groupMemberShareChange = function(idx, val) {
-    if (_groupMembers[idx]) _groupMembers[idx].share = parseFloat(val) || 0;
-};
 
 // ==================== 提交 ====================
 
@@ -373,6 +480,7 @@ export async function submitDebt() {
 
     const type = document.getElementById('debt-type')?.value;
     const amount = parseFloat(document.getElementById('debt-amount')?.value);
+    const person = document.getElementById('debt-person')?.value.trim();
     const reason = document.getElementById('debt-reason')?.value.trim() || '';
     const date = document.getElementById('debt-date')?.value || '';
 
@@ -380,18 +488,12 @@ export async function submitDebt() {
         if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
     };
 
+    if (!person) return showError('請輸入姓名或標題');
     if (!amount || amount <= 0) return showError('請輸入有效金額');
 
-    let payload;
-    if (type === 'group') {
-        const title = document.getElementById('debt-title')?.value.trim();
-        if (!title) return showError('請輸入群組標題');
-        if (_groupMembers.length === 0) return showError('請至少新增一位成員');
-        payload = { debt_type: 'group', title, total_amount: amount, reason, date, members: _groupMembers };
-    } else {
-        const person = document.getElementById('debt-person')?.value.trim();
-        if (!person) return showError('請輸入姓名');
-        payload = { debt_type: type, person, amount, reason, date };
+    const payload = { debt_type: type, person, amount, reason, date };
+    if (_formMembers.length > 0) {
+        payload.members = _formMembers.map(m => ({ name: m.name, share: m.share }));
     }
 
     try {
@@ -407,12 +509,12 @@ export async function submitDebt() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || (_editingId ? '更新失敗' : '新增失敗'));
 
+        const wasEditing = !!_editingId;
         hideDebtForm();
-        EventBus.emit(_editingId ? EVENTS.DEBT_UPDATED : EVENTS.DEBT_ADDED, data);
+        EventBus.emit(wasEditing ? EVENTS.DEBT_UPDATED : EVENTS.DEBT_ADDED, data);
+        showToast(wasEditing ? '欠款已更新' : '欠款已新增', 'success');
         await loadDebts();
-        // 切換到對應分頁
-        const tab = type === 'group' ? 'group' : type;
-        switchDebtTab(tab);
+        switchDebtTab(type);
     } catch (e) {
         showError(e.message);
     }
@@ -431,29 +533,21 @@ export async function editDebt(id) {
         if (!response.ok) throw new Error(item.error || '載入失敗');
 
         _editingId = id;
-        _groupMembers = item.members ? JSON.parse(JSON.stringify(item.members)) : [];
+        // 載入 members（保留 name/share，編輯時不帶 paid_amount）
+        _formMembers = (item.members || []).map(m => ({ name: m.name, share: m.share }));
 
-        const typeEl = document.getElementById('debt-type');
-        if (typeEl) typeEl.value = item.debt_type;
-        onDebtTypeChange();
+        setDebtFormType(item.debt_type);
 
-        if (item.debt_type === 'group') {
-            const titleEl = document.getElementById('debt-title');
-            if (titleEl) titleEl.value = item.title || '';
-            const amountEl = document.getElementById('debt-amount');
-            if (amountEl) amountEl.value = item.total_amount || '';
-            renderMembersList(_groupMembers);
-        } else {
-            const personEl = document.getElementById('debt-person');
-            if (personEl) personEl.value = item.person || '';
-            const amountEl = document.getElementById('debt-amount');
-            if (amountEl) amountEl.value = item.amount || '';
-        }
-
+        const personEl = document.getElementById('debt-person');
+        if (personEl) personEl.value = item.person || '';
+        const amountEl = document.getElementById('debt-amount');
+        if (amountEl) amountEl.value = item.amount || '';
         const reasonEl = document.getElementById('debt-reason');
         if (reasonEl) reasonEl.value = item.reason || '';
         const dateEl = document.getElementById('debt-date');
         if (dateEl) dateEl.value = item.date || '';
+
+        renderFormMembers();
 
         const modal = document.getElementById('debt-form-modal');
         if (modal) modal.classList.remove('hidden');
@@ -461,7 +555,7 @@ export async function editDebt(id) {
         document.getElementById('debt-submit-btn').textContent = '儲存';
     } catch (e) {
         console.error('載入欠款編輯資料失敗:', e);
-        alert('無法載入資料');
+        showToast('無法載入資料', 'error');
     }
 }
 
@@ -473,15 +567,16 @@ export async function editDebt(id) {
  * @param {string} name
  */
 export async function deleteDebt(id, name) {
-    if (!confirm(`確定要刪除「${name}」？`)) return;
+    if (!await showConfirm(`確定要刪除「${name}」？`, '刪除', '取消')) return;
     try {
         const response = await apiCall(`${backendUrl}/admin/api/debts/${id}`, { method: 'DELETE' });
         if (!response.ok) {
             const data = await response.json();
-            alert(data.error || '刪除失敗');
+            showToast(data.error || '刪除失敗', 'error');
             return;
         }
         EventBus.emit(EVENTS.DEBT_DELETED, { id });
+        showToast('欠款已刪除', 'success');
         await loadDebts();
     } catch (e) {
         console.error('刪除欠款失敗:', e);
@@ -500,95 +595,13 @@ export async function settleDebt(id, currentSettled) {
         const response = await apiCall(`${backendUrl}/admin/api/debts/${id}/settle`, { method: 'POST' });
         if (!response.ok) {
             const data = await response.json();
-            alert(data.error || '操作失敗');
+            showToast(data.error || '操作失敗', 'error');
             return;
         }
+        showToast(currentSettled ? '已取消結清' : '已結清', 'success');
         await loadDebts();
     } catch (e) {
         console.error('切換結清狀態失敗:', e);
-    }
-}
-
-// ==================== 還款 Modal ====================
-
-/**
- * 顯示還款 Modal
- * @param {string} id
- */
-export function showRepayModal(id) {
-    _repayingId = id;
-    const modal = document.getElementById('repay-modal');
-    if (modal) modal.classList.remove('hidden');
-    const errEl = document.getElementById('repay-error');
-    if (errEl) errEl.classList.add('hidden');
-    const amountEl = document.getElementById('repay-amount');
-    if (amountEl) amountEl.value = '';
-    const noteEl = document.getElementById('repay-note');
-    if (noteEl) noteEl.value = '';
-}
-
-/**
- * 隱藏還款 Modal
- */
-export function hideRepayModal() {
-    document.getElementById('repay-modal')?.classList.add('hidden');
-    _repayingId = null;
-}
-
-/**
- * 提交還款記錄
- */
-export async function submitRepay() {
-    const errEl = document.getElementById('repay-error');
-    if (errEl) errEl.classList.add('hidden');
-
-    const amount = parseFloat(document.getElementById('repay-amount')?.value);
-    const note = document.getElementById('repay-note')?.value.trim() || '';
-
-    if (!amount || amount <= 0) {
-        if (errEl) { errEl.textContent = '請輸入有效還款金額'; errEl.classList.remove('hidden'); }
-        return;
-    }
-
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        const response = await apiCall(`${backendUrl}/admin/api/debts/${_repayingId}/repay`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount, date: today, note })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || '還款記錄失敗');
-        hideRepayModal();
-        await loadDebts();
-    } catch (e) {
-        if (errEl) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
-    }
-}
-
-// ==================== 群組成員已付款切換 ====================
-
-/**
- * 切換群組成員已付款狀態
- * @param {string} id - debt ID
- * @param {number} idx - member index
- * @param {boolean} currentPaid
- */
-export async function toggleMemberPaid(id, idx, currentPaid) {
-    try {
-        const response = await apiCall(`${backendUrl}/admin/api/debts/${id}/members/${idx}/pay`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paid: !currentPaid })
-        });
-        if (!response.ok) {
-            const data = await response.json();
-            alert(data.error || '操作失敗');
-            return;
-        }
-        await loadDebts();
-    } catch (e) {
-        console.error('切換成員付款狀態失敗:', e);
     }
 }
 
@@ -603,18 +616,17 @@ export function initDebts() {
     window.switchDebtTab = switchDebtTab;
     window.showDebtForm = showDebtForm;
     window.hideDebtForm = hideDebtForm;
-    window.onDebtTypeChange = onDebtTypeChange;
+    window.setDebtFormType = setDebtFormType;
     window.onDebtAmountChange = onDebtAmountChange;
-    window.addGroupMember = addGroupMember;
-    window.removeGroupMember = removeGroupMember;
+    window.addDebtMember = addDebtMember;
+    window.removeDebtMember = removeDebtMember;
     window.submitDebt = submitDebt;
     window.editDebt = editDebt;
     window.deleteDebt = deleteDebt;
     window.settleDebt = settleDebt;
-    window.showRepayModal = showRepayModal;
-    window.hideRepayModal = hideRepayModal;
-    window.submitRepay = submitRepay;
-    window.toggleMemberPaid = toggleMemberPaid;
+    window.toggleDebtCard = toggleDebtCard;
+    window.submitInlineRepay = submitInlineRepay;
+    window.submitMemberRepay = submitMemberRepay;
 
     // 登入後自動載入
     EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, loadDebts);
