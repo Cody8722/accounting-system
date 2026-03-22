@@ -46,6 +46,6 @@ export async function addDebt(page, { debt_type = 'lent', person, amount, reason
 
   await responsePromise;
 
-  // 等待 Modal 關閉
-  await page.waitForSelector('#debt-form-modal.hidden', { timeout: 8000 });
+  // 等待 Modal 關閉（用 state:'hidden' 而非 waitForSelector，避免邏輯矛盾）
+  await page.locator('#debt-form-modal').waitFor({ state: 'hidden', timeout: 8000 });
 }
