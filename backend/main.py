@@ -893,22 +893,35 @@ def get_stats_overview():
         user_oid = ObjectId(request.user_id)
 
         # 1. cash_balance（全時間範圍，不含日期篩選）
-        income_result = list(accounting_records_collection.aggregate([
-            {"$match": {"user_id": user_oid, "type": "income"}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
-        ]))
-        expense_result = list(accounting_records_collection.aggregate([
-            {"$match": {"user_id": user_oid, "type": "expense"}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
-        ]))
-        cash_balance = (income_result[0]["total"] if income_result else 0) - \
-                       (expense_result[0]["total"] if expense_result else 0)
+        income_result = list(
+            accounting_records_collection.aggregate(
+                [
+                    {"$match": {"user_id": user_oid, "type": "income"}},
+                    {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+                ]
+            )
+        )
+        expense_result = list(
+            accounting_records_collection.aggregate(
+                [
+                    {"$match": {"user_id": user_oid, "type": "expense"}},
+                    {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+                ]
+            )
+        )
+        cash_balance = (income_result[0]["total"] if income_result else 0) - (
+            expense_result[0]["total"] if expense_result else 0
+        )
 
         # 2. 欠款統計（只計算未結清）
-        active_debts = list(debts_collection.find({
-            "user_id": user_oid,
-            "is_settled": {"$ne": True},
-        }))
+        active_debts = list(
+            debts_collection.find(
+                {
+                    "user_id": user_oid,
+                    "is_settled": {"$ne": True},
+                }
+            )
+        )
 
         receivable = 0
         payable = 0
@@ -923,7 +936,8 @@ def get_stats_overview():
                 if members:
                     receivable += sum(
                         max(0, m.get("share", 0) - m.get("paid_amount", 0))
-                        for m in members if not m.get("is_settled", False)
+                        for m in members
+                        if not m.get("is_settled", False)
                     )
                 else:
                     receivable += max(0, d.get("amount", 0) - d.get("paid_amount", 0))
@@ -932,23 +946,29 @@ def get_stats_overview():
                 if members:
                     payable += sum(
                         max(0, m.get("share", 0) - m.get("paid_amount", 0))
-                        for m in members if not m.get("is_settled", False)
+                        for m in members
+                        if not m.get("is_settled", False)
                     )
                 else:
                     payable += max(0, d.get("amount", 0) - d.get("paid_amount", 0))
 
         net_balance = cash_balance + receivable - payable
 
-        return jsonify({
-            "cash_balance": cash_balance,
-            "receivable": receivable,
-            "payable": payable,
-            "group_receivable": 0,
-            "net_balance": net_balance,
-            "lent_count": lent_count,
-            "borrowed_count": borrowed_count,
-            "group_count": 0,
-        }), 200
+        return (
+            jsonify(
+                {
+                    "cash_balance": cash_balance,
+                    "receivable": receivable,
+                    "payable": payable,
+                    "group_receivable": 0,
+                    "net_balance": net_balance,
+                    "lent_count": lent_count,
+                    "borrowed_count": borrowed_count,
+                    "group_count": 0,
+                }
+            ),
+            200,
+        )
     except Exception as e:
         logger.error(f"取得整合統計失敗: {e}")
         return jsonify({"error": "取得整合統計失敗"}), 500
@@ -1099,14 +1119,16 @@ def export_accounting_records():
             # 建立 JSON 備份
             backup_records = []
             for record in raw_records:
-                backup_records.append({
-                    "type": record.get("type", ""),
-                    "amount": record.get("amount", 0),
-                    "category": record.get("category", ""),
-                    "date": record.get("date", ""),
-                    "description": record.get("description", ""),
-                    "expense_type": record.get("expense_type", ""),
-                })
+                backup_records.append(
+                    {
+                        "type": record.get("type", ""),
+                        "amount": record.get("amount", 0),
+                        "category": record.get("category", ""),
+                        "date": record.get("date", ""),
+                        "description": record.get("description", ""),
+                        "expense_type": record.get("expense_type", ""),
+                    }
+                )
             backup_data = {
                 "version": "1.0",
                 "exported_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -1129,8 +1151,21 @@ def export_accounting_records():
             rows = []
             for record in raw_records:
                 type_zh = "收入" if record.get("type") == "income" else "支出"
-                expense_type_zh = {"fixed": "固定支出", "variable": "變動支出", "onetime": "一次性支出"}.get(record.get("expense_type", ""), "")
-                rows.append([record.get("date", ""), type_zh, record.get("category", ""), record.get("amount", 0), record.get("description", ""), expense_type_zh])
+                expense_type_zh = {
+                    "fixed": "固定支出",
+                    "variable": "變動支出",
+                    "onetime": "一次性支出",
+                }.get(record.get("expense_type", ""), "")
+                rows.append(
+                    [
+                        record.get("date", ""),
+                        type_zh,
+                        record.get("category", ""),
+                        record.get("amount", 0),
+                        record.get("description", ""),
+                        expense_type_zh,
+                    ]
+                )
 
             # 建立 Excel
             wb = openpyxl.Workbook()
@@ -1139,7 +1174,9 @@ def export_accounting_records():
 
             # 標題列樣式
             header_font = Font(bold=True, color="FFFFFF")
-            header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+            header_fill = PatternFill(
+                start_color="2563EB", end_color="2563EB", fill_type="solid"
+            )
             header_align = Alignment(horizontal="center")
 
             ws.append(headers)
@@ -1181,8 +1218,21 @@ def export_accounting_records():
             rows = []
             for record in raw_records:
                 type_zh = "收入" if record.get("type") == "income" else "支出"
-                expense_type_zh = {"fixed": "固定支出", "variable": "變動支出", "onetime": "一次性支出"}.get(record.get("expense_type", ""), "")
-                rows.append([record.get("date", ""), type_zh, record.get("category", ""), record.get("amount", 0), record.get("description", ""), expense_type_zh])
+                expense_type_zh = {
+                    "fixed": "固定支出",
+                    "variable": "變動支出",
+                    "onetime": "一次性支出",
+                }.get(record.get("expense_type", ""), "")
+                rows.append(
+                    [
+                        record.get("date", ""),
+                        type_zh,
+                        record.get("category", ""),
+                        record.get("amount", 0),
+                        record.get("description", ""),
+                        expense_type_zh,
+                    ]
+                )
 
             output = StringIO()
             writer = csv.writer(output)
@@ -1206,7 +1256,9 @@ def export_accounting_records():
                 },
             )
 
-        logger.info(f"匯出 {record_count} 筆記帳記錄 ({export_format}) (user: {request.email})")
+        logger.info(
+            f"匯出 {record_count} 筆記帳記錄 ({export_format}) (user: {request.email})"
+        )
         return response
 
     except Exception as e:
@@ -1261,33 +1313,49 @@ def import_accounting_records():
                 expense_type = ""
 
             # 去重：比對 (user_id, date, type, amount, category, description)
-            existing = accounting_records_collection.find_one({
-                "user_id": user_oid,
-                "date": date,
-                "type": record_type,
-                "amount": float(amount),
-                "category": category,
-                "description": description,
-            })
+            existing = accounting_records_collection.find_one(
+                {
+                    "user_id": user_oid,
+                    "date": date,
+                    "type": record_type,
+                    "amount": float(amount),
+                    "category": category,
+                    "description": description,
+                }
+            )
             if existing:
                 duplicates += 1
                 continue
 
-            accounting_records_collection.insert_one({
-                "user_id": user_oid,
-                "type": record_type,
-                "amount": float(amount),
-                "category": category,
-                "date": date,
-                "description": description,
-                "expense_type": expense_type,
-                "created_at": datetime.now(),
-            })
+            accounting_records_collection.insert_one(
+                {
+                    "user_id": user_oid,
+                    "type": record_type,
+                    "amount": float(amount),
+                    "category": category,
+                    "date": date,
+                    "description": description,
+                    "expense_type": expense_type,
+                    "created_at": datetime.now(),
+                }
+            )
             imported += 1
 
         total = imported + duplicates + invalid
-        logger.info(f"匯入記帳記錄: 新增={imported}, 重複={duplicates}, 無效={invalid} (user: {request.email})")
-        return jsonify({"imported": imported, "duplicates": duplicates, "invalid": invalid, "total": total}), 200
+        logger.info(
+            f"匯入記帳記錄: 新增={imported}, 重複={duplicates}, 無效={invalid} (user: {request.email})"
+        )
+        return (
+            jsonify(
+                {
+                    "imported": imported,
+                    "duplicates": duplicates,
+                    "invalid": invalid,
+                    "total": total,
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         logger.error(f"匯入記帳記錄失敗: {e}")
@@ -1728,7 +1796,8 @@ def _enrich_debt(item):
         item["paid_members"] = sum(1 for m in members if m.get("is_settled", False))
         item["pending_receivable"] = sum(
             max(0, m.get("share", 0) - m.get("paid_amount", 0))
-            for m in members if not m.get("is_settled", False)
+            for m in members
+            if not m.get("is_settled", False)
         )
     return item
 
@@ -1796,12 +1865,14 @@ def create_debt():
             if not name:
                 continue
             share = float(m.get("share", 0))
-            members.append({
-                "name": name,
-                "share": share,
-                "paid_amount": 0.0,
-                "is_settled": False,
-            })
+            members.append(
+                {
+                    "name": name,
+                    "share": share,
+                    "paid_amount": 0.0,
+                    "is_settled": False,
+                }
+            )
 
         doc = {
             "user_id": user_oid,
@@ -1819,7 +1890,10 @@ def create_debt():
 
         result = debts_collection.insert_one(doc)
         logger.info(f"新增欠款記錄 (type={debt_type}, user: {request.email})")
-        return jsonify({"id": str(result.inserted_id), "message": "欠款記錄已新增"}), 201
+        return (
+            jsonify({"id": str(result.inserted_id), "message": "欠款記錄已新增"}),
+            201,
+        )
     except Exception as e:
         logger.error(f"新增欠款失敗: {e}")
         return jsonify({"error": "新增欠款失敗"}), 500
@@ -1880,24 +1954,24 @@ def update_debt(debt_id):
             update_fields["date"] = data["date"]
         if "members" in data:
             members = []
-            for m in (data["members"] or []):
+            for m in data["members"] or []:
                 name = str(m.get("name", "")).strip()[:50]
                 if not name:
                     continue
-                members.append({
-                    "name": name,
-                    "share": float(m.get("share", 0)),
-                    "paid_amount": float(m.get("paid_amount", 0)),
-                    "is_settled": bool(m.get("is_settled", False)),
-                })
+                members.append(
+                    {
+                        "name": name,
+                        "share": float(m.get("share", 0)),
+                        "paid_amount": float(m.get("paid_amount", 0)),
+                        "is_settled": bool(m.get("is_settled", False)),
+                    }
+                )
             update_fields["members"] = members
 
         if not update_fields:
             return jsonify({"error": "沒有可更新的欄位"}), 400
 
-        debts_collection.update_one(
-            {"_id": ObjectId(debt_id)}, {"$set": update_fields}
-        )
+        debts_collection.update_one({"_id": ObjectId(debt_id)}, {"$set": update_fields})
         logger.info(f"更新欠款記錄 {debt_id} (user: {request.email})")
         return jsonify({"message": "欠款記錄已更新"}), 200
     except Exception as e:
@@ -2001,11 +2075,16 @@ def add_repayment(debt_id):
             accounting_records_collection.insert_one(sync_record)
         except Exception as sync_err:
             logger.error(f"還款同步寫入記帳失敗: {sync_err}")
-            return jsonify({
-                "message": "還款記錄已新增，但記帳同步失敗，請手動補記",
-                "is_settled": is_settled,
-                "sync_failed": True,
-            }), 200
+            return (
+                jsonify(
+                    {
+                        "message": "還款記錄已新增，但記帳同步失敗，請手動補記",
+                        "is_settled": is_settled,
+                        "sync_failed": True,
+                    }
+                ),
+                200,
+            )
 
         logger.info(f"新增還款 {repay_amount} 到欠款 {debt_id} (user: {request.email})")
         return jsonify({"message": "還款記錄已新增", "is_settled": is_settled}), 200
@@ -2014,7 +2093,9 @@ def add_repayment(debt_id):
         return jsonify({"error": "新增還款失敗"}), 500
 
 
-@app.route("/admin/api/debts/<debt_id>/members/<int:member_idx>/repay", methods=["POST"])
+@app.route(
+    "/admin/api/debts/<debt_id>/members/<int:member_idx>/repay", methods=["POST"]
+)
 @limiter.limit("50 per minute")
 @require_auth
 def repay_member(debt_id, member_idx):
@@ -2056,7 +2137,13 @@ def repay_member(debt_id, member_idx):
 
         debts_collection.update_one(
             {"_id": ObjectId(debt_id)},
-            {"$set": {"members": members, "paid_amount": top_paid, "is_settled": all_settled}},
+            {
+                "$set": {
+                    "members": members,
+                    "paid_amount": top_paid,
+                    "is_settled": all_settled,
+                }
+            },
         )
 
         # 同步寫入現金流記帳記錄
@@ -2081,7 +2168,9 @@ def repay_member(debt_id, member_idx):
         except Exception as sync_err:
             logger.error(f"成員還款同步寫入記帳失敗: {sync_err}")
 
-        logger.info(f"成員還款 {repay_amount} (debt={debt_id}, member={member_idx}, user: {request.email})")
+        logger.info(
+            f"成員還款 {repay_amount} (debt={debt_id}, member={member_idx}, user: {request.email})"
+        )
         return jsonify({"message": "還款已記錄", "is_settled": all_settled}), 200
     except Exception as e:
         logger.error(f"成員還款失敗: {e}")
@@ -2109,7 +2198,9 @@ def toggle_settle_debt(debt_id):
         debts_collection.update_one(
             {"_id": ObjectId(debt_id)}, {"$set": {"is_settled": new_settled}}
         )
-        logger.info(f"切換欠款結清狀態 {debt_id} → {new_settled} (user: {request.email})")
+        logger.info(
+            f"切換欠款結清狀態 {debt_id} → {new_settled} (user: {request.email})"
+        )
         return jsonify({"message": "狀態已更新", "is_settled": new_settled}), 200
     except Exception as e:
         logger.error(f"切換結清狀態失敗: {e}")
@@ -2790,24 +2881,31 @@ def migrate_group_debts():
                 paid = bool(m.get("paid", False))
                 paid_amount = share if paid else 0.0
                 total_paid += paid_amount
-                new_members.append({
-                    "name": m.get("name", ""),
-                    "share": share,
-                    "paid_amount": paid_amount,
-                    "is_settled": paid,
-                })
-            all_settled = all(m["is_settled"] for m in new_members) if new_members else False
+                new_members.append(
+                    {
+                        "name": m.get("name", ""),
+                        "share": share,
+                        "paid_amount": paid_amount,
+                        "is_settled": paid,
+                    }
+                )
+            all_settled = (
+                all(m["is_settled"] for m in new_members) if new_members else False
+            )
             debts_collection.update_one(
                 {"_id": doc["_id"]},
-                {"$set": {
-                    "debt_type": "lent",
-                    "person": doc.get("title", "群組分帳"),
-                    "amount": float(doc.get("total_amount", 0)),
-                    "paid_amount": total_paid,
-                    "is_settled": all_settled,
-                    "repayments": [],
-                    "members": new_members,
-                }, "$unset": {"title": "", "total_amount": ""}},
+                {
+                    "$set": {
+                        "debt_type": "lent",
+                        "person": doc.get("title", "群組分帳"),
+                        "amount": float(doc.get("total_amount", 0)),
+                        "paid_amount": total_paid,
+                        "is_settled": all_settled,
+                        "repayments": [],
+                        "members": new_members,
+                    },
+                    "$unset": {"title": "", "total_amount": ""},
+                },
             )
             migrated += 1
         logger.info(f"[Migration] 群組分帳遷移完成：共遷移 {migrated} 筆")
