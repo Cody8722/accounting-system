@@ -13,7 +13,7 @@ import { EventBus, EVENTS } from './events.js';
 import { apiCall } from './api.js';
 import { backendUrl } from './config.js';
 import { categoryData } from './config.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, showToast, showConfirm } from './utils.js';
 
 /**
  * 目前正在編輯的項目 ID（null 表示新增模式）
@@ -183,7 +183,9 @@ export async function submitRecurring() {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || (_editingId ? '更新失敗' : '新增失敗'));
+        const wasEditing = !!_editingId;
         hideRecurringForm();
+        showToast(wasEditing ? '定期收支已更新' : '定期收支已新增', 'success');
         loadRecurring();
     } catch (e) {
         showError(e.message);
@@ -225,7 +227,7 @@ export async function editRecurring(id) {
         document.getElementById('rc-name')?.focus();
     } catch (e) {
         console.error('載入編輯資料失敗:', e);
-        alert('無法載入項目資料');
+        showToast('無法載入項目資料', 'error');
     }
 }
 
@@ -235,14 +237,15 @@ export async function editRecurring(id) {
  * @param {string} name - 項目名稱（顯示用）
  */
 export async function deleteRecurring(id, name) {
-    if (!confirm(`確定要刪除「${name}」？`)) return;
+    if (!await showConfirm(`確定要刪除「${name}」？`, '刪除', '取消')) return;
     try {
         const response = await apiCall(`${backendUrl}/admin/api/recurring/${id}`, { method: 'DELETE' });
         if (!response.ok) {
             const data = await response.json();
-            alert(data.error || '刪除失敗');
+            showToast(data.error || '刪除失敗', 'error');
             return;
         }
+        showToast('已刪除定期收支', 'success');
         loadRecurring();
     } catch (e) {
         console.error('刪除定期收支失敗:', e);
@@ -262,6 +265,7 @@ export async function applyRecurring(id, name) {
 
         EventBus.emit(EVENTS.RECORD_ADDED, { source: 'recurring', name });
         EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
+        showToast('已套用定期收支', 'success');
 
         // 按鈕回饋
         const btn = document.activeElement;
@@ -272,7 +276,7 @@ export async function applyRecurring(id, name) {
             setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
         }
     } catch (e) {
-        alert(e.message);
+        showToast(e.message, 'error');
     }
 }
 

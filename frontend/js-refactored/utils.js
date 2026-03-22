@@ -112,3 +112,34 @@ export function showConfirm(message, confirmText = '確定', cancelText = '取�
         });
     });
 }
+
+/**
+ * 產生骨架載入卡片 HTML
+ * @param {number} n - 卡片數量
+ * @returns {string} HTML 字串
+ */
+export function skeletonCards(n = 3) {
+    return Array.from({ length: n }, () => `
+        <div class="animate-pulse bg-gray-50 rounded-xl p-4 mb-2 border border-gray-100">
+            <div class="flex justify-between items-center mb-2">
+                <div class="h-3 bg-gray-200 rounded w-16"></div>
+                <div class="h-5 bg-gray-200 rounded w-14"></div>
+            </div>
+            <div class="h-4 bg-gray-200 rounded w-2/3 mb-1"></div>
+            <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+        </div>`).join('');
+}
+
+/**
+ * 防抖函數
+ * @param {Function} fn - 要防抖的函數
+ * @param {number} delay - 延遲毫秒數
+ * @returns {Function} 防抖後的函數
+ */
+export function debounce(fn, delay) {
+    let timer;
+    return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+}

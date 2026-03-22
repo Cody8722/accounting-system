@@ -210,6 +210,12 @@ export function setLastKnownStats(stats) {
  * 載入整合財務概覽（記帳 + 欠款）
  */
 async function loadOverviewStats() {
+    // 先顯示佔位符，避免顯示 $0 或舊數值
+    ['net-balance', 'total-receivable', 'total-payable', 'debt-counts'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '---';
+    });
+
     try {
         const response = await apiCall(`${backendUrl}/admin/api/stats/overview`);
         const data = await response.json();

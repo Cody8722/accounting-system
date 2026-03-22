@@ -13,7 +13,7 @@
 import { EventBus, EVENTS } from './events.js';
 import { apiCall, api } from './api.js';
 import { backendUrl } from './config.js';
-import { showToast, showConfirm, escapeHtml } from './utils.js';
+import { showToast, showConfirm, escapeHtml, skeletonCards, debounce } from './utils.js';
 
 /**
  * 正在刪除的記錄 ID 集合（防止重複刪除）
@@ -200,6 +200,7 @@ export async function deleteRecord(recordId, recordType, recordAmount) {
             type: recordType,
             amount: recordAmount
         });
+        showToast('記錄已刪除', 'success');
 
     } catch (error) {
         // 刪除失敗，發送事件請求重新載入
@@ -241,7 +242,7 @@ export async function loadRecords(showLoading = true, page = null) {
     url += `sort_by=${sortBy}&sort_order=${sortOrder}&`;
 
     if (showLoading) {
-        recordsList.innerHTML = '<p class="text-center text-gray-700 py-8"><span class="spinner"></span>載入中...</p>';
+        recordsList.innerHTML = skeletonCards(4);
     }
 
     try {
@@ -263,7 +264,12 @@ export async function loadRecords(showLoading = true, page = null) {
         }
 
         if (records.length === 0 && currentPage === 1) {
-            recordsList.innerHTML = '<p class="text-center text-gray-700 py-8">目前沒有記錄</p>';
+            recordsList.innerHTML = `
+                <div class="text-center py-10">
+                    <div class="text-4xl mb-2">📭</div>
+                    <div class="text-gray-500 text-sm font-medium">目前沒有符合條件的記錄</div>
+                    <div class="text-gray-400 text-xs mt-1">試試調整篩選條件，或點「＋ 新增」</div>
+                </div>`;
             renderPagination();
             EventBus.emit(EVENTS.RECORDS_LOADED, []);
             return;
@@ -339,7 +345,37 @@ export function clearFilters() {
     if (hiddenCatEl) hiddenCatEl.value = '';
     if (displayCatEl) displayCatEl.textContent = '全部分類';
 
+    updateClearBtn();
     loadRecords(true, 1);
+}
+
+/**
+ * 根據篩選條件是否有變動，顯示或隱藏「清除篩選」按鈕
+ */
+function updateClearBtn() {
+    const btn = document.getElementById('clear-filters-btn');
+    if (!btn) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+    const keyword = document.getElementById('filter-keyword')?.value || '';
+    const category = document.getElementById('filter-category')?.value || '';
+    const sort = document.getElementById('filter-sort')?.value || 'date-desc';
+    const startDate = document.getElementById('filter-start-date')?.value || firstDay;
+    const endDate = document.getElementById('filter-end-date')?.value || today;
+    const incomeChecked = document.getElementById('filter-type-income')?.checked ?? true;
+    const expenseChecked = document.getElementById('filter-type-expense')?.checked ?? true;
+
+    const hasFilter = keyword !== ''
+        || category !== ''
+        || sort !== 'date-desc'
+        || startDate !== firstDay
+        || endDate !== today
+        || !incomeChecked
+        || !expenseChecked;
+
+    btn.classList.toggle('hidden', !hasFilter);
 }
 
 /**
@@ -529,24 +565,29 @@ export function initRecords() {
     // ===== 設置表單事件監聽器 =====
     setupFormEventListeners();
 
-    // 排序 select / checkbox 改動後立即觸發查詢
+    // 排序 select / checkbox 改動後立即觸發查詢並更新清除按鈕
     ['filter-sort'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+        if (el) el.addEventListener('change', () => { loadRecords(true, 1); updateClearBtn(); });
     });
     ['filter-type-income', 'filter-type-expense'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+        if (el) el.addEventListener('change', () => { loadRecords(true, 1); updateClearBtn(); });
     });
 
-    // 排序 select / checkbox 改動後立即觸發查詢
-    ['filter-sort'].forEach(id => {
+    // 關鍵字即時搜尋（300ms debounce）
+    const keywordInput = document.getElementById('filter-keyword');
+    if (keywordInput) {
+        keywordInput.addEventListener('input', debounce(() => { loadRecords(true, 1); updateClearBtn(); }, 300));
+        keywordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); loadRecords(true, 1); updateClearBtn(); }
+        });
+    }
+
+    // 日期篩選改動後更新清除按鈕
+    ['filter-start-date', 'filter-end-date'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('change', () => loadRecords(true, 1));
-    });
-    ['filter-type-income', 'filter-type-expense'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('change', () => loadRecords(true, 1));
+        if (el) el.addEventListener('change', () => updateClearBtn());
     });
 
     // 暴露到全局（供 HTML onclick 使用）
@@ -558,6 +599,7 @@ export function initRecords() {
     window.closeEditRecordModal = closeEditRecordModal;
     window.clearFilters = clearFilters;
     window.toggleAdvancedFilter = toggleAdvancedFilter;
+    window.updateClearBtn = updateClearBtn;
 
     // 欠款連動開關控制
     window.onDebtLinkToggle = function() {
@@ -703,6 +745,7 @@ function setupFormEventListeners() {
                     }
                 }
 
+                showToast('記錄已新增', 'success');
                 if (accountingMessage) {
                     accountingMessage.textContent = '✅ 記帳記錄已新增';
                     accountingMessage.className = 'text-center text-sm font-medium text-green-600';
@@ -804,6 +847,7 @@ function setupFormEventListeners() {
             try {
                 await updateRecord(recordId, recordData);
 
+                showToast('記錄已更新', 'success');
                 if (editRecordMessage) {
                     editRecordMessage.textContent = '✅ 記帳記錄已更新';
                     editRecordMessage.className = 'text-center text-sm font-medium text-green-600';
@@ -829,10 +873,4 @@ function setupFormEventListeners() {
         });
     }
 
-    // ===== 載入記錄按鈕事件處理 =====
-    if (loadRecordsBtn) {
-        loadRecordsBtn.addEventListener('click', () => {
-            loadRecords(true);
-        });
-    }
 }
