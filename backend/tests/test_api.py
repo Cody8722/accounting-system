@@ -1372,5 +1372,133 @@ class TestImportExportJSON:
         assert response.status_code == 400
 
 
+class TestStatsOverview:
+    """整合財務概覽統計測試（/admin/api/stats/overview）"""
+
+    def test_overview_no_auth_returns_401(self, client):
+        r = client.get("/admin/api/stats/overview")
+        assert r.status_code in [401, 403]
+
+    def test_overview_empty_returns_zero_fields(self, client, auth_headers):
+        """全新用戶，所有欄位應為數值（不一定為 0，因為共用 user_id 可能有既有資料）"""
+        r = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.get_json()
+        for field in [
+            "cash_balance",
+            "receivable",
+            "payable",
+            "net_balance",
+            "lent_count",
+            "borrowed_count",
+            "group_count",
+        ]:
+            assert field in data
+            assert isinstance(data[field], (int, float))
+
+    def test_overview_lent_increments_receivable(self, client, auth_headers):
+        """新增 lent 欠款後 receivable 應增加"""
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        client.post(
+            "/admin/api/debts",
+            json={"debt_type": "lent", "person": "X", "amount": 400},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["receivable"] >= before + 400
+
+    def test_overview_borrowed_increments_payable(self, client, auth_headers):
+        """新增 borrowed 欠款後 payable 應增加"""
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["payable"]
+
+        client.post(
+            "/admin/api/debts",
+            json={"debt_type": "borrowed", "person": "Y", "amount": 200},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["payable"] >= before + 200
+
+    def test_overview_partial_repay_reduces_receivable(self, client, auth_headers):
+        """部分還款後 receivable 應減少"""
+        cr = client.post(
+            "/admin/api/debts",
+            json={"debt_type": "lent", "person": "Z", "amount": 600},
+            headers=auth_headers,
+        )
+        debt_id = cr.get_json()["id"]
+
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        client.post(
+            f"/admin/api/debts/{debt_id}/repay",
+            json={"amount": 300},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["receivable"] <= before - 300
+
+    def test_overview_settled_debt_excluded(self, client, auth_headers):
+        """已結清欠款不應計入 receivable"""
+        cr = client.post(
+            "/admin/api/debts",
+            json={"debt_type": "lent", "person": "Settled", "amount": 100},
+            headers=auth_headers,
+        )
+        debt_id = cr.get_json()["id"]
+
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        client.post(f"/admin/api/debts/{debt_id}/settle", headers=auth_headers)
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        # 結清後 receivable 應比之前少（此欠款已從統計移除）
+        assert r1.get_json()["receivable"] <= before
+
+    def test_overview_members_uses_remaining_share(self, client, auth_headers):
+        """含 members 的 lent 欠款，receivable 應計算未還金額（share - paid_amount）"""
+        cr = client.post(
+            "/admin/api/debts",
+            json={
+                "debt_type": "lent",
+                "person": "Group",
+                "amount": 600,
+                "members": [
+                    {"name": "A", "share": 300},
+                    {"name": "B", "share": 300},
+                ],
+            },
+            headers=auth_headers,
+        )
+        debt_id = cr.get_json()["id"]
+
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        # A 還了 100，receivable 應減少 100
+        client.post(
+            f"/admin/api/debts/{debt_id}/members/0/repay",
+            json={"amount": 100},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["receivable"] <= before - 100
+
+    def test_overview_group_count_always_zero(self, client, auth_headers):
+        """group_count 欄位應永遠為 0（群組類型已整合進 lent/borrowed）"""
+        r = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.get_json()["group_count"] == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
