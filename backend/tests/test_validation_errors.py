@@ -27,6 +27,7 @@ from main import (
     validate_description,
 )
 import main as main_module
+import db as db_module
 
 TODAY = datetime.now().strftime("%Y-%m-%d")
 
@@ -304,19 +305,19 @@ class TestDBExceptions:
         assert r.status_code == 500
 
     def test_get_budget_db_error(self, client, auth_headers):
-        """GET budget → find_one 例外 → 500 (line 679-681)"""
+        """GET budget → find_one 例外 → 500"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "accounting_budget_collection") as m:
+        with patch.object(db_module, "accounting_budget_collection") as m:
             m.find_one.side_effect = Exception("DB error")
             r = client.get("/admin/api/accounting/budget", headers=auth_headers)
         assert r.status_code == 500
 
     def test_save_budget_db_error(self, client, auth_headers):
-        """POST budget → update_one 例外 → 500 (line 715-717)"""
+        """POST budget → update_one 例外 → 500"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "accounting_budget_collection") as m:
+        with patch.object(db_module, "accounting_budget_collection") as m:
             m.update_one.side_effect = Exception("DB error")
             r = client.post(
                 "/admin/api/accounting/budget",

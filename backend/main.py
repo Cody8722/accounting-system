@@ -176,6 +176,12 @@ users_collection = db.users_collection
 recurring_collection = db.recurring_collection
 debts_collection = db.debts_collection
 
+# 註冊 Blueprints（limiter.init_app 已完成後才呼叫）
+from routes import register_blueprints  # noqa: E402
+
+register_blueprints(app)
+
+
 # ==================== 健康檢查端點 ====================
 
 
@@ -661,82 +667,6 @@ def get_stats_overview():
     except Exception as e:
         logger.error(f"取得整合統計失敗: {e}")
         return jsonify({"error": "取得整合統計失敗"}), 500
-
-
-@app.route("/admin/api/accounting/budget", methods=["GET"])
-@limiter.limit("100 per minute")
-@require_auth
-def get_accounting_budget():
-    """取得預算設定"""
-    if accounting_budget_collection is None:
-        return jsonify({"error": "資料庫未初始化"}), 500
-
-    try:
-        # 獲取當前月份的預算
-        current_month = datetime.now().strftime("%Y-%m")
-        query = {"month": current_month}
-
-        query["user_id"] = ObjectId(request.user_id)
-
-        budget_doc = accounting_budget_collection.find_one(query)
-
-        return (
-            jsonify(
-                {
-                    "month": current_month,
-                    "budget": budget_doc.get("budget", {}) if budget_doc else {},
-                }
-            ),
-            200,
-        )
-    except Exception as e:
-        logger.error(f"取得預算失敗: {e}")
-        return jsonify({"error": "取得預算失敗"}), 500
-
-
-@app.route("/admin/api/accounting/budget", methods=["POST"])
-@limiter.limit("50 per minute")
-@require_auth
-def set_accounting_budget():
-    """設定預算"""
-    if accounting_budget_collection is None:
-        return jsonify({"error": "資料庫未初始化"}), 500
-
-    try:
-        data = request.get_json(silent=True)
-        if not data or "budget" not in data:
-            return jsonify({"error": "無效的請求資料"}), 400
-
-        budget = data["budget"]
-        if not isinstance(budget, dict):
-            return jsonify({"error": "budget 必須為物件格式"}), 400
-        for key, val in budget.items():
-            if key not in ALLOWED_CATEGORIES:
-                return jsonify({"error": f"不允許的分類: {key}"}), 400
-            if not isinstance(val, (int, float)) or val < 0:
-                return jsonify({"error": f"預算金額必須為非負數字: {key}"}), 400
-
-        current_month = datetime.now().strftime("%Y-%m")
-
-        # 建立查詢條件（用於 upsert）
-        query = {"month": current_month}
-
-        # 建立更新資料
-        update_data = {"budget": data["budget"], "updated_at": datetime.now()}
-
-        query["user_id"] = ObjectId(request.user_id)
-        update_data["user_id"] = ObjectId(request.user_id)
-
-        # 更新或新增預算
-        accounting_budget_collection.update_one(
-            query, {"$set": update_data}, upsert=True
-        )
-
-        logger.info(f"儲存預算設定: {current_month} (user: {request.email})")
-        return jsonify({"message": "預算已儲存"}), 200
-    except Exception as e:
-        logger.error(f"儲存預算失敗: {e}")
-        return jsonify({"error": "儲存預算失敗"}), 500
 
 
 @app.route("/admin/api/accounting/export", methods=["GET"])
