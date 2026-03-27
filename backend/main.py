@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_compress import Compress
-from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo import ASCENDING, DESCENDING
 from bson import json_util, ObjectId
 from typing import Any, Optional
 import json
@@ -20,6 +20,9 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 # 導入認證模組
 import auth
+
+# 資料庫模組
+import db
 
 # 從 extensions 匯入共用工具
 from extensions import (
@@ -154,8 +157,6 @@ def check_csrf():
             return jsonify({"error": "無效請求"}), 403
 
 
-# 環境變數
-MONGO_URI = os.getenv("MONGO_URI")
 # Gmail SMTP 配置
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -164,111 +165,16 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USERNAME)
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "會計系統 - 系統通知")
 
-# MongoDB 連線
-client = None
-accounting_records_collection = None
-accounting_budget_collection = None
-users_collection = None  # 新增：用戶集合
-recurring_collection = None  # 定期支出集合
-debts_collection = None  # 欠款追蹤集合
+# MongoDB 初始化（必須在模組載入時執行，讓 mongomock 能攔截 MongoClient）
+db.init_db()
 
-if MONGO_URI:
-    try:
-        # 優化 MongoDB 連接設置以提高性能和穩定性
-        client = MongoClient(
-            MONGO_URI,
-            serverSelectionTimeoutMS=SERVER_SELECTION_TIMEOUT_MS,
-            connectTimeoutMS=30000,  # 連接超時 30 秒（SSL 握手需要更長時間）
-            socketTimeoutMS=30000,  # Socket 超時 30 秒
-            maxPoolSize=10,  # 最大連接池大小
-            minPoolSize=0,  # 最小連接池大小設為 0，避免背景強制維持連線造成 SSL 超時
-            maxIdleTimeMS=30000,  # 最大閒置時間 30 秒（低於 Atlas 的 60 秒閒置切斷）
-            retryWrites=True,  # 自動重試寫入操作
-            retryReads=True,  # 自動重試讀取操作
-        )
-        client.admin.command("ping")
-
-        # 記帳資料庫
-        accounting_db = client["accounting_db"]
-        accounting_records_collection = accounting_db["records"]
-        accounting_budget_collection = accounting_db["budget"]
-        users_collection = accounting_db["users"]  # 新增：用戶集合
-        recurring_collection = accounting_db["recurring"]  # 定期支出集合
-        debts_collection = accounting_db["debts"]  # 欠款追蹤集合
-
-        # 建立索引以優化查詢效能（背景執行避免阻塞）
-        try:
-            # 記帳記錄索引
-            accounting_records_collection.create_index(
-                [("date", ASCENDING)], background=True
-            )
-            accounting_records_collection.create_index(
-                [("type", ASCENDING)], background=True
-            )
-            accounting_records_collection.create_index(
-                [("category", ASCENDING)], background=True
-            )
-            accounting_records_collection.create_index(
-                [("user_id", ASCENDING)], background=True
-            )
-            accounting_records_collection.create_index(
-                [("user_id", ASCENDING), ("date", ASCENDING)], background=True
-            )
-            accounting_records_collection.create_index(
-                [("user_id", ASCENDING), ("type", ASCENDING), ("date", ASCENDING)],
-                background=True,
-            )
-            accounting_records_collection.create_index(
-                [("user_id", ASCENDING), ("category", ASCENDING), ("date", ASCENDING)],
-                background=True,
-            )
-
-            # 預算索引（更新為複合唯一索引）
-            try:
-                accounting_budget_collection.drop_index("month_1")
-            except Exception as e:
-                # 索引可能不存在，忽略錯誤
-                logger.debug(f"無法刪除舊索引 month_1: {str(e)}")
-            accounting_budget_collection.create_index(
-                [("user_id", ASCENDING), ("month", ASCENDING)],
-                unique=True,
-                background=True,
-            )
-
-            # 用戶索引
-            users_collection.create_index(
-                [("email", ASCENDING)], unique=True, background=True
-            )
-            users_collection.create_index(
-                [("password_reset_token", ASCENDING)], background=True
-            )
-
-            # 定期支出索引
-            recurring_collection.create_index([("user_id", ASCENDING)], background=True)
-            recurring_collection.create_index(
-                [("user_id", ASCENDING), ("day_of_month", ASCENDING)],
-                background=True,
-            )
-
-            # 欠款追蹤索引
-            debts_collection.create_index([("user_id", ASCENDING)], background=True)
-            debts_collection.create_index(
-                [("user_id", ASCENDING), ("debt_type", ASCENDING)], background=True
-            )
-            debts_collection.create_index(
-                [("user_id", ASCENDING), ("is_settled", ASCENDING)], background=True
-            )
-
-            logger.info("✅ 資料庫索引已建立（背景執行）")
-        except Exception as index_error:
-            logger.warning(f"⚠️ 索引建立警告: {index_error}")
-
-        logger.info("✅ 已連接到記帳資料庫")
-    except Exception as e:
-        logger.error(f"❌ MongoDB 連線失敗: {e}")
-        client = None
-else:
-    logger.warning("⚠️ 未設定 MONGO_URI，資料庫功能無法使用")
+# 建立本地別名，保持現有路由程式碼相容
+client = db.client
+accounting_records_collection = db.accounting_records_collection
+accounting_budget_collection = db.accounting_budget_collection
+users_collection = db.users_collection
+recurring_collection = db.recurring_collection
+debts_collection = db.debts_collection
 
 # ==================== 健康檢查端點 ====================
 
