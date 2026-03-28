@@ -19,14 +19,13 @@ os.environ.setdefault("JWT_SECRET", "test-jwt-secret-key-for-testing")
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from main import (
+from extensions import (
     validate_amount,
-    validate_date,
-    validate_expense_type,
     validate_category,
+    validate_date,
     validate_description,
+    validate_expense_type,
 )
-import main as main_module
 import db as db_module
 
 TODAY = datetime.now().strftime("%Y-%m-%d")
@@ -244,7 +243,7 @@ class TestDBExceptions:
         """GET records → DB 例外 → 500 (line 387-389)"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "accounting_records_collection") as m:
+        with patch.object(db_module, "accounting_records_collection") as m:
             m.find.side_effect = Exception("DB error")
             r = client.get("/admin/api/accounting/records", headers=auth_headers)
         assert r.status_code == 500
@@ -253,7 +252,7 @@ class TestDBExceptions:
         """POST records → insert_one 例外 → 500 (line 464-466)"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "accounting_records_collection") as m:
+        with patch.object(db_module, "accounting_records_collection") as m:
             m.insert_one.side_effect = Exception("DB error")
             r = client.post(
                 "/admin/api/accounting/records",
@@ -272,7 +271,7 @@ class TestDBExceptions:
         if not auth_headers:
             pytest.skip("需要認證")
         valid_id = str(ObjectId())
-        with patch.object(main_module, "accounting_records_collection") as m:
+        with patch.object(db_module, "accounting_records_collection") as m:
             m.find_one.return_value = {"_id": ObjectId(valid_id), "user_id": ObjectId()}
             m.update_one.side_effect = Exception("DB error")
             r = client.put(
@@ -287,7 +286,7 @@ class TestDBExceptions:
         if not auth_headers:
             pytest.skip("需要認證")
         valid_id = str(ObjectId())
-        with patch.object(main_module, "accounting_records_collection") as m:
+        with patch.object(db_module, "accounting_records_collection") as m:
             m.find_one.return_value = {"_id": ObjectId(valid_id)}
             m.delete_one.side_effect = Exception("DB error")
             r = client.delete(
@@ -299,7 +298,7 @@ class TestDBExceptions:
         """GET stats → aggregate 例外 → 500 (line 648-650)"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "accounting_records_collection") as m:
+        with patch.object(db_module, "accounting_records_collection") as m:
             m.aggregate.side_effect = Exception("DB error")
             r = client.get("/admin/api/accounting/stats", headers=auth_headers)
         assert r.status_code == 500
@@ -330,7 +329,7 @@ class TestDBExceptions:
         """GET profile → find_one 例外 → 500 (line 1018-1020)"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "users_collection") as m:
+        with patch.object(db_module, "users_collection") as m:
             m.find_one.side_effect = Exception("DB error")
             r = client.get("/api/user/profile", headers=auth_headers)
         assert r.status_code == 500
@@ -339,7 +338,7 @@ class TestDBExceptions:
         """PUT profile → update_one 例外 → 500 (line 1079-1081)"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "users_collection") as m:
+        with patch.object(db_module, "users_collection") as m:
             m.find_one.return_value = {"_id": ObjectId(), "name": "Test"}
             m.update_one.side_effect = Exception("DB error")
             r = client.put(
@@ -349,7 +348,7 @@ class TestDBExceptions:
 
     def test_login_db_error(self, client):
         """POST login → find_one 例外 → 500 (line 932-934)"""
-        with patch.object(main_module, "users_collection") as m:
+        with patch.object(db_module, "users_collection") as m:
             m.find_one.side_effect = Exception("DB error")
             r = client.post(
                 "/api/auth/login",
@@ -361,7 +360,7 @@ class TestDBExceptions:
         """GET verify → find_one 例外 → 500 (line 966-968)"""
         if not auth_headers:
             pytest.skip("需要認證")
-        with patch.object(main_module, "users_collection") as m:
+        with patch.object(db_module, "users_collection") as m:
             m.find_one.side_effect = Exception("DB error")
             r = client.get("/api/auth/verify", headers=auth_headers)
         assert r.status_code == 500

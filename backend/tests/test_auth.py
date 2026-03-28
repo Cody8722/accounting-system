@@ -480,7 +480,7 @@ class TestForgotResetPasswordFlow:
     def user_with_reset_token(self, client):
         """建立用戶並直接在 DB 寫入 reset token"""
         import time
-        import main as main_module
+        import db as db_module
         from bson import ObjectId
         from datetime import datetime, timedelta
 
@@ -495,12 +495,12 @@ class TestForgotResetPasswordFlow:
             },
         )
 
-        if main_module.users_collection is None:
+        if db_module.users_collection is None:
             pytest.skip("DB not available")
 
         token = "test-reset-token-12345"
         expires = datetime.now() + timedelta(hours=1)
-        main_module.users_collection.update_one(
+        db_module.users_collection.update_one(
             {"email": email},
             {
                 "$set": {
@@ -514,7 +514,6 @@ class TestForgotResetPasswordFlow:
     def test_forgot_password_with_smtp_mock(self, client):
         """模擬 SMTP 發送密碼重設信（mock send_reset_email）"""
         import time
-        import main as main_module
         from unittest.mock import patch
 
         email = f"smtptest{int(time.time()*1000)}@example.com"
@@ -527,20 +526,21 @@ class TestForgotResetPasswordFlow:
             },
         )
 
-        with patch("main.send_reset_email", return_value=True) as mock_send:
+        with patch("routes.auth.send_reset_email", return_value=True) as mock_send:
             response = client.post(
                 "/api/auth/forgot-password",
                 json={"email": email},
             )
             assert response.status_code == 200
             # 若用戶存在，應呼叫 send_reset_email
-            if main_module.users_collection is not None:
+            import db as db_module
+
+            if db_module.users_collection is not None:
                 mock_send.assert_called_once()
 
     def test_forgot_password_smtp_fails(self, client):
         """SMTP 失敗時應回傳 500"""
         import time
-        import main as main_module
         from unittest.mock import patch
 
         email = f"smtpfail{int(time.time()*1000)}@example.com"
@@ -553,10 +553,12 @@ class TestForgotResetPasswordFlow:
             },
         )
 
-        if main_module.users_collection is None:
+        import db as db_module
+
+        if db_module.users_collection is None:
             pytest.skip("DB not available")
 
-        with patch("main.send_reset_email", return_value=False):
+        with patch("routes.auth.send_reset_email", return_value=False):
             response = client.post(
                 "/api/auth/forgot-password",
                 json={"email": email},
@@ -575,10 +577,10 @@ class TestForgotResetPasswordFlow:
     def test_reset_password_expired_token(self, client):
         """過期 token 應回傳 400"""
         import time
-        import main as main_module
+        import db as db_module
         from datetime import datetime, timedelta
 
-        if main_module.users_collection is None:
+        if db_module.users_collection is None:
             pytest.skip("DB not available")
 
         email = f"expiredtoken{int(time.time()*1000)}@example.com"
@@ -593,7 +595,7 @@ class TestForgotResetPasswordFlow:
 
         token = "expired-token-99999"
         expires = datetime.now() - timedelta(hours=2)  # 已過期
-        main_module.users_collection.update_one(
+        db_module.users_collection.update_one(
             {"email": email},
             {
                 "$set": {

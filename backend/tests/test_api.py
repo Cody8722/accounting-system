@@ -1250,20 +1250,20 @@ class TestForgotPasswordFlow:
 
     def test_send_reset_email_no_smtp_config(self):
         """SMTP 未設定時 send_reset_email 應回傳 False"""
-        import main as main_module
+        import routes.auth as auth_routes
 
-        original_user = main_module.SMTP_USERNAME
-        original_pass = main_module.SMTP_PASSWORD
+        original_user = auth_routes.SMTP_USERNAME
+        original_pass = auth_routes.SMTP_PASSWORD
         try:
-            main_module.SMTP_USERNAME = ""
-            main_module.SMTP_PASSWORD = ""
-            result = main_module.send_reset_email(
+            auth_routes.SMTP_USERNAME = ""
+            auth_routes.SMTP_PASSWORD = ""
+            result = auth_routes.send_reset_email(
                 "test@example.com", "http://example.com/reset"
             )
             assert result is False
         finally:
-            main_module.SMTP_USERNAME = original_user
-            main_module.SMTP_PASSWORD = original_pass
+            auth_routes.SMTP_USERNAME = original_user
+            auth_routes.SMTP_PASSWORD = original_pass
 
     def test_reset_password_invalid_token(self, client):
         """無效 token 應回傳 400"""

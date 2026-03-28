@@ -109,7 +109,7 @@ def group_debt_id(client, auth_headers):
     直接插入 group 類型欠款（API create endpoint 不接受 "group" type）。
     使用 yield + delete_one 確保測試後清理，不污染其他測試。
     """
-    from main import debts_collection
+    from db import debts_collection
 
     doc = {
         "_id": ObjectId(),
@@ -441,7 +441,7 @@ class TestDeleteDebt:
         assert r.status_code == 200
 
         # 驗證 auto_generated 記帳記錄已被標記
-        from main import accounting_records_collection
+        from db import accounting_records_collection
 
         records = list(
             accounting_records_collection.find(
@@ -504,7 +504,7 @@ class TestRepayDebt:
             json={"amount": 100},
             headers=auth_headers,
         )
-        from main import accounting_records_collection
+        from db import accounting_records_collection
 
         records = list(
             accounting_records_collection.find(
@@ -527,7 +527,7 @@ class TestRepayDebt:
             json={"amount": 100},
             headers=auth_headers,
         )
-        from main import accounting_records_collection
+        from db import accounting_records_collection
 
         records = list(
             accounting_records_collection.find(
@@ -657,7 +657,7 @@ class TestRepayMember:
             json={"amount": 100},
             headers=auth_headers,
         )
-        from main import accounting_records_collection
+        from db import accounting_records_collection
 
         records = list(
             accounting_records_collection.find(
