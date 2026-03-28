@@ -1500,5 +1500,273 @@ class TestStatsOverview:
         assert r.get_json()["group_count"] == 0
 
 
+class TestExportFormats:
+    """CSV / XLSX 匯出格式覆蓋率補充"""
+
+    def test_export_csv_format(self, client, auth_headers):
+        """CSV 匯出應回傳 200 且 Content-Type 包含 text/csv"""
+        r = client.get(
+            "/admin/api/accounting/export?format=csv",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "text/csv" in r.content_type or "csv" in r.headers.get(
+            "Content-Disposition", ""
+        )
+
+    def test_export_xlsx_format(self, client, auth_headers):
+        """XLSX 匯出應回傳 200 且 Content-Type 包含 spreadsheetml"""
+        r = client.get(
+            "/admin/api/accounting/export?format=xlsx",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "spreadsheetml" in r.content_type or "xlsx" in r.headers.get(
+            "Content-Disposition", ""
+        )
+
+    def test_export_with_date_range(self, client, auth_headers):
+        """帶日期範圍的 CSV 匯出"""
+        r = client.get(
+            "/admin/api/accounting/export?format=csv&start_date=2024-01-01&end_date=2024-12-31",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_export_with_type_filter(self, client, auth_headers):
+        """帶 type 篩選的 CSV 匯出"""
+        r = client.get(
+            "/admin/api/accounting/export?format=csv&type=income",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_export_invalid_format_defaults_csv(self, client, auth_headers):
+        """非法 format 參數應 fallback 至 CSV"""
+        r = client.get(
+            "/admin/api/accounting/export?format=xml",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "csv" in r.content_type or "csv" in r.headers.get(
+            "Content-Disposition", ""
+        )
+
+
+class TestSendResetEmailSMTP:
+    """send_reset_email SMTP 路徑測試"""
+
+    def test_send_reset_email_smtp_success(self):
+        """SMTP 設定完整且呼叫成功時應回傳 True"""
+        import smtplib
+        from unittest.mock import MagicMock, patch
+
+        import routes.auth as auth_routes
+
+        original_user = auth_routes.SMTP_USERNAME
+        original_pass = auth_routes.SMTP_PASSWORD
+        auth_routes.SMTP_USERNAME = "sender@gmail.com"
+        auth_routes.SMTP_PASSWORD = "password123"
+        try:
+            mock_server = MagicMock()
+            with patch("smtplib.SMTP") as mock_smtp_cls:
+                mock_smtp_cls.return_value.__enter__ = lambda s: mock_server
+                mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+                result = auth_routes.send_reset_email(
+                    "user@example.com", "http://example.com?reset_token=abc"
+                )
+            assert result is True
+        finally:
+            auth_routes.SMTP_USERNAME = original_user
+            auth_routes.SMTP_PASSWORD = original_pass
+
+    def test_send_reset_email_smtp_exception(self):
+        """SMTP 連線失敗時應回傳 False"""
+        from unittest.mock import patch
+
+        import routes.auth as auth_routes
+
+        original_user = auth_routes.SMTP_USERNAME
+        original_pass = auth_routes.SMTP_PASSWORD
+        auth_routes.SMTP_USERNAME = "sender@gmail.com"
+        auth_routes.SMTP_PASSWORD = "password123"
+        try:
+            with patch("smtplib.SMTP", side_effect=Exception("Connection refused")):
+                result = auth_routes.send_reset_email(
+                    "user@example.com", "http://example.com?reset_token=abc"
+                )
+            assert result is False
+        finally:
+            auth_routes.SMTP_USERNAME = original_user
+            auth_routes.SMTP_PASSWORD = original_pass
+
+
+class TestErrorPaths:
+    """各模組 DB 例外 / 驗證錯誤補充"""
+
+    def test_export_db_error(self, client, auth_headers):
+        """export 時 DB 例外 → 500"""
+        import db as db_module
+        from unittest.mock import patch
+
+        with patch.object(db_module, "accounting_records_collection") as m:
+            m.find.side_effect = Exception("DB error")
+            r = client.get(
+                "/admin/api/accounting/export?format=csv",
+                headers=auth_headers,
+            )
+        assert r.status_code == 500
+
+    def test_import_db_error(self, client, auth_headers):
+        """import 時 DB 例外 → 500"""
+        import db as db_module
+        from unittest.mock import patch
+
+        with patch.object(db_module, "accounting_records_collection") as m:
+            m.find_one.side_effect = Exception("DB error")
+            r = client.post(
+                "/admin/api/accounting/import",
+                json={
+                    "records": [
+                        {
+                            "type": "expense",
+                            "amount": 100,
+                            "category": "餐飲",
+                            "date": "2024-01-01",
+                        }
+                    ]
+                },
+                headers=auth_headers,
+            )
+        assert r.status_code == 500
+
+    def test_stats_with_date_range(self, client, auth_headers):
+        """帶有效日期範圍的 stats 請求"""
+        r = client.get(
+            "/admin/api/accounting/stats?start_date=2024-01-01&end_date=2024-12-31",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_trends_invalid_months(self, client, auth_headers):
+        """非整數 months 參數應回傳 400"""
+        r = client.get(
+            "/admin/api/accounting/trends?months=abc",
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_comparison_invalid_period(self, client, auth_headers):
+        """非法 period 應回傳 400"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=daily",
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_comparison_period_week(self, client, auth_headers):
+        """period=week 應回傳 200"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=week",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_comparison_period_quarter(self, client, auth_headers):
+        """period=quarter 應回傳 200"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=quarter",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_comparison_period_year(self, client, auth_headers):
+        """period=year 應回傳 200"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=year",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_update_profile_email_already_in_use(self, client, auth_headers):
+        """更新 profile 時 email 已被其他用戶使用 → 409"""
+        import time
+
+        other_email = f"other{int(time.time()*1000)}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": other_email,
+                "password": "OtherP@ss2026!Xy",
+                "name": "Other User",
+            },
+        )
+        r = client.put(
+            "/api/user/profile",
+            json={"email": other_email},
+            headers=auth_headers,
+        )
+        assert r.status_code == 409
+
+    def test_update_profile_no_fields(self, client, auth_headers):
+        """更新 profile 時沒有有效欄位 → 400"""
+        r = client.put(
+            "/api/user/profile",
+            json={},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_change_password_wrong_old_password(self, client, auth_headers):
+        """舊密碼錯誤 → 401（使用 mock 確保 DB 有用戶）"""
+        if not auth_headers:
+            pytest.skip("需要認證")
+        import db as db_module
+        from unittest.mock import patch
+        import auth as auth_module
+        from bson import ObjectId
+
+        fake_id = ObjectId()
+        fake_hash = auth_module.hash_password("CorrectOldPass2026!")
+        fake_user = {
+            "_id": fake_id,
+            "email": "mockuser@example.com",
+            "password_hash": fake_hash,
+            "name": "Mock",
+        }
+        with patch.object(db_module, "users_collection") as m:
+            m.find_one.return_value = fake_user
+            r = client.post(
+                "/api/user/change-password",
+                json={"old_password": "WrongOld!!", "new_password": "NewPass2026!Xy"},
+                headers=auth_headers,
+            )
+        assert r.status_code == 401
+
+    def test_change_password_empty_fields(self, client, auth_headers):
+        """空密碼欄位 → 400"""
+        r = client.post(
+            "/api/user/change-password",
+            json={"old_password": "", "new_password": ""},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_validate_password_no_data(self, client):
+        """validate-password 不帶 body → 400"""
+        r = client.post(
+            "/api/auth/validate-password",
+            data="not-json",
+            content_type="text/plain",
+        )
+        assert r.status_code == 400
+
+    def test_status_endpoint(self, client):
+        """GET /status 應回傳 ok"""
+        r = client.get("/status")
+        assert r.status_code == 200
+        assert r.get_json()["status"] == "ok"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
