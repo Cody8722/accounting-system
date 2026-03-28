@@ -1570,7 +1570,9 @@ class TestSendResetEmailSMTP:
         try:
             mock_server = MagicMock()
             with patch("smtplib.SMTP") as mock_smtp_cls:
-                mock_smtp_cls.return_value.__enter__ = lambda s: mock_server
+                mock_smtp_cls.return_value.__enter__ = MagicMock(
+                    return_value=mock_server
+                )
                 mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
                 result = auth_routes.send_reset_email(
                     "user@example.com", "http://example.com?reset_token=abc"
