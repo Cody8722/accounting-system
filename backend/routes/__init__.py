@@ -8,5 +8,7 @@ routes/__init__.py — Blueprint 註冊入口
 def register_blueprints(app):
     """將所有 Blueprint 註冊至 Flask app。"""
     from routes.budget import bp as budget_bp
+    from routes.recurring import bp as recurring_bp
 
     app.register_blueprint(budget_bp)
+    app.register_blueprint(recurring_bp)
