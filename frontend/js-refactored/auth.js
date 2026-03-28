@@ -24,11 +24,6 @@ let is401Handling = false;
 let _resetToken = null;
 
 /**
- * 認證狀態標誌
- */
-let isAuthenticated = false;
-
-/**
  * 顯示登入模態框
  */
 export function showLoginModal() {
@@ -446,7 +441,6 @@ export async function handleLogout() {
 
     // 清除本地token和用戶資料
     removeAuthToken();
-    isAuthenticated = false;
 
     // 發送登出事件
     EventBus.emit(EVENTS.AUTH_LOGOUT);
@@ -498,7 +492,6 @@ export async function handleLogin(e) {
             setAuthToken(data.token);
             setUserData(data.user);
             is401Handling = false;    // 登入成功，重置 401 guard
-            isAuthenticated = true;   // 解鎖 Router onPageLoad
 
             // 處理「記住我」功能
             const rememberMe = document.getElementById('remember-me');
@@ -960,6 +953,5 @@ export function initAuth() {
 
 // 檢查初始認證狀態
 if (getAuthToken()) {
-    isAuthenticated = true;
     updateUserDisplay();
 }

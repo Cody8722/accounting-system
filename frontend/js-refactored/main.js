@@ -20,7 +20,7 @@ import { backendUrl } from './config.js';
 import { apiCall } from './api.js';
 
 // ===== 功能模組 =====
-import { initAuth, verifyToken, hideAuthModals, showLoginModal, updateUserDisplay } from './auth.js';
+import { initAuth, verifyToken, hideAuthModals, showLoginModal, updateUserDisplay, setResetToken } from './auth.js';
 import { Router, CustomKeyboard, SwipeToDelete, LongPressMenu, setAuthenticationStatus } from './components.js';
 import { initCategories } from './categories.js';
 
@@ -43,11 +43,6 @@ import { initDebts } from './debts.js';
  * 認證狀態標記
  */
 let isAuthenticated = false;
-
-/**
- * 重置密碼 token（從 URL 參數讀取）
- */
-let _resetToken = null;
 
 /**
  * 初始化所有模組
@@ -139,7 +134,7 @@ async function handleDOMContentLoaded() {
     const resetToken = urlParams.get('reset_token');
 
     if (resetToken) {
-        _resetToken = resetToken;
+        setResetToken(resetToken);
         // 清除 URL 中的 token（避免重新整理後重複顯示）
         window.history.replaceState({}, '', window.location.pathname);
 
