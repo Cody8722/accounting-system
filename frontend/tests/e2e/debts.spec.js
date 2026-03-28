@@ -205,23 +205,26 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await r1;
 
     // 結清後 UI 預設不顯示已結清卡片，透過 API 直接取消結清
+    // 注意：page.evaluate 在瀏覽器 context 執行，相對 URL 會打到靜態伺服器(:8080)
+    // 必須傳入完整的 API URL（:5001）才能打到 Flask 後端
+    const apiUrl = process.env.API_URL || 'http://localhost:5001';
     const token = await page.evaluate(() => localStorage.getItem('authToken'));
-    const debts = await page.evaluate(async (t) => {
-      const r = await fetch('/admin/api/debts?show_settled=true', {
+    const debts = await page.evaluate(async ({ t, apiUrl }) => {
+      const r = await fetch(`${apiUrl}/admin/api/debts?show_settled=true`, {
         headers: { Authorization: `Bearer ${t}` },
       });
       return r.json();
-    }, token);
+    }, { t: token, apiUrl });
     const debt = debts.find((d) => d.person === 'ToggleSettle');
     // 再呼叫 settle 一次（toggle 回未結清）
     await page.evaluate(
-      async ({ debtId, t }) => {
-        await fetch(`/admin/api/debts/${debtId}/settle`, {
+      async ({ debtId, t, apiUrl }) => {
+        await fetch(`${apiUrl}/admin/api/debts/${debtId}/settle`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${t}` },
         });
       },
-      { debtId: debt._id.$oid, t: token }
+      { debtId: debt._id.$oid, t: token, apiUrl }
     );
 
     // reload 後確認卡片重新出現在未結清列表
@@ -259,7 +262,9 @@ test.describe('欠款追蹤 E2E 測試', () => {
     await updateResponse;
 
     // Modal 關閉後卡片顯示新名稱
-    await page.waitForSelector('#debt-form-modal.hidden', { timeout: 8000 });
+    // 注意：waitForSelector('#debt-form-modal.hidden') 預設等 visible，
+    // 但 Tailwind hidden = display:none → 永遠不 visible，需改用 state:'hidden'
+    await page.locator('#debt-form-modal').waitFor({ state: 'hidden', timeout: 8000 });
     await page.waitForSelector('.debt-card:has-text("EditedPerson")', { timeout: 8000 });
   });
 
@@ -344,14 +349,17 @@ test.describe('欠款追蹤 E2E 測試', () => {
   // -----------------------------------------------------------------------
 
   test('未登入訪問欠款頁跳轉登入', async ({ page }) => {
-    // 清除 auth 狀態
+    // 清除 auth 狀態並強制完整頁面重載
+    // 注意：page.goto('/#debts') 只是 hash change，不觸發 JS 重跑，
+    // verifyToken() 不會重新執行，需導到 '/' 才能觸發新頁面載入
     await clearAuthState(page);
-
-    // 嘗試直接導航到欠款頁
-    await page.goto('/#debts', { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10000 });
 
     // 登入 modal 應出現
-    await page.waitForSelector('#login-modal:not(.hidden)', { timeout: 10000 });
+    await page.waitForFunction(
+      () => document.getElementById('login-modal')?.classList.contains('hidden') === false,
+      { timeout: 10000 }
+    );
     await expect(page.locator('#login-modal')).not.toHaveClass(/hidden/);
   });
 });
