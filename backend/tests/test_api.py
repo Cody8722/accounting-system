@@ -1565,8 +1565,10 @@ class TestSendResetEmailSMTP:
 
         original_user = auth_routes.SMTP_USERNAME
         original_pass = auth_routes.SMTP_PASSWORD
+        original_from = auth_routes.SMTP_FROM_EMAIL
         auth_routes.SMTP_USERNAME = "sender@gmail.com"
         auth_routes.SMTP_PASSWORD = "password123"
+        auth_routes.SMTP_FROM_EMAIL = "sender@gmail.com"
         try:
             mock_server = MagicMock()
             with patch("smtplib.SMTP") as mock_smtp_cls:
@@ -1581,6 +1583,7 @@ class TestSendResetEmailSMTP:
         finally:
             auth_routes.SMTP_USERNAME = original_user
             auth_routes.SMTP_PASSWORD = original_pass
+            auth_routes.SMTP_FROM_EMAIL = original_from
 
     def test_send_reset_email_smtp_exception(self):
         """SMTP 連線失敗時應回傳 False"""
