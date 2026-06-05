@@ -21,6 +21,52 @@ import { showToast, showConfirm, escapeHtml, skeletonCards, debounce } from './u
 const deletingRecordIds = new Set();
 
 /**
+ * 記帳快選分類資料
+ */
+const QUICK_CATEGORIES = {
+    expense: [
+        { name: '早餐', icon: '☕' },
+        { name: '午餐', icon: '🍱' },
+        { name: '晚餐', icon: '🍽️' },
+        { name: '飲料', icon: '🥤' },
+        { name: '交通', icon: '🚇' },
+        { name: '購物', icon: '🛍️' },
+        { name: '娛樂', icon: '🎮' },
+        { name: '其他支出', icon: '📝' },
+    ],
+    income: [
+        { name: '薪資', icon: '💰' },
+        { name: '零用錢', icon: '💸' },
+        { name: '獎金/年終', icon: '🎁' },
+        { name: '其他收入', icon: '💳' },
+    ]
+};
+
+/**
+ * 渲染分類快選格
+ */
+function renderQuickCategoryGrid(type) {
+    const grid = document.getElementById('quick-category-grid');
+    if (!grid) return;
+    const cats = QUICK_CATEGORIES[type] || QUICK_CATEGORIES.expense;
+    grid.innerHTML = cats.map(c => `
+        <button type="button" data-cat="${escapeHtml(c.name)}"
+            class="quick-cat-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-gray-200 bg-gray-50 hover:border-purple-400 hover:bg-purple-50 transition"
+            onclick="selectQuickCategory('${escapeHtml(c.name)}')">
+            <span class="text-2xl mb-0.5">${c.icon}</span>
+            <span class="text-xs text-gray-600 font-medium leading-tight text-center">${escapeHtml(c.name)}</span>
+        </button>
+    `).join('') + `
+        <button type="button"
+            class="quick-cat-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-dashed border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50 transition"
+            onclick="selectQuickCategory('__more__')">
+            <span class="text-2xl mb-0.5">⋯</span>
+            <span class="text-xs text-gray-500 font-medium">更多</span>
+        </button>
+    `;
+}
+
+/**
  * 欠款連動：目前選取的方向（'lent' | 'borrowed'）
  */
 let _debtDirection = 'lent';
@@ -565,6 +611,70 @@ export function initRecords() {
     // ===== 設置表單事件監聽器 =====
     setupFormEventListeners();
 
+    // 初始化分類快選格（預設支出）
+    renderQuickCategoryGrid('expense');
+
+    // 類型切換
+    window.selectRecordType = function(type) {
+        const select = document.getElementById('record-type');
+        if (select) select.value = type;
+
+        const expBtn = document.getElementById('type-btn-expense');
+        const incBtn = document.getElementById('type-btn-income');
+        if (expBtn && incBtn) {
+            if (type === 'expense') {
+                expBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-red-500 text-white shadow-sm transition';
+                incBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-gray-100 text-gray-500 transition';
+            } else {
+                expBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-gray-100 text-gray-500 transition';
+                incBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-green-500 text-white shadow-sm transition';
+            }
+        }
+
+        const catInput = document.getElementById('record-category');
+        if (catInput) catInput.value = '';
+        const display = document.getElementById('selected-category-display');
+        if (display) display.classList.add('hidden');
+
+        renderQuickCategoryGrid(type);
+    };
+
+    // 分類快選
+    window.selectQuickCategory = function(name) {
+        if (name === '__more__') {
+            if (window.openCategoryModal) window.openCategoryModal();
+            return;
+        }
+        const input = document.getElementById('record-category');
+        if (input) input.value = name;
+
+        document.querySelectorAll('.quick-cat-btn').forEach(btn => {
+            btn.classList.remove('border-purple-500', 'bg-purple-50');
+            btn.classList.add('border-gray-200');
+        });
+        const selected = document.querySelector(`.quick-cat-btn[data-cat="${name}"]`);
+        if (selected) {
+            selected.classList.remove('border-gray-200', 'border-dashed', 'border-gray-300');
+            selected.classList.add('border-purple-500', 'bg-purple-50');
+        }
+        const display = document.getElementById('selected-category-display');
+        if (display) display.classList.add('hidden');
+    };
+
+    // 從 Modal 選完分類後顯示提示
+    EventBus.on(EVENTS.CATEGORY_SELECTED, ({ category, mode }) => {
+        if (mode === 'edit') return;
+        document.querySelectorAll('.quick-cat-btn').forEach(btn => {
+            btn.classList.remove('border-purple-500', 'bg-purple-50');
+            btn.classList.add('border-gray-200');
+        });
+        const display = document.getElementById('selected-category-display');
+        if (display && category) {
+            display.textContent = `✓ 已選：${category}`;
+            display.classList.remove('hidden');
+        }
+    });
+
     // 排序 select / checkbox 改動後立即觸發查詢並更新清除按鈕
     ['filter-sort'].forEach(id => {
         const el = document.getElementById(id);
@@ -703,10 +813,24 @@ function setupFormEventListeners() {
                     accountingMessage.textContent = `❌ ${validation.message}`;
                     accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
                     accountingMessage.classList.remove('hidden');
-                    setTimeout(() => {
-                        accountingMessage.classList.add('hidden');
-                    }, 3000);
+                    setTimeout(() => { accountingMessage.classList.add('hidden'); }, 3000);
                 }
+                return;
+            }
+
+            // 前端驗證分類
+            if (!recordCategory.value.trim()) {
+                if (accountingMessage) {
+                    accountingMessage.textContent = '❌ 請選擇分類';
+                    accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                    accountingMessage.classList.remove('hidden');
+                    setTimeout(() => { accountingMessage.classList.add('hidden'); }, 3000);
+                }
+                // 讓快選格閃一下，提示使用者
+                document.getElementById('quick-category-grid')?.classList.add('ring-2', 'ring-red-400', 'rounded-xl');
+                setTimeout(() => {
+                    document.getElementById('quick-category-grid')?.classList.remove('ring-2', 'ring-red-400', 'rounded-xl');
+                }, 1500);
                 return;
             }
 
@@ -758,6 +882,15 @@ function setupFormEventListeners() {
                 if (expenseType) expenseType.value = '';
                 if (recordAmount) recordAmount.classList.remove('input-error');
                 if (amountError) amountError.classList.add('hidden');
+                if (recordCategory) recordCategory.value = '';
+                document.querySelectorAll('.quick-cat-btn').forEach(btn => {
+                    btn.classList.remove('border-purple-500', 'bg-purple-50');
+                    btn.classList.add('border-gray-200');
+                });
+                const catDisplay = document.getElementById('selected-category-display');
+                if (catDisplay) catDisplay.classList.add('hidden');
+                // 收合「更多選項」
+                document.querySelector('#accounting-form details')?.removeAttribute('open');
                 setTodayAsDefault();
 
                 // 重置欠款連動欄位（開關保留，讓使用者連續記帳）

@@ -107,6 +107,7 @@ function initializeUIComponents() {
     window.keyboard = keyboard;
     window.swipeToDelete = swipeToDelete;
     window.longPressMenu = longPressMenu;
+    window.SwipeToDelete = SwipeToDelete; // 供 records.js 逐卡片 new
 
     console.log('✅ [Main] UI 組件已初始化');
 }
