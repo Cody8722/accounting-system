@@ -2,6 +2,11 @@
  * add.js — 記一筆：計算機式數字鍵盤（可算 120+50=）、兩層分類、備註、
  * 日期、設為定期（排程摘要），以及電子發票入口。存檔串 POST records，
  * 定期則另 POST recurring。可連續記帳。
+ *
+ * 兩種外殼（邏輯共用）：
+ *  - 手機 (<900px)：全螢幕計算機式介面。
+ *  - 電腦 (≥900px)：820px 置中兩欄彈窗（金額鍵盤輸入 + 選點展開計算機、
+ *    完整分類網格、右欄發票入口）。
  */
 
 import { apiJson } from './api.js';
@@ -11,6 +16,7 @@ import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
 
 let host = null;          // 掛載容器（覆蓋層）
+let mode = 'mobile';      // mobile | desktop
 let type = 'expense';     // expense | income
 let category = '';        // 目前選取的葉分類
 let date = todayStr();
@@ -32,8 +38,7 @@ function apply(a, o, b) {
   return Math.round(r * 100) / 100;
 }
 function displayAmount() {
-  const v = buf !== '' ? buf : (acc !== null ? String(acc) : '0');
-  return v;
+  return buf !== '' ? buf : (acc !== null ? String(acc) : '0');
 }
 function pressDigit(d) {
   if (d === '.' && buf.includes('.')) return;
@@ -60,39 +65,68 @@ function recurSummary() {
   return `每 ${recur.every} ${UNIT_LABEL[recur.unit]}・${endText}`;
 }
 
-function quickChips() {
+/** 共用鍵盤（含 C 清除鍵） */
+function keypadHtml() {
+  const keys = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '-', '.', '0', '⌫', '+'];
+  const cells = keys.map((k) => {
+    if (k === '÷' || k === '×') return `<button class="op" data-op="${k}">${k}</button>`;
+    if (k === '-') return `<button class="op" data-op="-">−</button>`;
+    if (k === '+') return `<button class="op" data-op="+">＋</button>`;
+    if (k === '⌫') return `<button data-back="1"><i class="ti ti-backspace"></i></button>`;
+    return `<button data-digit="${k}">${k}</button>`;
+  }).join('');
+  return cells
+    + `<button data-clear="1" style="color:var(--expense)">C</button>`
+    + `<button data-eq="1" style="grid-column:span 2">=</button>`
+    + `<button class="save" data-save="1">儲存</button>`;
+}
+
+/** 分類選取區：手機=常用細項+更多；電腦=完整兩層網格 */
+function catAreaHtml() {
+  if (mode === 'desktop') {
+    return CATEGORY_TREE[type].map((g) => `
+      <div style="margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:7px"><i class="ti ${g.icon}" style="color:${g.color};margin-right:5px"></i>${g.group}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">
+          ${g.items.map((leaf) => `<button class="chip${category === leaf ? ' active' : ''}" data-leaf="${escapeHtml(leaf)}"><i class="ti ${g.icon}" style="color:${g.color}"></i><span>${escapeHtml(leaf)}</span></button>`).join('')}
+        </div>
+      </div>`).join('');
+  }
   const leaves = QUICK_LEAVES[type];
   return leaves.map((leaf) => {
     const m = categoryMeta(leaf);
-    const active = category === leaf ? ' active' : '';
-    return `<button class="chip${active}" data-leaf="${escapeHtml(leaf)}"><i class="ti ${m.icon}"></i><span>${escapeHtml(leaf)}</span></button>`;
+    return `<button class="chip${category === leaf ? ' active' : ''}" data-leaf="${escapeHtml(leaf)}"><i class="ti ${m.icon}"></i><span>${escapeHtml(leaf)}</span></button>`;
   }).join('') + `<button class="chip" data-more="1"><i class="ti ti-dots"></i><span>更多</span></button>`;
+}
+
+function renderCatArea() {
+  const area = host.querySelector('[data-el="catArea"]');
+  if (area) area.innerHTML = catAreaHtml();
+}
+function highlightCat() {
+  host.querySelectorAll('[data-el="catArea"] [data-leaf]').forEach((b) => b.classList.toggle('active', b.dataset.leaf === category));
 }
 
 function refresh() {
   if (!host) return;
-  host.querySelector('[data-el="amount"]').textContent = displayAmount();
-  const sign = host.querySelector('[data-el="sign"]');
-  sign.textContent = type === 'expense' ? '−' : '+';
-  sign.style.color = type === 'expense' ? 'var(--expense)' : 'var(--income)';
-  host.querySelector('[data-el="chips"]').innerHTML = quickChips();
-  bindChips();
-  host.querySelector('[data-el="expBtn"]').classList.toggle('active', type === 'expense');
-  host.querySelector('[data-el="incBtn"]').classList.toggle('active', type === 'income');
-  const recRow = host.querySelector('[data-el="recRow"]');
-  recRow.classList.toggle('hidden', !recurring);
-  if (recurring) recRow.querySelector('[data-el="recSummary"]').textContent = recurSummary();
-  host.querySelector('[data-el="recBtn"]').style.color = recurring ? 'var(--accent)' : 'var(--muted)';
-}
+  const amt = displayAmount();
+  const amountText = host.querySelector('[data-el="amount"]');
+  if (amountText) amountText.textContent = amt;
+  const amountInput = host.querySelector('[data-el="amountInput"]');
+  if (amountInput && document.activeElement !== amountInput) amountInput.value = amt === '0' ? '' : amt;
 
-function bindChips() {
-  host.querySelectorAll('[data-el="chips"] .chip').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.more) { openCategorySheet(); return; }
-      category = btn.dataset.leaf;
-      refresh();
-    });
-  });
+  const sign = host.querySelector('[data-el="sign"]');
+  if (sign) { sign.textContent = type === 'expense' ? '−' : '+'; sign.style.color = type === 'expense' ? 'var(--expense)' : 'var(--income)'; }
+
+  const expBtn = host.querySelector('[data-el="expBtn"]'), incBtn = host.querySelector('[data-el="incBtn"]');
+  if (expBtn && incBtn) { expBtn.classList.toggle('active', type === 'expense'); incBtn.classList.toggle('active', type === 'income'); }
+
+  const recRow = host.querySelector('[data-el="recRow"]');
+  if (recRow) { recRow.classList.toggle('hidden', !recurring); if (recurring) recRow.querySelector('[data-el="recSummary"]').textContent = recurSummary(); }
+  const recBtn = host.querySelector('[data-el="recBtn"]');
+  if (recBtn) recBtn.style.color = recurring ? 'var(--accent)' : 'var(--muted)';
+
+  highlightCat();
 }
 
 function openCategorySheet() {
@@ -124,8 +158,8 @@ function openCategorySheet() {
 function openRecurSheet() {
   const ov = document.createElement('div');
   ov.className = 'overlay';
-  const unitChip = (u) => `<button class="seg-u ${recur.unit === u ? 'active' : ''}" data-unit="${u}" style="flex:1;border:none;border-radius:9px;padding:8px 0;cursor:pointer;font-size:13px;background:${recur.unit === u ? 'var(--surface)' : 'transparent'};color:${recur.unit === u ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.unit === u ? 600 : 400}">${UNIT_LABEL[u].replace('個月', '月')}</button>`;
-  const endChip = (v, label) => `<button class="seg-e ${recur.end === v ? 'active' : ''}" data-end="${v}" style="flex:1;border:none;border-radius:9px;padding:9px 0;cursor:pointer;font-size:13px;background:${recur.end === v ? 'var(--surface)' : 'transparent'};color:${recur.end === v ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.end === v ? 600 : 400}">${label}</button>`;
+  const unitChip = (u) => `<button data-unit="${u}" style="flex:1;border:none;border-radius:9px;padding:8px 0;cursor:pointer;font-size:13px;background:${recur.unit === u ? 'var(--surface)' : 'transparent'};color:${recur.unit === u ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.unit === u ? 600 : 400}">${UNIT_LABEL[u].replace('個月', '月')}</button>`;
+  const endChip = (v, label) => `<button data-end="${v}" style="flex:1;border:none;border-radius:9px;padding:9px 0;cursor:pointer;font-size:13px;background:${recur.end === v ? 'var(--surface)' : 'transparent'};color:${recur.end === v ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.end === v ? 600 : 400}">${label}</button>`;
   ov.innerHTML = `
     <div class="sheet">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -179,6 +213,8 @@ async function save() {
     note = '';
     const noteInput = host.querySelector('[data-el="note"]');
     if (noteInput) noteInput.value = '';
+    // 電腦版存完關閉（回到清單）；手機版留著連續記帳
+    if (mode === 'desktop') close();
   } catch (e) {
     showToast(e.message, 'error');
   }
@@ -189,11 +225,36 @@ function close() {
   window.dispatchEvent(new CustomEvent('add:closed'));
 }
 
-/** 開啟記一筆覆蓋層 */
-export function openAdd(initialType = 'expense') {
-  if (host) return;
-  type = initialType; category = ''; date = todayStr(); note = ''; recurring = false;
-  acc = null; op = null; buf = '';
+function invoiceCallback(res) {
+  type = 'expense'; clearCalc(); buf = String(res.total || '');
+  category = res.category || '其他支出'; note = res.note || res.seller || '';
+  const ni = host.querySelector('[data-el="note"]'); if (ni) ni.value = note;
+  renderCatArea();
+  refresh();
+}
+
+/** 共用點擊委派（兩種外殼皆用同一組 data-el） */
+function onHostClick(e) {
+  const t = e.target;
+  if (t.closest('[data-el="cancel"]')) return close();
+  if (t.closest('[data-el="invoice"]')) return openInvoiceScan(invoiceCallback);
+  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="recBtn"]')) { recurring = !recurring; refresh(); if (recurring) openRecurSheet(); return; }
+  if (t.closest('[data-el="recRow"]')) return openRecurSheet();
+  if (t.closest('[data-el="calcToggle"]')) { host.querySelector('[data-el="keypadPanel"]').classList.toggle('hidden'); return; }
+  const leaf = t.closest('[data-leaf]'); if (leaf) { category = leaf.dataset.leaf; highlightCat(); return; }
+  if (t.closest('[data-more]')) return openCategorySheet();
+  const dg = t.closest('[data-digit]'); if (dg) return pressDigit(dg.dataset.digit);
+  const opb = t.closest('[data-op]'); if (opb) return pressOp(opb.dataset.op);
+  if (t.closest('[data-back]')) return backspace();
+  if (t.closest('[data-clear]')) return clearCalc();
+  if (t.closest('[data-eq]')) return pressEq();
+  if (t.closest('[data-save]')) return save();
+}
+
+/* ================= 手機外殼 ================= */
+function buildMobile() {
   host = document.createElement('div');
   host.className = 'add-screen';
   host.innerHTML = `
@@ -224,7 +285,7 @@ export function openAdd(initialType = 'expense') {
         </div>
       </div>
       <div style="padding:16px 18px 6px">
-        <div data-el="chips" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px"></div>
+        <div data-el="catArea" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px"></div>
       </div>
       <div style="margin:6px 18px 0;display:flex;align-items:center;gap:10px">
         <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:12px;padding:11px 13px">
@@ -240,42 +301,86 @@ export function openAdd(initialType = 'expense') {
       </div>
     </div>
     <div style="background:var(--surface);border-top:1px solid var(--border);padding:12px 14px 18px;flex-shrink:0">
-      <div class="keypad" data-el="keypad"></div>
+      <div class="keypad">${keypadHtml()}</div>
     </div>`;
-
-  // 鍵盤
-  const keypad = host.querySelector('[data-el="keypad"]');
-  const keys = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−op', '.', '0', '⌫', '+op'];
-  keypad.innerHTML = keys.map((k) => {
-    if (k === '÷' || k === '×') return `<button class="op" data-op="${k}">${k}</button>`;
-    if (k === '−op') return `<button class="op" data-op="-">−</button>`;
-    if (k === '+op') return `<button class="op" data-op="+">＋</button>`;
-    if (k === '⌫') return `<button data-back="1"><i class="ti ti-backspace"></i></button>`;
-    return `<button data-digit="${k}">${k}</button>`;
-  }).join('') + `<button data-eq="1" style="grid-column:span 3">=</button><button class="save" data-save="1">儲存</button>`;
-
-  host.addEventListener('click', (e) => {
-    const t = e.target;
-    if (t.closest('[data-el="cancel"]')) return close();
-    if (t.closest('[data-el="invoice"]')) return openInvoiceScan((res) => {
-      // 發票帶入：金額、備註；分類預設「其他支出」
-      type = 'expense'; clearCalc(); buf = String(res.total || ''); category = res.category || '其他支出'; note = res.note || res.seller || '';
-      const ni = host.querySelector('[data-el="note"]'); if (ni) ni.value = note;
-      refresh();
-    });
-    if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; refresh(); }
-    if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; refresh(); }
-    if (t.closest('[data-el="recBtn"]')) { recurring = !recurring; refresh(); if (recurring) openRecurSheet(); }
-    if (t.closest('[data-el="recRow"]')) openRecurSheet();
-    const dg = t.closest('[data-digit]'); if (dg) pressDigit(dg.dataset.digit);
-    const opb = t.closest('[data-op]'); if (opb) pressOp(opb.dataset.op);
-    if (t.closest('[data-back]')) backspace();
-    if (t.closest('[data-eq]')) pressEq();
-    if (t.closest('[data-save]')) save();
-  });
   host.querySelector('[data-el="date"]').addEventListener('change', (e) => { date = e.target.value || todayStr(); });
   host.querySelector('[data-el="note"]').addEventListener('input', (e) => { note = e.target.value; });
-
+  host.addEventListener('click', onHostClick);
   document.body.appendChild(host);
+}
+
+/* ================= 電腦外殼（820px 兩欄彈窗） ================= */
+function buildDesktop() {
+  host = document.createElement('div');
+  host.className = 'overlay center';
+  host.style.zIndex = '70';
+  host.innerHTML = `
+    <div style="width:820px;max-width:94vw;max-height:90vh;background:var(--surface);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <span style="font-weight:600;font-size:17px;color:var(--text)">記一筆</span>
+        <button class="icon-btn" data-el="cancel"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="display:grid;grid-template-columns:1.35fr 1fr;min-height:0;flex:1">
+        <!-- 左欄 -->
+        <div class="noscroll" style="overflow-y:auto;padding:20px;border-right:1px solid var(--border)">
+          <div class="segment" style="margin-bottom:16px"><button data-el="expBtn" class="active">支出</button><button data-el="incBtn">收入</button></div>
+          <div style="display:flex;align-items:center;gap:10px;background:var(--fill);border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px">
+            <span data-el="sign" style="font-size:26px;font-weight:600;color:var(--expense)">−</span>
+            <span style="font-size:13px;color:var(--muted2)">NT$</span>
+            <input data-el="amountInput" type="number" min="0" step="0.01" placeholder="0" class="mono" style="flex:1;border:none;background:none;outline:none;font-size:32px;font-weight:500;color:var(--text);width:100%;letter-spacing:-1px">
+            <button data-el="calcToggle" class="icon-btn" title="計算機"><i class="ti ti-calculator"></i></button>
+          </div>
+          <div data-el="keypadPanel" class="keypad hidden" style="margin-bottom:16px">${keypadHtml()}</div>
+          <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">分類</div>
+          <div data-el="catArea"></div>
+          <div style="font-size:13px;color:var(--muted2);margin:6px 0 8px">備註 / 日期</div>
+          <div style="display:flex;gap:10px;margin-bottom:14px">
+            <input data-el="note" class="field" placeholder="加個備註…" style="flex:1">
+            <input data-el="date" type="date" class="field" style="width:160px" value="${date}">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button data-el="recBtn" title="設為定期" style="display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px 13px;cursor:pointer;color:var(--muted)"><i class="ti ti-repeat"></i><span style="font-weight:600;font-size:13px">設為定期</span></button>
+            <div data-el="recRow" class="hidden" style="flex:1;display:flex;align-items:center;gap:9px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:12px;padding:10px 13px;cursor:pointer">
+              <i class="ti ti-calendar-repeat" style="color:var(--accent)"></i>
+              <span data-el="recSummary" style="flex:1;font-weight:600;font-size:13px;color:var(--accent-soft-text)"></span>
+              <span style="font-size:13px;color:var(--accent)">編輯</span>
+            </div>
+          </div>
+        </div>
+        <!-- 右欄：發票入口 -->
+        <div class="noscroll" style="overflow-y:auto;padding:20px;background:var(--bg)">
+          <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:4px"><i class="ti ti-qrcode" style="color:var(--accent);margin-right:6px"></i>電子發票</div>
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:14px">輸入號碼或上傳圖片查詢，自動帶入金額與明細</div>
+          <input data-el="invNo" class="field" placeholder="發票號碼（如 AB-12345678）" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--border-strong);border-radius:12px;padding:16px;cursor:pointer;color:var(--muted);margin-bottom:10px">
+            <i class="ti ti-photo-up" style="font-size:20px"></i>上傳發票圖片
+            <input type="file" accept="image/*" style="display:none" data-el="invFile">
+          </label>
+          <button data-el="invoice" class="btn-primary" style="width:100%"><i class="ti ti-search"></i> 查詢並帶入</button>
+          <div style="font-size:12px;color:var(--faint);margin-top:12px;line-height:1.6">※ 品項明細示範用途；正式串接財政部電子發票平台 API 後可帶入實際明細。</div>
+        </div>
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">
+        <button data-el="save" class="btn-primary" style="width:100%">儲存</button>
+      </div>
+    </div>`;
+  host.querySelector('[data-el="date"]').addEventListener('change', (e) => { date = e.target.value || todayStr(); });
+  host.querySelector('[data-el="note"]').addEventListener('input', (e) => { note = e.target.value; });
+  const amountInput = host.querySelector('[data-el="amountInput"]');
+  amountInput.addEventListener('input', (e) => { buf = e.target.value; acc = null; op = null; });
+  // 點遮罩外關閉
+  host.addEventListener('click', (e) => { if (e.target === host) close(); });
+  host.addEventListener('click', onHostClick);
+  document.body.appendChild(host);
+}
+
+/** 開啟記一筆（依視窗寬度選外殼） */
+export function openAdd(initialType = 'expense') {
+  if (host) return;
+  mode = window.innerWidth >= 900 ? 'desktop' : 'mobile';
+  type = initialType; category = ''; date = todayStr(); note = ''; recurring = false;
+  acc = null; op = null; buf = '';
+  if (mode === 'desktop') buildDesktop(); else buildMobile();
+  renderCatArea();
   refresh();
 }
