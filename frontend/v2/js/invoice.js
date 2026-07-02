@@ -20,10 +20,12 @@ import { showToast, todayStr, escapeHtml } from './utils.js';
  * @returns {{number,date,randomCode,salesAmount,totalAmount,buyerId,sellerId}|null}
  */
 export function parseInvoiceQR(text) {
-  if (!text || text.length < 37) return null;
+  // 格式驗證：左側發票頭固定至少 77 碼；掃到右側加密那組會不符 → 回 null，由掃描迴圈靜默忽略續掃
+  if (!text || text.length < 77) return null;
   const number = text.slice(0, 10);
-  if (!/^[A-Z]{2}\d{8}$/.test(number)) return null;
+  if (!/^[A-Z]{2}\d{8}$/.test(number)) return null;   // 發票號碼：2 英文 + 8 數字
   const roc = text.slice(10, 17);
+  if (!/^\d{7}$/.test(roc)) return null;               // 民國日期：7 位數字
   const y = parseInt(roc.slice(0, 3), 10) + 1911;
   const date = `${y}-${roc.slice(3, 5)}-${roc.slice(5, 7)}`;
   const randomCode = text.slice(17, 21);
@@ -130,9 +132,9 @@ export function openInvoiceScan(onSingle) {
     stage.innerHTML = `
       <div style="position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:12px">
         <video data-el="video" playsinline muted style="width:100%;display:block;max-height:320px;object-fit:cover"></video>
-        <div style="position:absolute;inset:16% 20%;border:2px solid rgba(255,255,255,.7);border-radius:12px;pointer-events:none"></div>
+        <div style="position:absolute;left:6%;right:6%;bottom:14%;height:34%;border:2px solid rgba(255,255,255,.7);border-radius:12px;pointer-events:none"></div>
       </div>
-      <div style="text-align:center;font-size:13px;color:var(--muted2);margin-bottom:10px">將發票<b>左側</b> QR 碼（含號碼/金額那組）對準框內…</div>
+      <div style="text-align:center;font-size:13px;color:var(--muted2);margin-bottom:10px">將發票下方 QR Code 區域置中對準框內…</div>
       <button data-el="back" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text3);box-shadow:none;font-weight:500">返回</button>`;
     stage.querySelector('[data-el="back"]').onclick = () => { cleanup(); renderHome(); };
     const video = stage.querySelector('[data-el="video"]');
