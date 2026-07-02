@@ -366,7 +366,7 @@ function buildDesktop() {
         </div>
       </div>
       <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">
-        <button data-el="save" class="btn-primary" style="width:100%">儲存</button>
+        <button data-el="save" data-save="1" class="btn-primary" style="width:100%">儲存</button>
       </div>
     </div>`;
   host.querySelector('[data-el="date"]').addEventListener('change', (e) => { date = e.target.value || todayStr(); });
