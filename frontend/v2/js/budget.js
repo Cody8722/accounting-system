@@ -10,9 +10,9 @@ import { fmtMoney, escapeHtml, showToast } from './utils.js';
 import { monthRange, emit } from './store.js';
 
 async function fetchData() {
-  const { start, end } = monthRange();
+  const { start, end, label } = monthRange();
   const [budget, stats] = await Promise.all([
-    apiJson('/admin/api/accounting/budget'),
+    apiJson(`/admin/api/accounting/budget?month=${label}`),
     apiJson(`/admin/api/accounting/stats?start_date=${start}&end_date=${end}`),
   ]);
   const spentMap = {};
@@ -62,7 +62,7 @@ function openEditor(current, onSaved) {
     const budget = {};
     ov.querySelectorAll('[data-cat]').forEach((inp) => { const v = parseFloat(inp.value); if (v > 0) budget[inp.dataset.cat] = v; });
     try {
-      await apiJson('/admin/api/accounting/budget', { method: 'POST', body: JSON.stringify({ budget }) });
+      await apiJson('/admin/api/accounting/budget', { method: 'POST', body: JSON.stringify({ budget, month: monthRange().label }) });
       showToast('預算已儲存', 'success'); ov.remove(); onSaved();
     } catch (e) { showToast(e.message, 'error'); }
   };

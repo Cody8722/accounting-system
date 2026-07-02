@@ -1,11 +1,12 @@
 """
 routes/budget.py — 預算相關 API
 
-GET  /admin/api/accounting/budget  取得當月預算
-POST /admin/api/accounting/budget  設定當月預算
+GET  /admin/api/accounting/budget  取得預算（可選 ?month=YYYY-MM，預設當月）
+POST /admin/api/accounting/budget  設定預算（可選 month 欄位/參數，預設當月）
 """
 
 import logging
+import re
 from datetime import datetime
 
 from bson import ObjectId
@@ -18,6 +19,17 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint("budget", __name__)
 
+_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+
+
+def _resolve_month(value):
+    """回傳 (month_str, error)。value 為空則用當月；格式錯回 error。"""
+    if not value:
+        return datetime.now().strftime("%Y-%m"), None
+    if not _MONTH_RE.match(str(value)):
+        return None, "month 格式須為 YYYY-MM"
+    return str(value), None
+
 
 @bp.route("/admin/api/accounting/budget", methods=["GET"])
 @limiter.limit("100 per minute")
@@ -28,7 +40,9 @@ def get_accounting_budget():
         return jsonify({"error": "資料庫未初始化"}), 500
 
     try:
-        current_month = datetime.now().strftime("%Y-%m")
+        current_month, err = _resolve_month(request.args.get("month"))
+        if err:
+            return jsonify({"error": err}), 400
         query = {"month": current_month, "user_id": ObjectId(request.user_id)}
 
         budget_doc = db.accounting_budget_collection.find_one(query)
@@ -69,7 +83,11 @@ def set_accounting_budget():
             if not isinstance(val, (int, float)) or val < 0:
                 return jsonify({"error": f"預算金額必須為非負數字: {key}"}), 400
 
-        current_month = datetime.now().strftime("%Y-%m")
+        current_month, err = _resolve_month(
+            data.get("month") or request.args.get("month")
+        )
+        if err:
+            return jsonify({"error": err}), 400
         query = {"month": current_month, "user_id": ObjectId(request.user_id)}
         update_data = {
             "budget": data["budget"],

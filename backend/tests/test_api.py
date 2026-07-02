@@ -323,6 +323,45 @@ class TestAuthenticatedEndpoints:
         )
         assert response.status_code in [200, 201, 500]
 
+    def test_get_budget_with_month_param(self, client, auth_headers):
+        """GET 預算可指定月份，回應帶回該月份"""
+        response = client.get(
+            "/admin/api/accounting/budget?month=2026-03", headers=auth_headers
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert response.get_json()["month"] == "2026-03"
+
+    def test_get_budget_invalid_month_rejected(self, client, auth_headers):
+        """GET 預算 month 格式錯誤應回 400"""
+        response = client.get(
+            "/admin/api/accounting/budget?month=2026/03", headers=auth_headers
+        )
+        assert response.status_code == 400
+
+    def test_set_budget_with_month_param(self, client, auth_headers):
+        """POST 預算可指定月份，只寫入該月份"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": 1500}, "month": "2026-03"},
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 201, 500]
+        check = client.get(
+            "/admin/api/accounting/budget?month=2026-03", headers=auth_headers
+        )
+        if check.status_code == 200:
+            assert check.get_json()["budget"].get("早餐") == 1500
+
+    def test_set_budget_invalid_month_rejected(self, client, auth_headers):
+        """POST 預算 month 格式錯誤應回 400"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": 100}, "month": "bad-month"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
     def test_get_user_profile(self, client, auth_token):
         """測試獲取用戶資料"""
         if not auth_token:
