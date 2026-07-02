@@ -3,12 +3,13 @@
  * ⚠️ 每次改動 v2 前端請更新 CACHE_NAME 版本號，讓用戶端取得新版。
  * 策略：App 殼與靜態資源 cache-first；API 請求一律走網路（不快取）。
  */
-const CACHE_NAME = 'accounting-v2-1.0.4';
+const CACHE_NAME = 'accounting-v2-1.0.5';
 const CORE = [
   './',
   './index.html',
   './manifest.json',
   './css/tokens.css',
+  './vendor/jsqr.js',
   './js/main.js',
   './js/config.js',
   './js/api.js',

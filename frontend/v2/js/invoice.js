@@ -1,51 +1,59 @@
 /**
- * invoice.js — 電子發票掃描。
+ * invoice.js — 電子發票掃描（免 AppID、純前端 QR 解析，合法）。
  *
- * 真實可用（免申請、離線）：用相機或上傳圖片讀取發票右下角 QR 碼，
- * 解析台灣電子發票 QR 的固定欄位 → 發票號碼、開立日期、總金額，
- * 直接帶入記帳金額與日期。
+ * 背景：財政部查詢明細/載具 API 自 2023 起限公司且須 ISO27001，個人不可用。
+ * 故本模組只做「不需 AppID、純靠 QR Code 自行解析」的部分：
+ *   1. 掃 QR（相機／上傳圖片，用 jsQR）→ 解析證明聯左側前 77 碼固定格式
+ *      → 帶入 總金額、開立日期、發票號碼、隨機碼、賣方統編
+ *   2. 手動輸入發票（掃不到時備援）
+ *   3. 以發票號碼去重，避免同一張重複記帳
  *
- * 示範用途（需後端串接財政部電子發票整合服務平台 API + AppID）：
- * 「逐項明細」不在 QR 內，需以發票號碼+隨機碼查詢平台 API，此處以範例示範。
+ * 明確不做（需 AppID，個人拿不到）：品項明細、載具同步、重查、對獎。
  */
 
 import { apiJson } from './api.js';
-import { CATEGORY_TREE } from './config.js';
 import { showToast, todayStr, escapeHtml } from './utils.js';
-import { emit } from './store.js';
-
-const hasDetector = typeof window.BarcodeDetector !== 'undefined';
 
 /**
- * 解析台灣電子發票 QR（左側條碼）固定欄位。
- * 版面：號碼(10) + 民國日期(7) + 隨機碼(4) + 銷售額(8,hex) + 總計(8,hex) + ...
- * @returns {{number,date,randomCode,salesAmount,totalAmount}|null}
+ * 解析台灣電子發票證明聯左側 QR（前 77 碼固定格式）。
+ * 號碼(10)+民國日期(7)+隨機碼(4)+銷售額(8hex)+總計(8hex)+買方統編(8)+賣方統編(8)+加密(24)
+ * @returns {{number,date,randomCode,salesAmount,totalAmount,buyerId,sellerId}|null}
  */
 export function parseInvoiceQR(text) {
   if (!text || text.length < 37) return null;
   const number = text.slice(0, 10);
   if (!/^[A-Z]{2}\d{8}$/.test(number)) return null;
-  const roc = text.slice(10, 17);            // YYYMMDD（民國年3+月2+日2）
+  const roc = text.slice(10, 17);
   const y = parseInt(roc.slice(0, 3), 10) + 1911;
-  const m = roc.slice(3, 5), d = roc.slice(5, 7);
-  const date = `${y}-${m}-${d}`;
+  const date = `${y}-${roc.slice(3, 5)}-${roc.slice(5, 7)}`;
   const randomCode = text.slice(17, 21);
   const salesAmount = parseInt(text.slice(21, 29), 16);
   const totalAmount = parseInt(text.slice(29, 37), 16);
+  const buyerId = text.slice(37, 45);
+  const sellerId = text.slice(45, 53);
   if (!Number.isFinite(totalAmount) || totalAmount <= 0) return null;
-  return { number, date, randomCode, salesAmount, totalAmount };
+  return { number, date, randomCode, salesAmount, totalAmount, buyerId, sellerId };
 }
 
-/** 示範用假明細（真實明細需財政部 API） */
-const DEMO_ITEMS = [
-  { name: '鮮乳 936ml', price: 89, category: '飲料' },
-  { name: '雞蛋 10入', price: 65, category: '其他支出' },
-  { name: '全麥吐司', price: 45, category: '早餐' },
-];
-const expenseLeaves = CATEGORY_TREE.expense.flatMap((g) => g.items);
+/** 以發票號碼查是否已記過（去重） */
+async function isDuplicate(number) {
+  try {
+    const data = await apiJson(`/admin/api/accounting/records?search=${encodeURIComponent(number)}&limit=1`);
+    const total = Array.isArray(data) ? data.length : (data.total ?? (data.records || []).length);
+    return total > 0;
+  } catch { return false; }
+}
+
+/** 用 jsQR 解一張畫布影像 */
+function scanCanvas(ctx, w, h) {
+  if (!window.jsQR) return null;
+  const img = ctx.getImageData(0, 0, w, h);
+  const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+  return code ? code.data : null;
+}
 
 export function openInvoiceScan(onSingle) {
-  let stopCamera = null;
+  let stop = null;
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `
@@ -57,108 +65,94 @@ export function openInvoiceScan(onSingle) {
       <div data-el="stage"></div>
     </div>`;
   const stage = ov.querySelector('[data-el="stage"]');
+  const cleanup = () => { if (stop) { try { stop(); } catch { /* ignore */ } stop = null; } };
+  const finish = (res) => { cleanup(); ov.remove(); onSingle && onSingle(res); };
 
-  function cleanup() { if (stopCamera) { try { stopCamera(); } catch { /* ignore */ } stopCamera = null; } }
-  function done(res) { cleanup(); ov.remove(); onSingle && onSingle(res); }
-
-  // ---- 讀到 QR 後的結果畫面 ----
-  function renderResult(p) {
+  async function renderResult(p) {
     cleanup();
+    const dup = await isDuplicate(p.number);
     stage.innerHTML = `
       <div style="background:var(--income-soft);border:1px solid var(--income);border-radius:12px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
-        <i class="ti ti-circle-check" style="color:var(--income)"></i><span style="font-size:13px;color:var(--income)">已讀取 QR 碼</span>
+        <i class="ti ti-circle-check" style="color:var(--income)"></i><span style="font-size:13px;color:var(--income)">已讀取發票</span>
       </div>
+      ${dup ? '<div style="background:var(--expense-soft);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--expense)"><i class="ti ti-alert-triangle"></i> 這張發票先前已記過帳，仍可再帶入。</div>' : ''}
       <div style="background:var(--fill);border-radius:14px;padding:14px;margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--muted2);font-size:13px">總金額</span><span class="mono" style="color:var(--text);font-weight:600">NT$ ${p.totalAmount}</span></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--muted2);font-size:13px">發票號碼</span><span class="mono" style="color:var(--text2);font-size:13px">${escapeHtml(p.number)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--muted2);font-size:13px">開立日期</span><span class="mono" style="color:var(--text2);font-size:13px">${p.date}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--muted2);font-size:13px">開立日期</span><span class="mono" style="color:var(--text2);font-size:13px">${p.date}</span></div>
+        ${p.sellerId && /\d{8}/.test(p.sellerId) ? `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2);font-size:13px">賣方統編</span><span class="mono" style="color:var(--text2);font-size:13px">${escapeHtml(p.sellerId)}</span></div>` : ''}
       </div>
-      <button data-el="use" class="btn-primary" style="width:100%;margin-bottom:10px">帶入這筆（NT$ ${p.totalAmount}）</button>
-      <button data-el="demoSplit" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text2);box-shadow:none;font-weight:500"><i class="ti ti-list-details"></i> 逐項拆分（示範）</button>
-      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.6">※ 號碼/日期/金額由 QR 離線解析；逐項明細需後端串接財政部平台 API，此處為示範。</div>`;
-    stage.querySelector('[data-el="use"]').onclick = () => done({ total: p.totalAmount, date: p.date, note: `發票 ${p.number}`, category: '其他支出' });
-    stage.querySelector('[data-el="demoSplit"]').onclick = () => renderDemoSplit(p);
+      <button data-el="use" class="btn-primary" style="width:100%">帶入這筆（NT$ ${p.totalAmount}）</button>
+      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.6">※ 號碼／日期／金額／賣方統編由 QR 離線解析。品項明細需財政部 API（限公司申請），個人版不提供。</div>`;
+    stage.querySelector('[data-el="use"]').onclick = () => finish({
+      total: p.totalAmount, date: p.date, number: p.number,
+      note: `發票 ${p.number}`, category: '其他支出',
+    });
   }
 
-  // ---- 逐項拆分（示範假明細，可各自指定分類、直接建立多筆）----
-  function renderDemoSplit(p) {
-    cleanup();
-    const items = DEMO_ITEMS.map((i) => ({ ...i }));
-    const catSel = (v) => `<select class="field" style="width:auto;padding:6px 8px;font-size:13px">${expenseLeaves.map((l) => `<option ${l === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`;
+  function renderHome() {
     stage.innerHTML = `
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:10px">示範明細（實際明細需 API）。可各自指定分類後建立多筆：</div>
-      <div data-el="items" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
-      <button data-el="commit" class="btn-primary" style="width:100%">記入 ${items.length} 筆</button>`;
-    const wrap = stage.querySelector('[data-el="items"]');
-    wrap.innerHTML = items.map((it, i) => `
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="flex:1;font-size:14px;color:var(--text)">${escapeHtml(it.name)}</span>
-        <span class="mono" style="font-size:13px;color:var(--text2)">${it.price}</span>
-        <span data-idx="${i}">${catSel(it.category)}</span>
-      </div>`).join('');
-    wrap.querySelectorAll('[data-idx]').forEach((w) => {
-      const i = Number(w.dataset.idx);
-      w.querySelector('select').onchange = (e) => { items[i].category = e.target.value; };
-    });
-    stage.querySelector('[data-el="commit"]').onclick = async () => {
-      try {
-        for (const it of items) {
-          await apiJson('/admin/api/accounting/records', {
-            method: 'POST',
-            body: JSON.stringify({ type: 'expense', amount: it.price, category: it.category, date: p ? p.date : todayStr(), description: `發票${p ? ' ' + p.number : ''}・${it.name}`, expense_type: null }),
-          });
-        }
-        showToast(`已記入 ${items.length} 筆`, 'success');
-        emit('records:changed');
-        cleanup(); ov.remove();
-      } catch (ex) { showToast(ex.message, 'error'); }
+      <button data-el="camBtn" class="btn-primary" style="width:100%;margin-bottom:10px"><i class="ti ti-camera"></i> 開啟相機掃描</button>
+      <label class="btn-primary" style="width:100%;margin-bottom:14px;background:var(--fill);color:var(--text);box-shadow:none;cursor:pointer"><i class="ti ti-photo-up"></i> 上傳發票圖片<input data-el="file" type="file" accept="image/*" style="display:none"></label>
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">掃不到？手動輸入：</div>
+        <button data-el="manual" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text2);box-shadow:none;font-weight:500"><i class="ti ti-keyboard"></i> 手動輸入發票</button>
+      </div>`;
+    stage.querySelector('[data-el="camBtn"]').onclick = startCamera;
+    stage.querySelector('[data-el="file"]').onchange = (e) => decodeImage(e.target.files[0]);
+    stage.querySelector('[data-el="manual"]').onclick = renderManual;
+  }
+
+  function renderManual() {
+    cleanup();
+    stage.innerHTML = `
+      <label style="font-size:13px;color:var(--muted2)">發票號碼（選填，供去獎/去重）</label>
+      <input data-el="num" class="field mono" style="margin:6px 0 12px;text-transform:uppercase" placeholder="AB12345678" maxlength="10">
+      <label style="font-size:13px;color:var(--muted2)">金額</label>
+      <input data-el="amt" type="number" min="0.01" step="0.01" class="field mono" style="margin:6px 0 12px" placeholder="0">
+      <label style="font-size:13px;color:var(--muted2)">日期</label>
+      <input data-el="date" type="date" class="field" style="margin:6px 0 16px" value="${todayStr()}">
+      <button data-el="ok" class="btn-primary" style="width:100%">帶入</button>
+      <button data-el="back" class="btn-primary" style="width:100%;margin-top:8px;background:var(--fill);color:var(--text3);box-shadow:none;font-weight:500">返回掃描</button>`;
+    stage.querySelector('[data-el="back"]').onclick = renderHome;
+    stage.querySelector('[data-el="ok"]').onclick = async () => {
+      const amt = parseFloat(stage.querySelector('[data-el="amt"]').value);
+      if (!amt || amt <= 0) { showToast('請輸入金額', 'warning'); return; }
+      const num = stage.querySelector('[data-el="num"]').value.trim().toUpperCase();
+      const date = stage.querySelector('[data-el="date"]').value || todayStr();
+      if (num && await isDuplicate(num)) showToast('提醒：此發票號碼先前已記過', 'warning');
+      finish({ total: amt, date, number: num, note: num ? `發票 ${num}` : '', category: '其他支出' });
     };
   }
 
-  // ---- 入口畫面：相機 / 上傳 / 手動 ----
-  function renderHome() {
-    stage.innerHTML = `
-      ${hasDetector ? `
-      <button data-el="camBtn" class="btn-primary" style="width:100%;margin-bottom:10px"><i class="ti ti-camera"></i> 開啟相機掃描</button>
-      <label class="btn-primary" style="width:100%;margin-bottom:14px;background:var(--fill);color:var(--text);box-shadow:none;cursor:pointer"><i class="ti ti-photo-up"></i> 上傳發票圖片<input data-el="file" type="file" accept="image/*" style="display:none"></label>
-      ` : `
-      <div style="background:var(--expense-soft);border-radius:12px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--expense)">此瀏覽器不支援即時掃碼（BarcodeDetector）。可改用支援的瀏覽器，或用下方示範。</div>
-      `}
-      <div style="border-top:1px solid var(--border);padding-top:12px">
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">沒有 QR？用範例示範流程：</div>
-        <button data-el="demo" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text2);box-shadow:none;font-weight:500">用範例發票示範</button>
-      </div>`;
-    const camBtn = stage.querySelector('[data-el="camBtn"]');
-    if (camBtn) camBtn.onclick = startCamera;
-    const file = stage.querySelector('[data-el="file"]');
-    if (file) file.onchange = (e) => decodeImage(e.target.files[0]);
-    stage.querySelector('[data-el="demo"]').onclick = () => renderResult({ number: 'AB12345678', date: todayStr(), randomCode: '0000', salesAmount: 190, totalAmount: 199 });
-  }
-
   async function startCamera() {
+    if (!window.jsQR) { showToast('掃碼元件未載入', 'error'); return; }
     stage.innerHTML = `
       <div style="position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:12px">
         <video data-el="video" playsinline muted style="width:100%;display:block;max-height:320px;object-fit:cover"></video>
         <div style="position:absolute;inset:16% 20%;border:2px solid rgba(255,255,255,.7);border-radius:12px;pointer-events:none"></div>
       </div>
-      <div style="text-align:center;font-size:13px;color:var(--muted2)">將發票右下角 QR 碼對準框內…</div>`;
+      <div style="text-align:center;font-size:13px;color:var(--muted2);margin-bottom:10px">將發票右側 QR 碼對準框內…</div>
+      <button data-el="back" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text3);box-shadow:none;font-weight:500">返回</button>`;
+    stage.querySelector('[data-el="back"]').onclick = () => { cleanup(); renderHome(); };
     const video = stage.querySelector('[data-el="video"]');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     try {
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       video.srcObject = stream;
       await video.play();
       let stopped = false;
-      stopCamera = () => { stopped = true; stream.getTracks().forEach((t) => t.stop()); };
-      const loop = async () => {
+      stop = () => { stopped = true; stream.getTracks().forEach((t) => t.stop()); };
+      const loop = () => {
         if (stopped) return;
-        try {
-          const codes = await detector.detect(video);
-          for (const c of codes) {
-            const p = parseInvoiceQR(c.rawValue);
-            if (p) { renderResult(p); return; }
-          }
-        } catch { /* 單幀偵測失敗忽略 */ }
+        if (video.readyState >= 2) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const raw = scanCanvas(ctx, canvas.width, canvas.height);
+          const p = raw && parseInvoiceQR(raw);
+          if (p) { renderResult(p); return; }
+        }
         requestAnimationFrame(loop);
       };
       requestAnimationFrame(loop);
@@ -170,14 +164,16 @@ export function openInvoiceScan(onSingle) {
 
   async function decodeImage(file) {
     if (!file) return;
+    if (!window.jsQR) { showToast('掃碼元件未載入', 'error'); return; }
     try {
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
       const bmp = await createImageBitmap(file);
-      const codes = await detector.detect(bmp);
-      for (const c of codes) {
-        const p = parseInvoiceQR(c.rawValue);
-        if (p) { renderResult(p); return; }
-      }
+      const canvas = document.createElement('canvas');
+      canvas.width = bmp.width; canvas.height = bmp.height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0);
+      const raw = scanCanvas(ctx, canvas.width, canvas.height);
+      const p = raw && parseInvoiceQR(raw);
+      if (p) { renderResult(p); return; }
       showToast('圖片中找不到有效的發票 QR 碼', 'warning');
     } catch (e) {
       showToast('讀取圖片失敗：' + (e.message || ''), 'error');
