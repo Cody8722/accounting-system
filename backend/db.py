@@ -11,6 +11,7 @@ import os
 
 from dotenv import load_dotenv
 from pymongo import ASCENDING, MongoClient
+from pymongo.errors import ConfigurationError
 
 from extensions import SERVER_SELECTION_TIMEOUT_MS
 
@@ -62,7 +63,13 @@ def init_db():
         )
         client.admin.command("ping")
 
-        accounting_db = client["accounting_db"]
+        # 依 MONGO_URI 決定資料庫（如 .../accounting_db_test）；
+        # URI 未指定預設庫時 fallback 到 accounting_db。不寫死，避免測試 .env 連錯庫。
+        try:
+            accounting_db = client.get_default_database()
+        except ConfigurationError:
+            accounting_db = client["accounting_db"]
+        logger.info(f"使用資料庫：{accounting_db.name}")
         accounting_records_collection = accounting_db["records"]
         accounting_budget_collection = accounting_db["budget"]
         users_collection = accounting_db["users"]
