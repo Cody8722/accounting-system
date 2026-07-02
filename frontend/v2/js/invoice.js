@@ -132,7 +132,7 @@ export function openInvoiceScan(onSingle) {
         <video data-el="video" playsinline muted style="width:100%;display:block;max-height:320px;object-fit:cover"></video>
         <div style="position:absolute;inset:16% 20%;border:2px solid rgba(255,255,255,.7);border-radius:12px;pointer-events:none"></div>
       </div>
-      <div style="text-align:center;font-size:13px;color:var(--muted2);margin-bottom:10px">將發票右側 QR 碼對準框內…</div>
+      <div style="text-align:center;font-size:13px;color:var(--muted2);margin-bottom:10px">將發票<b>左側</b> QR 碼（含號碼/金額那組）對準框內…</div>
       <button data-el="back" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text3);box-shadow:none;font-weight:500">返回</button>`;
     stage.querySelector('[data-el="back"]').onclick = () => { cleanup(); renderHome(); };
     const video = stage.querySelector('[data-el="video"]');
