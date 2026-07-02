@@ -225,6 +225,11 @@ function close() {
   window.dispatchEvent(new CustomEvent('add:closed'));
 }
 
+/** 靜默關閉（不觸發刷新）——供切換手機/電腦外殼時清掉舊的記帳覆蓋層 */
+export function closeAdd() {
+  if (host) { host.remove(); host = null; }
+}
+
 function invoiceCallback(res) {
   type = 'expense'; clearCalc(); buf = String(res.total || '');
   category = res.category || '其他支出'; note = res.note || res.seller || '';

@@ -8,7 +8,7 @@ import { state, on, emit } from './store.js';
 import { getUserData } from './api.js';
 import { escapeHtml } from './utils.js';
 import { themeToggleIcon, cycleTheme } from './theme.js';
-import { openAdd } from './add.js';
+import { openAdd, closeAdd } from './add.js';
 import { renderLedgerMobile, renderLedgerDesktop } from './ledger.js';
 import { renderStatsMobile, renderStatsDesktop } from './stats.js';
 import { renderBudgetMobile, renderBudgetDesktop } from './budget.js';
@@ -105,7 +105,7 @@ export function initRouter(rootEl) {
   let lastMode = mode;
   window.addEventListener('resize', () => {
     const m = currentMode();
-    if (m !== lastMode) { lastMode = m; mount(); }
+    if (m !== lastMode) { lastMode = m; closeAdd(); mount(); }
   });
   // 資料/月份變動 → 重繪當前畫面
   on('records:changed', renderView);
