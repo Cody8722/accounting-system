@@ -234,6 +234,12 @@ function invoiceCallback(res) {
   type = 'expense'; clearCalc(); buf = String(res.total || '');
   category = res.category || '其他支出'; note = res.note || res.seller || '';
   const ni = host.querySelector('[data-el="note"]'); if (ni) ni.value = note;
+  // 發票日期只是「可編輯的預設值」——帶入後使用者仍可自由改（補記過去發票等）
+  if (res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date)) {
+    date = res.date;
+    const de = host.querySelector('[data-el="date"]');
+    if (de) de.value = res.date;
+  }
   renderCatArea();
   refresh();
 }
