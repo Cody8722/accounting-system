@@ -4,8 +4,12 @@
  * 任何地方都不 hardcode 後端 URL。
  */
 
-export function detectBackendUrl() {
-  const hostname = window.location.hostname;
+/**
+ * 純函式：由 hostname 推導後端 URL（不讀 window，方便單元測試）。
+ * @param {string} hostname
+ * @returns {string} 後端 base URL（'' 代表同源相對路徑）
+ */
+export function resolveBackendUrl(hostname) {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5001';
   }
@@ -29,7 +33,12 @@ export function detectBackendUrl() {
   return 'http://localhost:5001';
 }
 
-export const backendUrl = detectBackendUrl();
+export function detectBackendUrl() {
+  return resolveBackendUrl(window.location.hostname);
+}
+
+// 模組載入時計算；於非瀏覽器環境（如 Node 單元測試）安全 fallback，不觸碰 window
+export const backendUrl = typeof window !== 'undefined' ? detectBackendUrl() : '';
 
 export function isDevelopment() {
   const h = window.location.hostname;
