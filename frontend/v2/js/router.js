@@ -51,10 +51,6 @@ function buildMobile() {
   root.innerHTML = `
     <div class="phone-backdrop">
       <div class="phone-frame">
-        <div class="status-bar">
-          <span class="clock">9:41</span>
-          <div class="icons"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3" style="font-size:19px"></i></div>
-        </div>
         <div class="screen-scroll" style="flex:1;position:relative">
           <div data-el="screen" style="position:absolute;inset:0;display:flex;flex-direction:column"></div>
         </div>

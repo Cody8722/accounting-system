@@ -64,17 +64,13 @@ input, select, textarea { font-family:inherit; }
   display:flex; flex-direction:column;
   box-shadow:0 30px 80px rgba(0,0,0,.28);
   border:10px solid #111;
+  /* 真機滿版時避開系統狀態列/瀏海（桌面預覽 inset 為 0，不受影響） */
+  padding-top:env(safe-area-inset-top);
 }
 @media (max-width:480px) {
   .phone-backdrop { padding:0; }
   .phone-frame { width:100vw; height:100vh; border-radius:0; border:none; box-shadow:none; }
 }
-.status-bar {
-  height:46px; flex-shrink:0; display:flex; align-items:center;
-  justify-content:space-between; padding:0 24px;
-}
-.status-bar .clock { font-family:var(--mono); font-weight:500; font-size:14px; color:var(--text); }
-.status-bar .icons { display:flex; gap:7px; align-items:center; color:var(--text); }
 .screen-scroll { flex:1; overflow-y:auto; position:relative; }
 
 /* ===== 底部導覽 + FAB（手機） ===== */
@@ -198,6 +194,7 @@ input, select, textarea { font-family:inherit; }
 .add-screen {
   position:absolute; inset:0; background:var(--surface); z-index:70;
   display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top);   /* 避開真機系統狀態列 */
 }
 .keypad { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 .keypad button {
