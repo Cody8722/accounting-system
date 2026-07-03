@@ -3,21 +3,27 @@
  * Token 管理、自動帶 Authorization、401 過期處理。
  */
 
-import { backendUrl } from './config.js';
+import { backendUrl, storagePrefix } from './config.js';
 
 let is401Handling = false;
 
-export function getAuthToken() { return localStorage.getItem('authToken') || ''; }
-export function setAuthToken(token) { localStorage.setItem('authToken', token); }
+// 正式/測試同 origin，用路徑前綴分隔 localStorage，避免登入狀態互相覆蓋/借用。
+// 正式(/) 前綴為 ''（key 維持 authToken/userData，不動既有正式登入）；測試(/test/) 為 'test:'。
+const NS = typeof window !== 'undefined' ? storagePrefix(window.location.pathname) : '';
+const K_TOKEN = `${NS}authToken`;
+const K_USER = `${NS}userData`;
+
+export function getAuthToken() { return localStorage.getItem(K_TOKEN) || ''; }
+export function setAuthToken(token) { localStorage.setItem(K_TOKEN, token); }
 export function removeAuthToken() {
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('userData');
+  localStorage.removeItem(K_TOKEN);
+  localStorage.removeItem(K_USER);
 }
 export function getUserData() {
-  const d = localStorage.getItem('userData');
+  const d = localStorage.getItem(K_USER);
   return d ? JSON.parse(d) : null;
 }
-export function setUserData(data) { localStorage.setItem('userData', JSON.stringify(data)); }
+export function setUserData(data) { localStorage.setItem(K_USER, JSON.stringify(data)); }
 
 /**
  * 呼叫後端 API（endpoint 可為相對路徑或完整 URL）。

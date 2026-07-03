@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBackendUrl } from '../../v2/js/config.js';
+import { resolveBackendUrl, storagePrefix } from '../../v2/js/config.js';
 
 test('本機開發 → localhost:5001', () => {
   assert.equal(resolveBackendUrl('localhost'), 'http://localhost:5001');
@@ -47,4 +47,15 @@ test('Zeabur 正式與通用備援', () => {
 
 test('未知網域 → 預設 localhost:5001', () => {
   assert.equal(resolveBackendUrl('example.com'), 'http://localhost:5001');
+});
+
+test('storagePrefix：正式(根/含/v2/) → ""，測試(/test/) → "test:"', () => {
+  assert.equal(storagePrefix('/'), '');
+  assert.equal(storagePrefix('/index.html'), '');
+  assert.equal(storagePrefix('/v2/'), '');
+  assert.equal(storagePrefix('/test/'), 'test:');
+  assert.equal(storagePrefix('/test/v2/'), 'test:');
+  assert.equal(storagePrefix('/test/index.html'), 'test:');
+  assert.equal(storagePrefix('/testing/'), '');   // 邊界：不誤判
+  assert.equal(storagePrefix(), '');               // 預設
 });
