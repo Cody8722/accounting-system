@@ -189,6 +189,13 @@ input, select, textarea { font-family:inherit; }
   width:100%; max-width:480px; max-height:86vh; overflow-y:auto;
 }
 .sheet.dialog { border-radius:20px; max-width:420px; }
+/* 桌面：彈窗/子面板改為「置中對話框」，不再是手機貼底窄版 sheet。
+   涵蓋所有共用 .overlay/.sheet 的次層 UI：設定各面板、分類選擇、編輯記錄、
+   預算設定、發票掃描、定期排程、確認框等。桌面版記一筆用獨立 820px 彈窗，不受影響。 */
+@media (min-width:900px) {
+  .overlay { align-items:center; padding:20px; }
+  .sheet { border-radius:20px; max-width:520px; max-height:82vh; }
+}
 
 /* 記一筆 全螢幕 */
 .add-screen {
