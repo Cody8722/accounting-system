@@ -5,17 +5,19 @@
  */
 
 /**
- * 純函式：由 hostname 推導後端 URL（不讀 window，方便單元測試）。
+ * 純函式：由 hostname + pathname 推導後端 URL（不讀 window，方便單元測試）。
  * @param {string} hostname
- * @returns {string} 後端 base URL（'' 代表同源相對路徑）
+ * @param {string} [pathname='/'] 目前路徑；同源部署時用來分流正式/測試
+ * @returns {string} 後端 base URL（'' 代表同源根路徑；'/test' 代表同源 /test 前綴）
  */
-export function resolveBackendUrl(hostname) {
+export function resolveBackendUrl(hostname, pathname = '/') {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5001';
   }
-  // Tailscale / 反向代理同源部署：前端與 API 同網域（443），走相對路徑，由 nginx 代理到後端
+  // Tailscale / 反向代理同源部署：前端與 API 同網域（443），走相對路徑，由 nginx 代理到後端。
+  // 部署在 /test/ 底下（測試環境）→ API 走 /test/api；根目錄（正式）→ /api。
   if (hostname.endsWith('.ts.net')) {
-    return '';
+    return pathname.startsWith('/test/') ? '/test' : '';
   }
   if (
     hostname.startsWith('192.168.') ||
@@ -34,7 +36,7 @@ export function resolveBackendUrl(hostname) {
 }
 
 export function detectBackendUrl() {
-  return resolveBackendUrl(window.location.hostname);
+  return resolveBackendUrl(window.location.hostname, window.location.pathname);
 }
 
 // 模組載入時計算；於非瀏覽器環境（如 Node 單元測試）安全 fallback，不觸碰 window

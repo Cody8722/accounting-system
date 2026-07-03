@@ -12,9 +12,19 @@ test('本機開發 → localhost:5001', () => {
   assert.equal(resolveBackendUrl('127.0.0.1'), 'http://localhost:5001');
 });
 
-test('Tailscale/反向代理同源 → 空字串（相對路徑）', () => {
-  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net'), '');
-  assert.equal(resolveBackendUrl('anything.tailABC.ts.net'), '');
+test('Tailscale/反向代理同源，根路徑 → 空字串（正式，/api）', () => {
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net'), '');            // pathname 預設 '/'
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/'), '');
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/v2/'), '');
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/index.html'), '');
+});
+
+test('Tailscale/反向代理同源，/test/ 路徑 → "/test"（測試，/test/api）', () => {
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/test/'), '/test');
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/test/v2/'), '/test');
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/test/v2/index.html'), '/test');
+  // 邊界：/testing/ 不應被誤判為 /test/ 前綴
+  assert.equal(resolveBackendUrl('ubuntu-server.tail886591.ts.net', '/testing/'), '');
 });
 
 test('區域網路 IP → http://<同IP>:5001', () => {
