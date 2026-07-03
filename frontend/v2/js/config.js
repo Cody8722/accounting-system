@@ -9,6 +9,10 @@ export function detectBackendUrl() {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5001';
   }
+  // Tailscale / 反向代理同源部署：前端與 API 同網域（443），走相對路徑，由 nginx 代理到後端
+  if (hostname.endsWith('.ts.net')) {
+    return '';
+  }
   if (
     hostname.startsWith('192.168.') ||
     hostname.startsWith('10.') ||
