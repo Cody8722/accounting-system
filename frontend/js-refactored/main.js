@@ -20,8 +20,8 @@ import { backendUrl } from './config.js';
 import { apiCall } from './api.js';
 
 // ===== 功能模組 =====
-import { initAuth, verifyToken, hideAuthModals, showLoginModal, updateUserDisplay } from './auth.js';
-import { Router, CustomKeyboard, SwipeToDelete, LongPressMenu } from './components.js';
+import { initAuth, verifyToken, hideAuthModals, showLoginModal, updateUserDisplay, setResetToken } from './auth.js';
+import { Router, CustomKeyboard, SwipeToDelete, LongPressMenu, setAuthenticationStatus } from './components.js';
 import { initCategories } from './categories.js';
 
 // ===== 核心模組 =====
@@ -34,16 +34,15 @@ import { initBudget, loadBudget } from './budget.js';
 import { initExport } from './export.js';
 import { initSettings } from './settings.js';
 import { initPWA, showIOSInstallPrompt, showAndroidInstallPrompt } from './pwa.js';
+import { initAnalytics } from './analytics.js';
+import { initRecurring } from './recurring.js';
+import { initTheme } from './theme.js';
+import { initDebts } from './debts.js';
 
 /**
  * 認證狀態標記
  */
 let isAuthenticated = false;
-
-/**
- * 重置密碼 token（從 URL 參數讀取）
- */
-let _resetToken = null;
 
 /**
  * 初始化所有模組
@@ -65,9 +64,24 @@ function initializeModules() {
     initExport();
     initSettings();
     initPWA();
+    initAnalytics();
+    initRecurring();
+    initTheme();
+    initDebts();
 
     // 4. 初始化 UI 組件
     initializeUIComponents();
+
+    // 監聽登入成功事件，初始化日期預設值
+    EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, () => {
+        isAuthenticated = true;
+        setAuthenticationStatus(true);   // 解鎖 Router.onPageLoad
+        setTodayAsDefault();
+        loadBudget();
+        // 補發初始頁面的 PAGE_LOAD（與 auto-login 路徑一致）
+        const currentPage = window.router?.currentPage || 'add';
+        EventBus.emit(EVENTS.PAGE_LOAD, { page: currentPage });
+    });
 
     console.log('✅ 所有模組初始化完成！');
 }
@@ -93,6 +107,7 @@ function initializeUIComponents() {
     window.keyboard = keyboard;
     window.swipeToDelete = swipeToDelete;
     window.longPressMenu = longPressMenu;
+    window.SwipeToDelete = SwipeToDelete; // 供 records.js 逐卡片 new
 
     console.log('✅ [Main] UI 組件已初始化');
 }
@@ -120,7 +135,7 @@ async function handleDOMContentLoaded() {
     const resetToken = urlParams.get('reset_token');
 
     if (resetToken) {
-        _resetToken = resetToken;
+        setResetToken(resetToken);
         // 清除 URL 中的 token（避免重新整理後重複顯示）
         window.history.replaceState({}, '', window.location.pathname);
 
@@ -143,6 +158,7 @@ async function handleDOMContentLoaded() {
 
     if (isLoggedIn) {
         isAuthenticated = true; // 解鎖 Router onPageLoad，允許發 API 請求
+        setAuthenticationStatus(true); // 同步 components.js 的認證狀態
 
         // 隱藏登入模態框，顯示主內容
         hideAuthModals();
@@ -153,9 +169,14 @@ async function handleDOMContentLoaded() {
         setTodayAsDefault();
         loadBudget();
         updateUserDisplay();
+        // loadRecurring 透過 AUTH_LOGIN_SUCCESS 事件由 recurring.js 自動觸發
 
         // 請求更新統計數據（透過事件）
         EventBus.emit(EVENTS.STATS_REQUEST_UPDATE);
+
+        // 補發初始頁面的 PAGE_LOAD（Router 初始化時因 auth 尚未就緒而跳過）
+        const initialPage = window.router?.currentPage || 'add';
+        EventBus.emit(EVENTS.PAGE_LOAD, { page: initialPage });
 
         console.log('✅ 已自動登入');
 

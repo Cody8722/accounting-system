@@ -29,7 +29,7 @@ export function setAuthenticationStatus(status) {
 export class Router {
     constructor() {
         this.currentPage = 'add'; // 預設頁面
-        this.pages = ['add', 'records', 'analytics', 'settings'];
+        this.pages = ['add', 'records', 'analytics', 'debts', 'settings'];
         this.init();
     }
 

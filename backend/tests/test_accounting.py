@@ -544,5 +544,218 @@ class TestConcurrency:
             assert response.status_code in [200, 201, 500]
 
 
+class TestExport:
+    """測試資料匯出功能"""
+
+    def test_export_csv_success(self, client, auth_token):
+        """測試成功匯出 CSV"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        # 先創建一些記錄
+        records = [
+            {
+                "type": "income",
+                "amount": 5000,
+                "category": "薪資",
+                "date": "2024-01-15",
+                "description": "月薪",
+            },
+            {
+                "type": "expense",
+                "amount": 1200,
+                "category": "餐飲",
+                "date": "2024-01-16",
+                "description": "午餐",
+                "expense_type": "variable",
+            },
+        ]
+
+        for record in records:
+            client.post(
+                "/admin/api/accounting/records",
+                json=record,
+                headers={"Authorization": f"Bearer {auth_token}"},
+            )
+
+        # 測試匯出
+        response = client.get(
+            "/admin/api/accounting/export",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+        assert response.content_type == "text/csv; charset=utf-8"
+        assert "Content-Disposition" in response.headers
+        from urllib.parse import unquote
+
+        assert "記帳記錄" in unquote(response.headers["Content-Disposition"])
+
+        # 檢查 CSV 內容
+        csv_content = response.data.decode("utf-8-sig")
+        assert "日期" in csv_content
+        assert "類型" in csv_content
+        assert "分類" in csv_content
+
+    def test_export_with_date_filter(self, client, auth_token):
+        """測試帶日期篩選的匯出"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        # 創建記錄
+        record = {
+            "type": "expense",
+            "amount": 500,
+            "category": "交通",
+            "date": "2024-01-10",
+            "description": "計程車",
+        }
+        client.post(
+            "/admin/api/accounting/records",
+            json=record,
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        # 測試日期範圍匯出
+        response = client.get(
+            "/admin/api/accounting/export?start_date=2024-01-01&end_date=2024-01-31",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+        from urllib.parse import unquote
+
+        assert "2024-01-01_至_2024-01-31" in unquote(
+            response.headers["Content-Disposition"]
+        )
+
+    def test_export_with_type_filter(self, client, auth_token):
+        """測試帶類型篩選的匯出"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        response = client.get(
+            "/admin/api/accounting/export?type=income",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+
+    def test_export_without_auth(self, client):
+        """測試未認證時的匯出"""
+        response = client.get("/admin/api/accounting/export")
+        assert response.status_code == 401
+
+
+class TestTrends:
+    """測試月度趨勢功能"""
+
+    def test_trends_success(self, client, auth_token):
+        """測試成功獲取趨勢資料"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        # 先創建一些不同月份的記錄
+        records = [
+            {
+                "type": "income",
+                "amount": 5000,
+                "category": "薪資",
+                "date": "2024-01-15",
+            },
+            {
+                "type": "expense",
+                "amount": 2000,
+                "category": "餐飲",
+                "date": "2024-01-20",
+            },
+            {
+                "type": "income",
+                "amount": 5500,
+                "category": "薪資",
+                "date": "2024-02-15",
+            },
+        ]
+
+        for record in records:
+            client.post(
+                "/admin/api/accounting/records",
+                json=record,
+                headers={"Authorization": f"Bearer {auth_token}"},
+            )
+
+        # 測試趨勢 API
+        response = client.get(
+            "/admin/api/accounting/trends",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        # 檢查返回資料結構
+        assert "months" in data
+        assert "income" in data
+        assert "expense" in data
+        assert isinstance(data["months"], list)
+        assert isinstance(data["income"], list)
+        assert isinstance(data["expense"], list)
+        assert len(data["months"]) == len(data["income"])
+        assert len(data["months"]) == len(data["expense"])
+
+    def test_trends_with_custom_months(self, client, auth_token):
+        """測試自訂月份數量"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        response = client.get(
+            "/admin/api/accounting/trends?months=12",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # 返回的月份數量應該 <= 12
+        assert len(data["months"]) <= 12
+
+    def test_trends_max_months_limit(self, client, auth_token):
+        """測試月份數量限制"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        # 請求超過限制的月份數
+        response = client.get(
+            "/admin/api/accounting/trends?months=30",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # 應該被限制在 24 個月
+        assert len(data["months"]) <= 24
+
+    def test_trends_without_auth(self, client):
+        """測試未認證時的趨勢查詢"""
+        response = client.get("/admin/api/accounting/trends")
+        assert response.status_code == 401
+
+    def test_trends_empty_data(self, client, auth_token):
+        """測試沒有資料時的趨勢"""
+        if not auth_token:
+            pytest.skip("需要認證 token")
+
+        # 新用戶沒有記錄
+        response = client.get(
+            "/admin/api/accounting/trends",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "months" in data
+        assert "income" in data
+        assert "expense" in data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

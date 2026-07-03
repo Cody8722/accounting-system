@@ -212,7 +212,7 @@ export async function saveNewPassword() {
 
     if (newPwd !== confirmPwd) {
         if (errorEl) {
-            errorEl.textContent = '新密碼與確認密碼不符';
+            errorEl.textContent = '新密碼與確認密碼不一致';
             errorEl.classList.remove('hidden');
         }
         return;
@@ -227,10 +227,10 @@ export async function saveNewPassword() {
     }
 
     try {
-        const response = await apiCall(`${backendUrl}/api/user/password`, {
-            method: 'PUT',
+        const response = await apiCall(`${backendUrl}/api/user/change-password`, {
+            method: 'POST',
             body: JSON.stringify({
-                current_password: currentPwd,
+                old_password: currentPwd,
                 new_password: newPwd
             })
         });

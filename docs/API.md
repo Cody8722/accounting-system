@@ -7,7 +7,9 @@
 - [認證相關](#認證相關)
 - [記帳記錄](#記帳記錄)
 - [統計分析](#統計分析)
+- [環比分析](#環比分析)
 - [預算管理](#預算管理)
+- [定期收支](#定期收支)
 - [資料匯出](#資料匯出)
 - [趨勢分析](#趨勢分析)
 - [用戶管理](#用戶管理)
@@ -308,27 +310,37 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - `end_date`: 結束日期 (YYYY-MM-DD)
 - `type`: 記錄類型 (`income` 或 `expense`)
 - `category`: 分類名稱
+- `search`: 關鍵字搜尋（比對 `description` 欄位，不分大小寫）
+- `sort_by`: 排序欄位（`date`（預設）或 `amount`）
+- `sort_order`: 排序方向（`desc`（預設）或 `asc`）
+- `page`: 頁碼（預設 `1`）
+- `limit`: 每頁筆數（預設 `20`）
 
 **範例請求**:
 ```
-GET /admin/api/accounting/records?start_date=2024-02-01&end_date=2024-02-28&type=expense
+GET /admin/api/accounting/records?type=expense&search=午餐&sort_by=amount&sort_order=desc&page=1
 ```
 
 **回應 (200)**:
 ```json
-[
-  {
-    "_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d7"},
-    "type": "expense",
-    "amount": 1250.5,
-    "category": "餐飲",
-    "date": "2024-02-24",
-    "description": "午餐",
-    "expense_type": "variable",
-    "created_at": {"$date": "2024-02-24T10:30:00.000Z"},
-    "user_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d6"}
-  }
-]
+{
+  "records": [
+    {
+      "_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d7"},
+      "type": "expense",
+      "amount": 1250.5,
+      "category": "午餐",
+      "date": "2024-02-24",
+      "description": "午餐",
+      "expense_type": "variable",
+      "created_at": {"$date": "2024-02-24T10:30:00.000Z"},
+      "user_id": {"$oid": "65d9f8a7b4c3d2e1a0b9c8d6"}
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "total_pages": 3
+}
 ```
 
 ---
@@ -412,6 +424,54 @@ GET /admin/api/accounting/stats?start_date=2024-02-01&end_date=2024-02-28
 
 ---
 
+## 環比分析
+
+### 取得環比資料
+
+**端點**: `GET /admin/api/accounting/comparison`
+
+**認證**: 需要 JWT Token
+
+**查詢參數** (可選):
+- `period`: `month`（預設）/ `week` / `quarter` / `year`
+
+**範例請求**:
+```
+GET /admin/api/accounting/comparison?period=week
+```
+
+**回應 (200)**:
+```json
+{
+  "current": {
+    "income": 5000,
+    "expense": 3200,
+    "balance": 1800,
+    "label": "2026/03/09 週"
+  },
+  "previous": {
+    "income": 4800,
+    "expense": 3000,
+    "balance": 1800,
+    "label": "2026/03/02 週"
+  },
+  "changes": {
+    "income_pct": 4.2,
+    "expense_pct": 6.7,
+    "balance_pct": 0.0
+  }
+}
+```
+
+> `label` 格式依 period 不同：`week` 為 `"YYYY/MM/DD 週"`，`month` 為 `"YYYY-MM"`，`quarter` 為 `"YYYY-QN"`，`year` 為 `"YYYY"`。
+
+**錯誤 (400)**:
+```json
+{ "error": "period 必須為 week、month、quarter 或 year" }
+```
+
+---
+
 ## 預算管理
 
 ### 獲取預算設定
@@ -457,6 +517,92 @@ GET /admin/api/accounting/stats?start_date=2024-02-01&end_date=2024-02-28
 {
   "message": "預算已儲存"
 }
+```
+
+---
+
+## 定期收支
+
+所有端點均需要 JWT Token，速率限制 30 次/分鐘。
+
+### 取得定期收支列表
+
+**端點**: `GET /admin/api/recurring`
+
+**回應 (200)**:
+```json
+[
+  {
+    "_id": "abc123",
+    "name": "房租",
+    "amount": 15000,
+    "type": "expense",
+    "category": "居住",
+    "day_of_month": 5,
+    "description": "每月房租",
+    "created_at": "2026-03-01T00:00:00"
+  }
+]
+```
+
+### 新增定期收支
+
+**端點**: `POST /admin/api/recurring`
+
+**請求體**:
+```json
+{
+  "name": "房租",
+  "amount": 15000,
+  "type": "expense",
+  "category": "居住",
+  "day_of_month": 5,
+  "description": "每月房租"
+}
+```
+
+**欄位驗證**:
+- `name`：必填，1-50 字元
+- `amount`：必填，正數
+- `type`：`income` 或 `expense`
+- `day_of_month`：1-31
+- `category`：最多 30 字元（預設「其他」）
+- `description`：最多 200 字元
+
+**回應 (201)**:
+```json
+{ "id": "abc123", "message": "新增成功" }
+```
+
+### 更新定期收支
+
+**端點**: `PUT /admin/api/recurring/<id>`
+
+請求體格式同新增，所有欄位均需提供。
+
+**回應 (200)**:
+```json
+{ "message": "更新成功" }
+```
+
+### 刪除定期收支
+
+**端點**: `DELETE /admin/api/recurring/<id>`
+
+**回應 (200)**:
+```json
+{ "message": "刪除成功" }
+```
+
+### 套用為實際記帳記錄
+
+**端點**: `POST /admin/api/recurring/<id>/apply`
+
+**說明**: 依定期項目設定的日期，在當月建立一筆實際記帳記錄。若 `day_of_month` 超出當月天數（如 31 日在二月），自動調整至月底。
+
+**回應 (201)**:
+```json
+{ "id": "新建記錄ID", "message": "記帳成功" }
 ```
 
 ---

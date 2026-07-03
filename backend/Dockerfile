@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 
 # 只複製執行所需的程式碼（排除測試、快取、文件）
-COPY main.py auth.py gunicorn.conf.py start.sh ./
+COPY main.py auth.py gunicorn.conf.py start.sh manage_password_rules.py ./
 
 ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \

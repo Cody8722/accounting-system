@@ -13,7 +13,7 @@
 import { EventBus, EVENTS } from './events.js';
 import { apiCall } from './api.js';
 import { backendUrl } from './config.js';
-import { showToast } from './utils.js';
+import { showToast, escapeHtml } from './utils.js';
 
 /**
  * 載入預算設定
@@ -151,7 +151,7 @@ export async function updateBudgetUsage(categoryStats) {
                     <div class="p-4 bg-gray-50 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-2">
-                                <span class="font-semibold text-gray-800">${category}</span>
+                                <span class="font-semibold text-gray-800">${escapeHtml(category)}</span>
                                 <span class="${statusClass} text-xs flex items-center gap-1">
                                     <i class="fas ${statusIcon}"></i>
                                     ${statusText}
@@ -208,8 +208,8 @@ export function initBudget() {
 
     // 監聽頁面載入事件
     EventBus.on(EVENTS.PAGE_LOAD, ({ page }) => {
-        if (page === 'budget') {
-            // 預算設定頁載入時，載入預算數據
+        if (page === 'add') {
+            // 新增記帳頁載入時，載入預算數據
             loadBudget();
         }
     });

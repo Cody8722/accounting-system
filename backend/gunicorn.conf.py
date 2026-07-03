@@ -5,6 +5,10 @@ Gunicorn 配置文件
 
 import multiprocessing
 import os
+import logging
+
+# 設定 logging
+logger = logging.getLogger(__name__)
 
 # 伺服器綁定
 bind = f"0.0.0.0:{os.getenv('PORT', '8080')}"
@@ -46,4 +50,9 @@ limit_request_line = 4096
 limit_request_fields = 100
 limit_request_field_size = 8190
 
-print(f"Gunicorn 配置: workers={workers}, threads={threads}, timeout={timeout}s")
+
+def on_starting(server):
+    """Gunicorn 啟動時執行"""
+    logger.info(
+        f"Gunicorn 配置: workers={workers}, threads={threads}, timeout={timeout}s"
+    )

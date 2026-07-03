@@ -13,12 +13,69 @@
 import { EventBus, EVENTS } from './events.js';
 import { apiCall, api } from './api.js';
 import { backendUrl } from './config.js';
-import { showToast, showConfirm, escapeHtml } from './utils.js';
+import { showToast, showConfirm, escapeHtml, skeletonCards, debounce } from './utils.js';
 
 /**
  * 正在刪除的記錄 ID 集合（防止重複刪除）
  */
 const deletingRecordIds = new Set();
+
+/**
+ * 記帳快選分類資料
+ */
+const QUICK_CATEGORIES = {
+    expense: [
+        { name: '早餐', icon: '☕' },
+        { name: '午餐', icon: '🍱' },
+        { name: '晚餐', icon: '🍽️' },
+        { name: '飲料', icon: '🥤' },
+        { name: '交通', icon: '🚇' },
+        { name: '購物', icon: '🛍️' },
+        { name: '娛樂', icon: '🎮' },
+        { name: '其他支出', icon: '📝' },
+    ],
+    income: [
+        { name: '薪資', icon: '💰' },
+        { name: '零用錢', icon: '💸' },
+        { name: '獎金/年終', icon: '🎁' },
+        { name: '其他收入', icon: '💳' },
+    ]
+};
+
+/**
+ * 渲染分類快選格
+ */
+function renderQuickCategoryGrid(type) {
+    const grid = document.getElementById('quick-category-grid');
+    if (!grid) return;
+    const cats = QUICK_CATEGORIES[type] || QUICK_CATEGORIES.expense;
+    grid.innerHTML = cats.map(c => `
+        <button type="button" data-cat="${escapeHtml(c.name)}"
+            class="quick-cat-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-gray-200 bg-gray-50 hover:border-purple-400 hover:bg-purple-50 transition"
+            onclick="selectQuickCategory('${escapeHtml(c.name)}')">
+            <span class="text-2xl mb-0.5">${c.icon}</span>
+            <span class="text-xs text-gray-600 font-medium leading-tight text-center">${escapeHtml(c.name)}</span>
+        </button>
+    `).join('') + `
+        <button type="button"
+            class="quick-cat-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-dashed border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50 transition"
+            onclick="selectQuickCategory('__more__')">
+            <span class="text-2xl mb-0.5">⋯</span>
+            <span class="text-xs text-gray-500 font-medium">更多</span>
+        </button>
+    `;
+}
+
+/**
+ * 欠款連動：目前選取的方向（'lent' | 'borrowed'）
+ */
+let _debtDirection = 'lent';
+
+/**
+ * 分頁狀態
+ */
+let currentPage = 1;
+let totalPages = 1;
 
 /**
  * 設定今天的日期為預設值
@@ -189,6 +246,7 @@ export async function deleteRecord(recordId, recordType, recordAmount) {
             type: recordType,
             amount: recordAmount
         });
+        showToast('記錄已刪除', 'success');
 
     } catch (error) {
         // 刪除失敗，發送事件請求重新載入
@@ -203,51 +261,186 @@ export async function deleteRecord(recordId, recordType, recordAmount) {
 /**
  * 載入記帳記錄
  * @param {boolean} showLoading - 是否顯示載入畫面
+ * @param {number} page - 頁碼（預設維持 currentPage）
  */
-export async function loadRecords(showLoading = true) {
+export async function loadRecords(showLoading = true, page = null) {
+    if (page !== null) currentPage = page;
+
     const startDate = document.getElementById('filter-start-date')?.value;
     const endDate = document.getElementById('filter-end-date')?.value;
-    const filterType = document.getElementById('filter-type')?.value;
+    const incomeChecked = document.getElementById('filter-type-income')?.checked ?? true;
+    const expenseChecked = document.getElementById('filter-type-expense')?.checked ?? true;
     const filterCategory = document.getElementById('filter-category')?.value;
+    const filterKeyword = document.getElementById('filter-keyword')?.value?.trim();
+    const sortVal = document.getElementById('filter-sort')?.value || 'date-desc';
+    const [sortBy, sortOrder] = sortVal.split('-');
     const recordsList = document.getElementById('records-list');
 
     if (!recordsList) return;
 
-    let url = `${backendUrl}/admin/api/accounting/records?`;
+    let url = `${backendUrl}/admin/api/accounting/records?page=${currentPage}&`;
     if (startDate) url += `start_date=${startDate}&`;
     if (endDate) url += `end_date=${endDate}&`;
-    if (filterType) url += `type=${filterType}&`;
+    if (incomeChecked && !expenseChecked) url += 'type=income&';
+    else if (!incomeChecked && expenseChecked) url += 'type=expense&';
     if (filterCategory) url += `category=${filterCategory}&`;
+    if (filterKeyword) url += `search=${encodeURIComponent(filterKeyword)}&`;
+    url += `sort_by=${sortBy}&sort_order=${sortOrder}&`;
 
     if (showLoading) {
-        recordsList.innerHTML = '<p class="text-center text-gray-700 py-8"><span class="spinner"></span>載入中...</p>';
+        recordsList.innerHTML = skeletonCards(4);
     }
 
     try {
         const response = await apiCall(url, { cache: 'no-store' });
-        const records = await response.json();
+        const data = await response.json();
 
-        if (!response.ok) throw new Error(records.error || '載入失敗');
+        if (!response.ok) throw new Error(data.error || '載入失敗');
 
-        if (records.length === 0) {
-            recordsList.innerHTML = '<p class="text-center text-gray-700 py-8">目前沒有記錄</p>';
-            // 發送空記錄事件
+        const records = Array.isArray(data) ? data
+            : Array.isArray(data.records) ? data.records
+            : [];
+        totalPages = data.total_pages ?? 1;
+        currentPage = data.page ?? currentPage;
+
+        // 更新總筆數顯示
+        const totalCountEl = document.getElementById('records-total-count');
+        if (totalCountEl && data.total !== undefined) {
+            totalCountEl.textContent = `共 ${data.total} 筆`;
+        }
+
+        if (records.length === 0 && currentPage === 1) {
+            recordsList.innerHTML = `
+                <div class="text-center py-10">
+                    <div class="text-4xl mb-2">📭</div>
+                    <div class="text-gray-500 text-sm font-medium">目前沒有符合條件的記錄</div>
+                    <div class="text-gray-400 text-xs mt-1">試試調整篩選條件，或點「＋ 新增」</div>
+                </div>`;
+            renderPagination();
             EventBus.emit(EVENTS.RECORDS_LOADED, []);
             return;
         }
 
         // 渲染記錄列表
         renderRecords(records);
+        renderPagination();
 
-        // 發送記錄載入完成事件（這裡是關鍵：解耦！）
+        // 發送記錄載入完成事件（解耦）
         EventBus.emit(EVENTS.RECORDS_LOADED, records);
 
     } catch (error) {
         if (recordsList) {
-            recordsList.innerHTML = `<p class="text-center text-red-500 py-8">❌ ${error.message}</p>`;
+            recordsList.innerHTML = `<p class="text-center text-red-500 py-8">❌ ${escapeHtml(error.message)}</p>`;
         }
     }
 }
+
+/**
+ * 渲染分頁列
+ */
+function renderPagination() {
+    const container = document.getElementById('records-pagination');
+    if (!container) return;
+
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="flex items-center justify-center gap-3 py-3">
+            <button
+                onclick="window._recordsGoPage(${currentPage - 1})"
+                ${currentPage <= 1 ? 'disabled' : ''}
+                class="px-4 py-2 min-w-[88px] rounded-lg border text-sm font-medium ${currentPage <= 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed bg-gray-50' : 'text-purple-600 border-purple-400 hover:bg-purple-50 active:bg-purple-100'}">
+                ← 上一頁
+            </button>
+            <span class="text-sm text-gray-500">第 ${currentPage} / ${totalPages} 頁</span>
+            <button
+                onclick="window._recordsGoPage(${currentPage + 1})"
+                ${currentPage >= totalPages ? 'disabled' : ''}
+                class="px-4 py-2 min-w-[88px] rounded-lg border text-sm font-medium ${currentPage >= totalPages ? 'text-gray-400 border-gray-200 cursor-not-allowed bg-gray-50' : 'text-purple-600 border-purple-400 hover:bg-purple-50 active:bg-purple-100'}">
+                下一頁 →
+            </button>
+        </div>
+    `;
+}
+
+/**
+ * 清除所有篩選條件並重新載入
+ */
+export function clearFilters() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+    const startEl = document.getElementById('filter-start-date');
+    const endEl = document.getElementById('filter-end-date');
+    const incomeEl = document.getElementById('filter-type-income');
+    const expenseEl = document.getElementById('filter-type-expense');
+    const keywordEl = document.getElementById('filter-keyword');
+    const sortEl = document.getElementById('filter-sort');
+    const hiddenCatEl = document.getElementById('filter-category');
+    const displayCatEl = document.getElementById('filter-category-display');
+
+    if (startEl) startEl.value = firstDay;
+    if (endEl) endEl.value = today;
+    if (incomeEl) incomeEl.checked = true;
+    if (expenseEl) expenseEl.checked = true;
+    if (keywordEl) keywordEl.value = '';
+    if (sortEl) sortEl.value = 'date-desc';
+    if (hiddenCatEl) hiddenCatEl.value = '';
+    if (displayCatEl) displayCatEl.textContent = '全部分類';
+
+    updateClearBtn();
+    loadRecords(true, 1);
+}
+
+/**
+ * 根據篩選條件是否有變動，顯示或隱藏「清除篩選」按鈕
+ */
+function updateClearBtn() {
+    const btn = document.getElementById('clear-filters-btn');
+    if (!btn) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+    const keyword = document.getElementById('filter-keyword')?.value || '';
+    const category = document.getElementById('filter-category')?.value || '';
+    const sort = document.getElementById('filter-sort')?.value || 'date-desc';
+    const startDate = document.getElementById('filter-start-date')?.value || firstDay;
+    const endDate = document.getElementById('filter-end-date')?.value || today;
+    const incomeChecked = document.getElementById('filter-type-income')?.checked ?? true;
+    const expenseChecked = document.getElementById('filter-type-expense')?.checked ?? true;
+
+    const hasFilter = keyword !== ''
+        || category !== ''
+        || sort !== 'date-desc'
+        || startDate !== firstDay
+        || endDate !== today
+        || !incomeChecked
+        || !expenseChecked;
+
+    btn.classList.toggle('hidden', !hasFilter);
+}
+
+/**
+ * 切換進階搜尋面板展開/收合
+ */
+export function toggleAdvancedFilter() {
+    const panel = document.getElementById('advanced-filter-panel');
+    const chevron = document.getElementById('advanced-filter-chevron');
+    if (!panel) return;
+    const isHidden = panel.classList.toggle('hidden');
+    if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
+}
+
+// 讓 HTML inline onclick 能呼叫
+window._recordsGoPage = (page) => {
+    if (page < 1 || page > totalPages) return;
+    loadRecords(true, page);
+    document.getElementById('records-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 /**
  * 渲染記錄列表
@@ -266,6 +459,9 @@ function renderRecords(records) {
                     record.expense_type === 'variable' ? '變動支出' :
                     '一次性支出'
                 }</span>` : '';
+        const autoGenBadge = record.auto_generated
+            ? `<span class="text-xs bg-teal-50 text-teal-600 border border-teal-200 rounded px-1.5 py-0.5 ml-2"><i class="fas fa-link mr-0.5"></i>自動</span>`
+            : '';
 
         // Apply XSS protection to user input
         const escapedCategory = escapeHtml(record.category);
@@ -278,21 +474,26 @@ function renderRecords(records) {
                         <i class="fas fa-trash"></i>刪除
                     </button>
                 </div>
-                <div class="record-card flex items-center justify-between p-4 bg-gray-50 rounded-lg transition" data-record-id="${record._id.$oid}" data-type="${record.type}" data-amount="${record.amount}">
+                <div class="record-card flex items-center justify-between p-4 bg-white border border-gray-100 shadow-sm rounded-xl transition border-l-4 ${record.type === 'income' ? 'border-l-green-500' : 'border-l-red-400'}" data-record-id="${record._id.$oid}" data-type="${record.type}" data-amount="${record.amount}">
                     <div class="flex-1">
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl ${typeClass}">${typeIcon}</span>
-                            <div>
-                                <p class="font-medium ${typeClass}">$${record.amount.toFixed(2)}</p>
-                                <p class="text-sm text-gray-800 font-medium">${escapedCategory}${escapedDescription ? '<span class="text-gray-700 font-normal"> - ' + escapedDescription + '</span>' : ''}</p>
-                                <p class="text-xs text-gray-700"><i class="fas fa-calendar mr-1"></i>${record.date}${expenseTypeBadge}</p>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl ${typeClass}">${typeIcon}</span>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-base ${typeClass}">$${record.amount.toFixed(2)}</p>
+                                <p class="text-sm text-gray-800 font-medium truncate">${escapedCategory}${escapedDescription ? '<span class="text-gray-500 font-normal"> · ' + escapedDescription + '</span>' : ''}</p>
+                                <p class="text-xs text-gray-400 mt-0.5"><i class="fas fa-calendar-alt mr-1"></i>${record.date}${expenseTypeBadge}${autoGenBadge}</p>
                             </div>
                         </div>
                     </div>
                 </div>
-                <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}','${record.type}',${record.amount})">
-                    <i class="fas fa-trash"></i>刪除
-                </button>
+                <div class="record-card-actions">
+                    <button class="record-card-edit-btn" onclick="openEditRecordModal('${record._id.$oid}')">
+                        <i class="fas fa-edit"></i>編輯
+                    </button>
+                    <button class="record-card-delete-btn" onclick="deleteAccountingRecord('${record._id.$oid}','${record.type}',${record.amount})">
+                        <i class="fas fa-trash"></i>刪除
+                    </button>
+                </div>
             </div>
         `;
     }).join('');
@@ -321,18 +522,13 @@ function renderRecords(records) {
  */
 export async function openEditRecordModal(recordId) {
     try {
-        // 從後端獲取記錄
-        const response = await apiCall(`${backendUrl}/admin/api/accounting/records?`, {});
-        const records = await response.json();
+        // 直接用單筆 API 取得記錄
+        const response = await apiCall(`${backendUrl}/admin/api/accounting/records/${recordId}`, {});
+        const record = await response.json();
 
-        if (!response.ok) throw new Error(records.error || '載入記錄失敗');
+        if (!response.ok) throw new Error(record.error || '載入記錄失敗');
 
-        const record = records.find(r => {
-            const id = r._id.$oid || r._id;
-            return id === recordId;
-        });
-
-        if (!record) {
+        if (!record || !record._id) {
             showToast('找不到該記錄', 'error');
             return;
         }
@@ -415,6 +611,95 @@ export function initRecords() {
     // ===== 設置表單事件監聽器 =====
     setupFormEventListeners();
 
+    // 初始化分類快選格（預設支出）
+    renderQuickCategoryGrid('expense');
+
+    // 類型切換
+    window.selectRecordType = function(type) {
+        const select = document.getElementById('record-type');
+        if (select) select.value = type;
+
+        const expBtn = document.getElementById('type-btn-expense');
+        const incBtn = document.getElementById('type-btn-income');
+        if (expBtn && incBtn) {
+            if (type === 'expense') {
+                expBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-red-500 text-white shadow-sm transition';
+                incBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-gray-100 text-gray-500 transition';
+            } else {
+                expBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-gray-100 text-gray-500 transition';
+                incBtn.className = 'flex-1 py-3 text-base font-bold rounded-xl bg-green-500 text-white shadow-sm transition';
+            }
+        }
+
+        const catInput = document.getElementById('record-category');
+        if (catInput) catInput.value = '';
+        const display = document.getElementById('selected-category-display');
+        if (display) display.classList.add('hidden');
+
+        renderQuickCategoryGrid(type);
+    };
+
+    // 分類快選
+    window.selectQuickCategory = function(name) {
+        if (name === '__more__') {
+            if (window.openCategoryModal) window.openCategoryModal();
+            return;
+        }
+        const input = document.getElementById('record-category');
+        if (input) input.value = name;
+
+        document.querySelectorAll('.quick-cat-btn').forEach(btn => {
+            btn.classList.remove('border-purple-500', 'bg-purple-50');
+            btn.classList.add('border-gray-200');
+        });
+        const selected = document.querySelector(`.quick-cat-btn[data-cat="${name}"]`);
+        if (selected) {
+            selected.classList.remove('border-gray-200', 'border-dashed', 'border-gray-300');
+            selected.classList.add('border-purple-500', 'bg-purple-50');
+        }
+        const display = document.getElementById('selected-category-display');
+        if (display) display.classList.add('hidden');
+    };
+
+    // 從 Modal 選完分類後顯示提示
+    EventBus.on(EVENTS.CATEGORY_SELECTED, ({ category, mode }) => {
+        if (mode === 'edit') return;
+        document.querySelectorAll('.quick-cat-btn').forEach(btn => {
+            btn.classList.remove('border-purple-500', 'bg-purple-50');
+            btn.classList.add('border-gray-200');
+        });
+        const display = document.getElementById('selected-category-display');
+        if (display && category) {
+            display.textContent = `✓ 已選：${category}`;
+            display.classList.remove('hidden');
+        }
+    });
+
+    // 排序 select / checkbox 改動後立即觸發查詢並更新清除按鈕
+    ['filter-sort'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => { loadRecords(true, 1); updateClearBtn(); });
+    });
+    ['filter-type-income', 'filter-type-expense'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => { loadRecords(true, 1); updateClearBtn(); });
+    });
+
+    // 關鍵字即時搜尋（300ms debounce）
+    const keywordInput = document.getElementById('filter-keyword');
+    if (keywordInput) {
+        keywordInput.addEventListener('input', debounce(() => { loadRecords(true, 1); updateClearBtn(); }, 300));
+        keywordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); loadRecords(true, 1); updateClearBtn(); }
+        });
+    }
+
+    // 日期篩選改動後更新清除按鈕
+    ['filter-start-date', 'filter-end-date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => updateClearBtn());
+    });
+
     // 暴露到全局（供 HTML onclick 使用）
     window.deleteAccountingRecord = deleteRecord;
     window.loadAccountingRecords = loadRecords;
@@ -422,6 +707,33 @@ export function initRecords() {
     window.updateAccountingRecord = updateRecord;
     window.openEditRecordModal = openEditRecordModal;
     window.closeEditRecordModal = closeEditRecordModal;
+    window.clearFilters = clearFilters;
+    window.toggleAdvancedFilter = toggleAdvancedFilter;
+    window.updateClearBtn = updateClearBtn;
+
+    // 欠款連動開關控制
+    window.onDebtLinkToggle = function() {
+        const checked = document.getElementById('debt-link-toggle')?.checked;
+        document.getElementById('debt-link-fields')?.classList.toggle('hidden', !checked);
+    };
+
+    window.setDebtDirection = function(dir) {
+        _debtDirection = dir;
+        const lentBtn = document.getElementById('debt-dir-lent');
+        const borrowedBtn = document.getElementById('debt-dir-borrowed');
+        if (lentBtn) {
+            lentBtn.classList.toggle('bg-teal-600', dir === 'lent');
+            lentBtn.classList.toggle('text-white', dir === 'lent');
+            lentBtn.classList.toggle('bg-gray-100', dir !== 'lent');
+            lentBtn.classList.toggle('text-gray-600', dir !== 'lent');
+        }
+        if (borrowedBtn) {
+            borrowedBtn.classList.toggle('bg-teal-600', dir === 'borrowed');
+            borrowedBtn.classList.toggle('text-white', dir === 'borrowed');
+            borrowedBtn.classList.toggle('bg-gray-100', dir !== 'borrowed');
+            borrowedBtn.classList.toggle('text-gray-600', dir !== 'borrowed');
+        }
+    };
 
     console.log('✅ [Records] 記錄管理模組已初始化');
 }
@@ -465,6 +777,20 @@ function setupFormEventListeners() {
                 recordAmount.classList.remove('input-error');
                 amountError.classList.add('hidden');
             }
+
+            // 同步預填欠款金額（使用者可覆寫）
+            const debtAmountInput = document.getElementById('debt-link-amount');
+            if (debtAmountInput && !debtAmountInput.dataset.userModified) {
+                debtAmountInput.value = recordAmount.value;
+            }
+        });
+    }
+
+    // 使用者手動修改欠款金額後，標記不再自動同步
+    const debtAmountInput = document.getElementById('debt-link-amount');
+    if (debtAmountInput) {
+        debtAmountInput.addEventListener('input', () => {
+            debtAmountInput.dataset.userModified = 'true';
         });
     }
 
@@ -487,10 +813,24 @@ function setupFormEventListeners() {
                     accountingMessage.textContent = `❌ ${validation.message}`;
                     accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
                     accountingMessage.classList.remove('hidden');
-                    setTimeout(() => {
-                        accountingMessage.classList.add('hidden');
-                    }, 3000);
+                    setTimeout(() => { accountingMessage.classList.add('hidden'); }, 3000);
                 }
+                return;
+            }
+
+            // 前端驗證分類
+            if (!recordCategory.value.trim()) {
+                if (accountingMessage) {
+                    accountingMessage.textContent = '❌ 請選擇分類';
+                    accountingMessage.className = 'text-center text-sm font-medium text-red-600 error-message';
+                    accountingMessage.classList.remove('hidden');
+                    setTimeout(() => { accountingMessage.classList.add('hidden'); }, 3000);
+                }
+                // 讓快選格閃一下，提示使用者
+                document.getElementById('quick-category-grid')?.classList.add('ring-2', 'ring-red-400', 'rounded-xl');
+                setTimeout(() => {
+                    document.getElementById('quick-category-grid')?.classList.remove('ring-2', 'ring-red-400', 'rounded-xl');
+                }, 1500);
                 return;
             }
 
@@ -506,6 +846,30 @@ function setupFormEventListeners() {
             try {
                 await addRecord(recordData);
 
+                // 欠款連動：記帳成功後同步建立欠款記錄
+                const debtToggle = document.getElementById('debt-link-toggle');
+                if (debtToggle?.checked) {
+                    const person = document.getElementById('debt-link-person')?.value.trim();
+                    if (person) {
+                        try {
+                            await apiCall(`${backendUrl}/admin/api/debts`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    debt_type: _debtDirection,
+                                    person,
+                                    amount: parseFloat(document.getElementById('debt-link-amount')?.value) || amount,
+                                    reason: recordDescription.value || '',
+                                    date: recordDate.value
+                                })
+                            });
+                        } catch (debtErr) {
+                            console.warn('欠款連動建立失敗（記帳已成功）:', debtErr);
+                        }
+                    }
+                }
+
+                showToast('記錄已新增', 'success');
                 if (accountingMessage) {
                     accountingMessage.textContent = '✅ 記帳記錄已新增';
                     accountingMessage.className = 'text-center text-sm font-medium text-green-600';
@@ -518,7 +882,25 @@ function setupFormEventListeners() {
                 if (expenseType) expenseType.value = '';
                 if (recordAmount) recordAmount.classList.remove('input-error');
                 if (amountError) amountError.classList.add('hidden');
+                if (recordCategory) recordCategory.value = '';
+                document.querySelectorAll('.quick-cat-btn').forEach(btn => {
+                    btn.classList.remove('border-purple-500', 'bg-purple-50');
+                    btn.classList.add('border-gray-200');
+                });
+                const catDisplay = document.getElementById('selected-category-display');
+                if (catDisplay) catDisplay.classList.add('hidden');
+                // 收合「更多選項」
+                document.querySelector('#accounting-form details')?.removeAttribute('open');
                 setTodayAsDefault();
+
+                // 重置欠款連動欄位（開關保留，讓使用者連續記帳）
+                const debtPersonEl = document.getElementById('debt-link-person');
+                if (debtPersonEl) debtPersonEl.value = '';
+                const debtAmountEl = document.getElementById('debt-link-amount');
+                if (debtAmountEl) {
+                    debtAmountEl.value = '';
+                    delete debtAmountEl.dataset.userModified;
+                }
 
                 // 靜默刷新記錄和統計
                 await loadRecords(false);
@@ -544,6 +926,21 @@ function setupFormEventListeners() {
     const editRecordAmount = document.getElementById('edit-record-amount');
     const editAmountError = document.getElementById('edit-amount-error');
     const editRecordMessage = document.getElementById('edit-record-message');
+
+    if (editRecordAmount && editAmountError) {
+        editRecordAmount.addEventListener('input', () => {
+            const amount = parseFloat(editRecordAmount.value);
+            const validation = validateAmount(amount);
+            if (!validation.valid && editRecordAmount.value !== '') {
+                editRecordAmount.classList.add('input-error');
+                editAmountError.textContent = validation.message;
+                editAmountError.classList.remove('hidden');
+            } else {
+                editRecordAmount.classList.remove('input-error');
+                editAmountError.classList.add('hidden');
+            }
+        });
+    }
 
     if (editRecordForm) {
         editRecordForm.addEventListener('submit', async (e) => {
@@ -583,6 +980,7 @@ function setupFormEventListeners() {
             try {
                 await updateRecord(recordId, recordData);
 
+                showToast('記錄已更新', 'success');
                 if (editRecordMessage) {
                     editRecordMessage.textContent = '✅ 記帳記錄已更新';
                     editRecordMessage.className = 'text-center text-sm font-medium text-green-600';
@@ -608,10 +1006,4 @@ function setupFormEventListeners() {
         });
     }
 
-    // ===== 載入記錄按鈕事件處理 =====
-    if (loadRecordsBtn) {
-        loadRecordsBtn.addEventListener('click', () => {
-            loadRecords(true);
-        });
-    }
 }

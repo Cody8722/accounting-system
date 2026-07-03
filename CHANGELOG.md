@@ -4,16 +4,145 @@
 
 ## [Unreleased]
 
-### Added
-- 程式碼品質改善：後端使用 logging 替代 print 輸出
-- 前端條件化日誌：生產環境不輸出 console.log，僅開發環境可見
-- 測試覆蓋率提升至 76.77%（超過 74% 門檻）
-- 新增 CSV 資料匯出功能測試
-- 新增月度趨勢圖表測試
+---
+
+## [1.7.1] - 2026-03-15
+
+### ✨ Added
+- 分析頁新增「本週」期間比較（`week` period）
+- 記錄搜尋支援關鍵字搜尋（`search` 參數，比對 `description` 欄位）
+- 記錄搜尋支援自訂排序（`sort_by` / `sort_order` 參數）
+- 記錄列表顯示總筆數（分頁回應新增 `total`、`total_pages` 欄位）
+
+### 🔄 Changed
+- 記錄篩選 UI 重構為主列 + 進階搜尋折疊面板
+- 類型篩選改為多選 checkbox（收入/支出），改動立即觸發查詢
+- 分類篩選 Modal 加入大分類 Tab 層級切換（類似記帳新增表單）
+- 排序合併為單一下拉選單（日期↓/↑、金額↓/↑），切換立即重排
+- service-worker 版本升至 v1.7.1
+
+### 🧪 Tests
+- 新增 TestRecordsSearch（7）、TestPeriodComparisonWeek（5）、TestStatsCacheInvalidation（3）等測試套件
+- 新增 TestChangePassword（6）、TestForgotResetPasswordFlow（6）認證測試
+- 測試覆蓋率從 80.33% 提升至 85.03%（共 290 個測試）
+
+---
+
+## [1.6.4] - 2026-03-15
+
+### Security
+- 修復 `categories.js` XSS 漏洞：分類主標籤（`renderCategoryModal`）的 `${mainCat}` 和細項的 `${item}` 改用 `escapeHtml()` 轉義；同時以事件委派（`data-cat` / `data-item` attribute + click delegation）取代 inline `onclick`，消除 attribute injection 攻擊面
+- 新增 CSRF 防護：後端 `before_request` hook 對所有非公開的 POST/PUT/DELETE/PATCH 端點驗證 `Authorization` 或 `X-Requested-With` header 存在，利用 JWT Bearer token 架構本身抵禦跨站請求偽造
+- 新增登入失敗鎖定：同一 Email 在 15 分鐘內失敗 5 次即暫時鎖定（HTTP 429），防止暴力破解；鎖定期間過後自動解除，登入成功後立即清除計數
+
+### Changed
+- E2E 測試重構：採 `beforeAll` per-spec-file 策略，每個 spec file 只 register 一次（省去重複 register），搭配 4 workers 並行執行 spec files，整體執行時間從 3-4 分鐘縮至約 50-60 秒；移除 `waitForLoadState('networkidle')` 改等特定 DOM 元素，避免 Service Worker 背景 fetch 導致的掛等；本地預設只跑 Chromium（`BROWSERS=all` 可啟用全瀏覽器）
+
+---
+
+## [1.6.3] - 2026-03-14
 
 ### Fixed
-- 修正 Black 格式化問題（CSV writer 和 Response headers）
-- 優化 gunicorn 日誌輸出機制
+- 修復進入網站後所有頁面顯示「載入中...」、需手動點按鈕才刷新的問題：
+  - `main.js` 登入驗證成功後補呼叫 `setAuthenticationStatus(true)`，同步 `components.js` 的認證標誌，使 Router 的 `onPageLoad` 能正常觸發 `PAGE_LOAD` 事件
+  - 補發初始頁面的 `PAGE_LOAD` 事件（Router 初始化時因認證尚未完成而跳過）
+  - `analytics.js`、`recurring.js`、`theme.js` 的 `PAGE_LOAD` 監聽器從 `(pageName)` 改為正確的 `({ page })` 解構，修復頁面名稱比對永不成立的 bug
+
+---
+
+## [1.6.2] - 2026-03-14
+
+### Fixed
+- 修復記帳記錄無法顯示（`❌ records.map is not a function`）：`records.js` 加入 `Array.isArray()` 防禦性檢查，同時相容舊格式（flat array）和新分頁格式（`{records: [...], ...}`），消除瀏覽器 HTTP cache 版本不符導致的 TypeError
+- Service Worker：認證端點 GET 加 `.catch(() => Response.error())`，消除離線時 `Uncaught TypeError: Failed to fetch`
+- Service Worker：`CACHE_NAME` 更新至 `v1.6.2`，確保部署後用戶端舊快取被自動清除
+- 修復 5 個密碼輸入欄位未包含在 `<form>` 內的警告（重設密碼 modal 與設定頁修改密碼區塊）
+
+### Changed
+- CI lint：固定 `black>=26.0.0,<27.0.0`（對齊 CI 裝到的 26.3.1），防止本地與 CI black 版本不同導致 lint 失敗
+
+---
+
+## [1.6.1] - 2026-03-13
+
+### Security
+- 修復 3 處 XSS 漏洞：`showToast`、`showConfirm` 的 message 參數及 `budget.js` 分類名稱，改用 `escapeHtml()` 跳脫後再插入 innerHTML
+
+### Changed
+- 重構 `backend/main.py`：提取 `_validate_recurring_data()` 函數，消除 `create_recurring` 與 `update_recurring` 的重複驗證邏輯（~47 行）
+
+### Added
+- 新增測試（`test_api.py`）：登出端點、過期/竄改 token 拒絕、跨用戶操作授權（定期收支 delete/update/apply）、預算邊界條件（負數、非法分類、非數字）
+
+---
+
+## [1.6.0] - 2026-03-13
+
+### Added
+- 定期收支功能（後端 + 前端完整實作）
+  - 後端 CRUD API：`GET/POST /admin/api/recurring`、`PUT/DELETE /admin/api/recurring/<id>`
+  - 一鍵套用 API：`POST /admin/api/recurring/<id>/apply`（套用為實際記帳記錄）
+  - 前端 `js-refactored/recurring.js` 模組
+- 環比分析 API：`GET /admin/api/accounting/comparison`（本期 vs 上期，支援 month/quarter/year）
+- 主題切換功能：深色 / 白天 / 跟隨系統（`js-refactored/theme.js`）
+
+### Changed
+- `index-refactored.html` 正式合併為 `index.html`，舊版移除，完成模組化重構
+- 預算管理整合至定期收支頁面，界面更為集中
+- 後端測試覆蓋率提升至 75%+（新增環比、定期收支驗證、整合鏈測試）
+
+### Fixed
+- E2E 測試修復：
+  - `registerUser` 等待登入 modal 顯示，而非不可見的錯誤元素
+  - 未登入保護頁跳轉：改用 `localStorage` 清除 + 完整頁面重載（解決 hash navigation 不觸發 `verifyToken` 問題）
+  - 預算測試：導航至正確頁面（add 而非 settings）
+  - 密碼變更：`settings.js` 改用正確端點 `POST /api/user/change-password`
+- `Content-Disposition` RFC 5987 URL 編碼測試（加 `unquote` 解碼後再 assert）
+- black 格式問題（`Strict-Transport-Security` 賦值、f-string 拆行、inline JSON dict 展開）
+
+---
+
+## [1.5.1] - 2026-03-08
+
+### Added
+- 前端模組化重構（`frontend/js-refactored/`）：13 個 ES6 模組，含 EventBus 事件總線
+- PWA 網路狀態監聽：online/offline 事件、浮動通知、MessageChannel 離線同步
+- PWA EventBus 整合：NETWORK_ONLINE / NETWORK_OFFLINE / NETWORK_SYNC_COMPLETE / NETWORK_SYNC_FAILED 事件
+- 忘記密碼 / 重設密碼 API（後端 + 前端）
+- CSV 匯出後端 API（`/admin/api/accounting/export`）
+- 月度趨勢 API（`/admin/api/accounting/trends`）
+- 篩選分類 UI 模組（`categories.js`）
+- 模糊測試（`tests/test_fuzzing.py`）
+- 輸入驗證邊界測試（`tests/test_validation_errors.py`）
+
+### Changed
+- EventBus debug 模式改為環境感知（僅 localhost/127.0.0.1 啟用）
+- CI 測試覆蓋率門檻：main.py ≥ 75%、auth.py ≥ 80%
+- 刪除冗餘文件：TEST_REPORT.md、PASSWORD_RESET_FIX.md、TEST_STRATEGY.md、重複 E2E 文件
+
+### Fixed
+- syncOfflineQueue 錯誤使用 RECORDS_LOADED 事件，改為直接呼叫 `window.loadAccountingRecords()`
+- Black 格式化問題（test_validation_errors.py）
+
+---
+
+## [1.3.6] - 2026-03-08
+
+### Added
+- 安全加固：密碼雜湊驗證、Token 刷新機制
+- 詳細文件：PASSWORD_POLICY.md、E2E_TESTING_GUIDE.md、TESTING_BEST_PRACTICES.md
+
+### Fixed
+- 多項前端 Bug 修復與 RWD 排版問題
+
+---
+
+## [1.0.0] - 2026-02-16
+
+### Added
+- 採用語義化版本控制（Semantic Versioning）
+- 改進 Service Worker 自動更新機制（CACHE_NAME 版本號觸發）
+- PWA 安裝提示（Android `beforeinstallprompt` + iOS 手動指引）
 
 ---
 

@@ -1,0 +1,247 @@
+/**
+ * tokens.css — 記帳 App v2 設計系統
+ * 亮/暗兩套語意化色票（取自 記帳App.dc.html）+ base reset + 共用元件 class。
+ * 唯一 accent 藍 #1f6feb；收入綠 #3f8f66；支出紅 #b15c58。
+ */
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --backdrop:#e9e9ec; --bg:#f5f5f7; --surface:#ffffff; --fill:#f4f4f5;
+  --border:#d0d0d6; --border-strong:#bcbcc4; --ink:#18181b;
+  --text:#18181b; --text2:#3f3f46; --text3:#52525b;
+  --muted:#71717a; --muted2:#a1a1aa; --faint:#c4c4c8;
+  --accent-soft:#eff4ff; --accent-soft-border:#d6e4ff; --accent-soft-text:#1f4fa8;
+  --income-soft:#e7f3ec; --expense-soft:#f6ecec;
+  --nav-bg:rgba(255,255,255,.94);
+  --shadow:0 8px 24px rgba(0,0,0,.08);
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --backdrop:#000000; --bg:#0f0f12; --surface:#1a1a1f; --fill:#26262c;
+  --border:#2c2c33; --border-strong:#3a3a42; --ink:#2c2c33;
+  --text:#f3f3f5; --text2:#d2d2d7; --text3:#b2b2b9;
+  --muted:#8c8c94; --muted2:#6b6b73; --faint:#55555e;
+  --accent-soft:#172339; --accent-soft-border:#26395c; --accent-soft-text:#9cc0ff;
+  --income-soft:#16291f; --expense-soft:#2c1a1a;
+  --nav-bg:rgba(22,22,27,.94);
+  --shadow:0 8px 24px rgba(0,0,0,.4);
+}
+:root {
+  --accent:#1f6feb; --income:#3f8f66; --expense:#b15c58;
+  --font:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; }
+body {
+  font-family:var(--font);
+  background:var(--backdrop);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+[data-theme] * { transition:background-color .25s ease, border-color .25s ease, color .25s ease; }
+button { font-family:inherit; }
+input, select, textarea { font-family:inherit; }
+.mono { font-family:var(--mono); }
+.noscroll::-webkit-scrollbar { display:none; }
+.noscroll { scrollbar-width:none; }
+.hidden { display:none !important; }
+[data-theme="dark"] select { background:#1a1a1f !important; color:#f3f3f5 !important; }
+[data-theme="dark"] option { background:#1a1a1f; color:#f3f3f5; }
+
+/* ===== App 外殼 ===== */
+#app { min-height:100vh; background:var(--bg); }
+
+/* 手機外框：桌面預覽時顯示手機示意框；真機滿版 */
+.phone-backdrop {
+  min-height:100vh; background:var(--backdrop);
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.phone-frame {
+  width:390px; height:844px; background:var(--bg);
+  border-radius:44px; overflow:hidden; position:relative;
+  display:flex; flex-direction:column;
+  box-shadow:0 30px 80px rgba(0,0,0,.28);
+  border:10px solid #111;
+  /* 真機滿版時避開系統狀態列/瀏海（桌面預覽 inset 為 0，不受影響） */
+  padding-top:env(safe-area-inset-top);
+}
+@media (max-width:480px) {
+  .phone-backdrop { padding:0; }
+  .phone-frame { width:100vw; height:100vh; border-radius:0; border:none; box-shadow:none; }
+}
+.screen-scroll { flex:1; overflow-y:auto; position:relative; }
+
+/* ===== 底部導覽 + FAB（手機） ===== */
+.tabbar {
+  position:absolute; left:0; right:0; bottom:0; height:84px;
+  background:var(--nav-bg); backdrop-filter:blur(12px);
+  border-top:1px solid var(--border);
+  display:flex; align-items:flex-start; padding:9px 10px 0; z-index:10;
+}
+.tabbar .tab {
+  flex:1; border:none; background:none; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0;
+  color:var(--muted2);
+}
+.tabbar .tab i { font-size:23px; }
+.tabbar .tab span { font-size:11px; }
+.tabbar .tab.active { color:var(--accent); }
+.tabbar .fab-slot { width:64px; flex-shrink:0; display:flex; justify-content:center; }
+.fab {
+  width:56px; height:56px; border-radius:50%; border:none; background:var(--accent);
+  color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  margin-top:-18px; box-shadow:0 8px 20px rgba(31,111,235,.4);
+}
+.fab i { font-size:28px; }
+
+/* ===== 桌面版 ===== */
+.desktop { display:flex; height:100vh; background:var(--bg); overflow:hidden; }
+.sidebar {
+  width:248px; flex-shrink:0; background:var(--surface);
+  border-right:2px solid var(--border);
+  display:flex; flex-direction:column; padding:24px 16px;
+}
+.sidebar .brand { display:flex; align-items:center; gap:11px; padding:0 8px 24px; }
+.sidebar .brand-badge {
+  width:36px; height:36px; border-radius:11px; background:var(--ink); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+}
+.sidebar .brand-badge i { font-size:21px; }
+.sidebar .brand-name { font-weight:700; font-size:19px; color:var(--text); }
+.btn-primary {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  height:46px; border:none; border-radius:13px; background:var(--accent); color:#fff;
+  font-weight:600; font-size:15px; cursor:pointer;
+  box-shadow:0 6px 16px rgba(31,111,235,.28);
+}
+.btn-primary i { font-size:21px; }
+.sidenav { display:flex; flex-direction:column; gap:4px; margin-top:22px; }
+.sidenav .row {
+  display:flex; align-items:center; gap:12px; padding:11px 13px; border-radius:12px;
+  cursor:pointer; color:var(--text3); font-size:15px;
+}
+.sidenav .row i { font-size:21px; }
+.sidenav .row:hover { background:var(--fill); }
+.sidenav .row.active { background:var(--accent-soft); color:var(--accent-soft-text); font-weight:600; }
+.sidebar .user {
+  margin-top:auto; display:flex; align-items:center; gap:11px;
+  padding:14px 8px 0; border-top:1px solid var(--border);
+}
+.avatar {
+  border-radius:50%; background:var(--ink); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-weight:600; flex-shrink:0;
+}
+.desktop-main { flex:1; overflow-y:auto; }
+.page { padding:30px 36px; max-width:1120px; margin:0 auto; }
+.page-title { font-weight:700; font-size:27px; color:var(--text); }
+.page-sub { font-size:13px; color:var(--muted2); margin-top:3px; }
+
+/* ===== 共用元件 ===== */
+.icon-btn {
+  border:none; background:var(--fill); border-radius:999px; width:36px; height:36px;
+  cursor:pointer; color:var(--text3); display:flex; align-items:center; justify-content:center;
+}
+.icon-btn i { font-size:18px; }
+.card { background:var(--surface); border:2px solid var(--border); border-radius:16px; }
+.list-row {
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border-bottom:1px solid var(--border);
+}
+.list-row:last-child { border-bottom:none; }
+.cat-icon {
+  width:38px; height:38px; border-radius:11px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.cat-icon i { font-size:20px; }
+.segment { display:flex; background:var(--fill); border-radius:12px; padding:4px; gap:2px; }
+.segment button {
+  flex:1; border:none; background:none; cursor:pointer; border-radius:9px;
+  padding:9px 0; font-size:14px; font-weight:500; color:var(--muted); font-family:inherit;
+}
+.segment button.active { background:var(--surface); color:var(--text); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+/* 大金額卡（帳本結餘） */
+.balance-card { background:var(--ink); border-radius:22px; padding:20px 22px; color:#fff; }
+.balance-amt { font-family:var(--mono); font-weight:500; font-size:40px; letter-spacing:-1px; line-height:1; }
+
+/* 進度條 */
+.track { height:8px; border-radius:5px; background:var(--fill); overflow:hidden; }
+.track .bar { height:100%; border-radius:5px; background:var(--accent); }
+
+/* toast（沿用 utils showToast，另備 App 內底部 toast） */
+.app-toast {
+  position:absolute; left:50%; bottom:110px; transform:translateX(-50%);
+  background:var(--ink); color:#fff; font-size:13px; padding:9px 16px; border-radius:999px;
+  white-space:nowrap; box-shadow:0 6px 22px rgba(0,0,0,.28);
+  display:flex; align-items:center; gap:7px; z-index:60;
+}
+
+/* modal / bottom sheet */
+.overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:80;
+  display:flex; align-items:flex-end; justify-content:center;
+}
+.overlay.center { align-items:center; padding:16px; }
+.sheet {
+  background:var(--surface); border-radius:24px 24px 0 0; padding:18px 20px 28px;
+  width:100%; max-width:480px; max-height:86vh; overflow-y:auto;
+}
+.sheet.dialog { border-radius:20px; max-width:420px; }
+/* 桌面：彈窗/子面板改為「置中對話框」，不再是手機貼底窄版 sheet。
+   涵蓋所有共用 .overlay/.sheet 的次層 UI：設定各面板、分類選擇、編輯記錄、
+   預算設定、發票掃描、定期排程、確認框等。桌面版記一筆用獨立 820px 彈窗，不受影響。 */
+@media (min-width:900px) {
+  .overlay { align-items:center; padding:20px; }
+  .sheet { border-radius:20px; max-width:520px; max-height:82vh; }
+}
+
+/* 記一筆 全螢幕 */
+.add-screen {
+  position:absolute; inset:0; background:var(--surface); z-index:70;
+  display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top);   /* 避開真機系統狀態列 */
+}
+.keypad { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.keypad button {
+  height:52px; border:none; border-radius:13px; background:var(--fill); color:var(--text);
+  font-family:var(--mono); font-size:20px; font-weight:500; cursor:pointer;
+}
+.keypad button.op { color:var(--accent); }
+.keypad button.save { background:var(--accent); color:#fff; grid-row:span 2; height:auto; font-family:var(--font); font-weight:600; }
+.chip {
+  display:flex; flex-direction:column; align-items:center; gap:6px; padding:11px 4px;
+  border-radius:14px; border:1px solid var(--border); background:var(--surface); cursor:pointer;
+}
+.chip.active { border-color:var(--accent); background:var(--accent-soft); }
+.chip i { font-size:22px; color:var(--text2); }
+.chip.active i, .chip.active span { color:var(--accent-soft-text); }
+.chip span { font-size:12px; color:var(--text3); }
+
+/* 表單控制 */
+.field {
+  width:100%; border:1px solid var(--border); border-radius:12px; background:var(--fill);
+  padding:11px 13px; font-size:14px; color:var(--text); outline:none;
+}
+.field:focus { border-color:var(--accent); }
+.stepper { display:flex; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
+.stepper button { width:40px; height:42px; border:none; background:var(--fill); cursor:pointer; color:var(--text3); display:flex; align-items:center; justify-content:center; }
+.stepper .val { font-family:var(--mono); font-weight:500; font-size:17px; min-width:36px; text-align:center; color:var(--text); }
+
+/* 登入 */
+.auth-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:var(--bg); }
+.auth-card { width:100%; max-width:380px; background:var(--surface); border:2px solid var(--border); border-radius:22px; padding:28px 24px; }
+.auth-title { font-weight:700; font-size:22px; color:var(--text); text-align:center; margin-bottom:4px; }
+.auth-sub { font-size:13px; color:var(--muted2); text-align:center; margin-bottom:22px; }
+.auth-field { width:100%; height:46px; border:1px solid var(--border); border-radius:12px; background:var(--fill); padding:0 14px; font-size:15px; color:var(--text); outline:none; margin-bottom:12px; }
+.auth-field:focus { border-color:var(--accent); }
+.link { color:var(--accent); cursor:pointer; background:none; border:none; font-size:13px; font-family:inherit; }
+.err { color:var(--expense); font-size:13px; margin-bottom:10px; text-align:center; }
+
+/* tooltip（圖表） */
+.chart-tip {
+  position:absolute; pointer-events:none; background:var(--ink); color:#fff;
+  font-size:12px; padding:6px 10px; border-radius:8px; white-space:nowrap;
+  transform:translate(-50%,-120%); z-index:5; box-shadow:0 4px 12px rgba(0,0,0,.25);
+}

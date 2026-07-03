@@ -1,10 +1,10 @@
-# JS 重構測試模組目錄
+# JS 模組目錄
 
-⚠️ **注意：這是測試目錄，不影響穩定版本！**
+✅ **重構已完成：index-refactored.html 已合併為 index.html**
 
 ## 目錄用途
 
-此目錄用於測試前端模組化重構，採用事件驅動架構解決循環依賴問題。
+此目錄為前端模組化重構的成果，採用事件驅動架構，供 index.html 載入使用。
 
 ## 當前狀態
 
@@ -31,12 +31,7 @@
   - main.js: 主程式入口 (150+ 行)
 
 ### 🎉 全部完成
-- ✅ index-refactored.html 已創建（完整應用頁面）
-
-### 🧪 待測試
-- 端到端功能測試
-- 性能對比測試
-- 與 index.html 行為對比
+- ✅ index.html 已整合模組系統（index-refactored.html → index.html）
 
 ## 測試方式
 
@@ -57,16 +52,14 @@ http://localhost/test-refactored.html
 ### 5. Phase 4: 執行核心模組測試
 點擊「Phase 4: 核心模組測試」下的「▶ 執行測試」按鈕。
 
-### 6. 對比測試
-- 穩定版本: http://localhost/ (index.html)
-- 測試版本: http://localhost/index-refactored.html
+### 6. 訪問應用
+- 主應用: http://localhost/ (index.html)
 
 ## 文件結構
 
 ```
 frontend/
-├── index.html                    ← 穩定版本（不動！）
-├── index-refactored.html         ← 測試版本（待創建）
+├── index.html                    ← 主應用（ES Module 架構）✅
 ├── test-refactored.html          ← 測試頁面 ✅
 └── js-refactored/                ← 測試模組
     ├── README.md                 ← 本文件 ✅
@@ -106,11 +99,9 @@ EventBus.on(EVENTS.RECORD_ADDED, (data) => {
 
 ## 開發原則
 
-1. **不修改穩定版本** - index.html 保持不變
-2. **逐步測試** - 每個模組都要通過測試才繼續
-3. **事件驅動** - 使用 EventBus 解耦模組
-4. **獨立可測** - 每個模組都可以獨立測試
-5. **隨時回退** - 出問題立即停止
+1. **事件驅動** - 使用 EventBus 解耦模組
+2. **獨立可測** - 每個模組都可以獨立測試
+3. **單一入口** - main.js 統一初始化所有模組
 
 ## 當前進度
 
@@ -121,12 +112,9 @@ EventBus.on(EVENTS.RECORD_ADDED, (data) => {
 - ✅ Phase 3 完成（功能模組：auth, components, categories）
 - ✅ Phase 4 完成（核心模組：records, charts, budget）
 - ✅ Phase 5 完成（統計、匯出、設定、PWA、主程式）
-- ✅ index-refactored.html 完成（完整應用頁面）
-- 🧪 端到端測試中
+- ✅ 整合完成（index.html 使用 ES Module 架構）
 
 ## 注意事項
 
-- 測試版本使用 `/js-refactored/` 目錄
-- 穩定版本不受任何影響
-- 所有測試都在隔離環境中進行
-- 只有全部測試通過後才整合到主版本
+- index.html 透過 `<script type="module">` 載入 `/js-refactored/main.js`
+- 所有模組使用 ES Module import/export 語法

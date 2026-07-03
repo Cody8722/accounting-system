@@ -14,10 +14,9 @@ playwright.config.js
 !README.md
 .gitignore
 
-# Generator and refactored versions
+# Generator and test versions
 generate-icons.html
 icon-generator.html
-index-refactored.html
 test-refactored.html
 test-basic-modules.html
 test-phase4-integration.html

@@ -1,38 +1,27 @@
 version: '3.8'
 
-services:
-  # MongoDB 服務
-  mongodb:
-    image: mongo:6.0
-    container_name: accounting-mongodb
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - accounting-network
+# MongoDB 不在此 compose 內：使用「現有的 mongodb 容器」（在外部 shared-db 網路）。
+# 連線字串由 gitignore 的根目錄 .env 提供 MONGO_URI（見 .env.example）。
+# 測試庫：mongodb://accounting_test_user:<pw>@mongodb:27017/accounting_db_test?authSource=accounting_db_test
+# 穩定後切正式庫時只改 .env 的 MONGO_URI 即可。
 
-  # 後端服務
+services:
+  # 後端服務（Flask / gunicorn）
   backend:
     build: ./backend
     container_name: accounting-backend
     ports:
-      - "5001:8080"
+      - "5001:8080"           # 對外除錯用；穩定後可移除，只留 proxy 對外
     environment:
-      - MONGO_URI=mongodb://admin:admin123@mongodb:27017/accounting_db?authSource=admin
-      - JWT_SECRET=dev_jwt_secret_key_for_local_testing_only
-      - ADMIN_SECRET=dev_admin_secret_for_local_testing
+      - MONGO_URI=${MONGO_URI:?請在根目錄 .env 設定 MONGO_URI（指向現有 mongodb 容器）}
       - PORT=8080
       - TESTING=false
-    depends_on:
-      - mongodb
+      # JWT_SECRET / SMTP / 密碼政策等，由掛載的 backend/.env 提供（load_dotenv 讀取）
     volumes:
       - ./backend:/app
     networks:
-      - accounting-network
+      - accounting-network    # 與 frontend / proxy 互通
+      - shared-db             # 連到現有 mongodb 容器所在網路
     command: python main.py
 
   # 前端服務（靜態文件服務器）
@@ -40,7 +29,7 @@ services:
     image: nginx:alpine
     container_name: accounting-frontend
     ports:
-      - "8080:80"
+      - "8080:80"             # 對外除錯用；穩定後可移除，只留 proxy 對外
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -49,9 +38,26 @@ services:
     networks:
       - accounting-network
 
-volumes:
-  mongodb_data:
+  # 統一 HTTPS 入口（反向代理）：同源服務前端 + 後端，TLS 終結於此
+  proxy:
+    image: nginx:alpine
+    container_name: accounting-proxy
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
+      # tailscale cert 產生的憑證（host 路徑）；若 ${HOME} 未展開，改成絕對路徑如 /home/ubuntu/nginx/certs
+      - ${HOME}/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - accounting-network
 
 networks:
   accounting-network:
     driver: bridge
+  # 現有 MongoDB 容器所在的外部網路（需先存在：docker network ls 應看得到 shared-db）
+  shared-db:
+    external: true

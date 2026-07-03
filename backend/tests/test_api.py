@@ -43,18 +43,16 @@ class TestAuthentication:
     """认证测试"""
 
     def test_status_without_auth(self, client):
-        """测试未认证访问 status 端点"""
+        """/status 為公開端點，不需認證"""
         response = client.get("/status")
-        assert response.status_code in [401, 403]
-        data = response.get_json()
-        assert "error" in data
+        assert response.status_code == 200
 
     def test_status_with_invalid_auth(self, client):
-        """测试无效 Token 访问"""
+        """/status 公開端點，無效 Token 也能存取"""
         response = client.get(
             "/status", headers={"Authorization": "Bearer invalid-token"}
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 200
 
     def test_records_without_auth(self, client):
         """测试未认证访问 records 端点"""
@@ -65,23 +63,19 @@ class TestAuthentication:
 class TestHealthCheck:
     """健康检查端点测试"""
 
-    def test_status_endpoint(self, client, auth_headers):
-        """测试 /status 端点"""
-        response = client.get("/status", headers=auth_headers)
-        # May be 200 if DB connected, or could fail if DB not available in test environment
-        assert response.status_code in [200, 500]
+    def test_status_endpoint(self, client):
+        """测试 /status 端点（公開，不需認證）"""
+        response = client.get("/status")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "status" in data
+        assert data["status"] == "ok"
 
-        if response.status_code == 200:
-            data = response.get_json()
-            assert "status" in data
-            assert data["status"] == "ok"
-
-    def test_status_includes_db_info(self, client, auth_headers):
+    def test_status_includes_db_info(self, client):
         """测试状态端点包含数据库信息"""
-        response = client.get("/status", headers=auth_headers)
-        if response.status_code == 200:
-            data = response.get_json()
-            assert "db_status" in data
+        response = client.get("/status")
+        data = response.get_json()
+        assert "db_status" in data
 
 
 class TestRecordsAPI:
@@ -323,11 +317,50 @@ class TestAuthenticatedEndpoints:
 
     def test_set_budget_with_auth(self, client, auth_headers):
         """測試設定預算（已認證）"""
-        budget_data = {"budget": {"food": 5000, "transport": 3000}}
+        budget_data = {"budget": {"交通": 3000, "娛樂": 2000}}
         response = client.post(
             "/admin/api/accounting/budget", json=budget_data, headers=auth_headers
         )
         assert response.status_code in [200, 201, 500]
+
+    def test_get_budget_with_month_param(self, client, auth_headers):
+        """GET 預算可指定月份，回應帶回該月份"""
+        response = client.get(
+            "/admin/api/accounting/budget?month=2026-03", headers=auth_headers
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert response.get_json()["month"] == "2026-03"
+
+    def test_get_budget_invalid_month_rejected(self, client, auth_headers):
+        """GET 預算 month 格式錯誤應回 400"""
+        response = client.get(
+            "/admin/api/accounting/budget?month=2026/03", headers=auth_headers
+        )
+        assert response.status_code == 400
+
+    def test_set_budget_with_month_param(self, client, auth_headers):
+        """POST 預算可指定月份，只寫入該月份"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": 1500}, "month": "2026-03"},
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 201, 500]
+        check = client.get(
+            "/admin/api/accounting/budget?month=2026-03", headers=auth_headers
+        )
+        if check.status_code == 200:
+            assert check.get_json()["budget"].get("早餐") == 1500
+
+    def test_set_budget_invalid_month_rejected(self, client, auth_headers):
+        """POST 預算 month 格式錯誤應回 400"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": 100}, "month": "bad-month"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
 
     def test_get_user_profile(self, client, auth_token):
         """測試獲取用戶資料"""
@@ -371,6 +404,1412 @@ class TestAuthenticatedEndpoints:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         assert response.status_code in [200, 400, 401, 500]
+
+
+class TestForgotPassword:
+    """忘記密碼端點測試"""
+
+    def test_forgot_password_missing_email(self, client):
+        """缺少 email 應返回 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_empty_email(self, client):
+        """空 email 應返回 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": ""},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_nonexistent_email(self, client):
+        """不存在的 email 也應返回 200（防止用戶枚舉）"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": "notexist@example.com"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "message" in data
+
+    def test_forgot_password_no_body(self, client):
+        """沒有 body 應返回 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+
+class TestResetPassword:
+    """重設密碼端點測試"""
+
+    def test_reset_password_missing_fields(self, client):
+        """缺少欄位應返回 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_reset_password_invalid_token(self, client):
+        """無效 token 應返回 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": "invalid-token-xyz", "new_password": "MyN3wP@ss!XyZ99"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_reset_password_no_body(self, client):
+        """沒有 body 應返回 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+
+class TestComparisonAPI:
+    """環比資料 API 測試"""
+
+    def test_comparison_without_auth(self, client):
+        """未認證應返回 401"""
+        response = client.get("/admin/api/accounting/comparison")
+        assert response.status_code == 401
+
+    def test_comparison_invalid_period(self, client, auth_headers):
+        """無效 period 應返回 400"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=invalid",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_comparison_default_month(self, client, auth_headers):
+        """預設月份環比應返回 200 或 500（DB 未連線）"""
+        response = client.get(
+            "/admin/api/accounting/comparison",
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            data = response.get_json()
+            assert "current" in data
+            assert "previous" in data
+            assert "changes" in data
+
+    def test_comparison_quarter(self, client, auth_headers):
+        """季度環比應返回 200 或 500（DB 未連線）"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=quarter",
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 500]
+
+    def test_comparison_year(self, client, auth_headers):
+        """年度環比應返回 200 或 500（DB 未連線）"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=year",
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 500]
+
+
+class TestRecurringAPI:
+    """定期收支 API 測試"""
+
+    def test_get_recurring_without_auth(self, client):
+        """未認證應返回 401"""
+        response = client.get("/admin/api/recurring")
+        assert response.status_code == 401
+
+    def test_get_recurring_with_auth(self, client, auth_headers):
+        """已認證取得定期收支列表"""
+        response = client.get("/admin/api/recurring", headers=auth_headers)
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert isinstance(response.get_json(), list)
+
+    def test_create_recurring_without_auth(self, client):
+        """未認證新增應返回 401"""
+        response = client.post("/admin/api/recurring", json={"name": "test"})
+        assert response.status_code == 401
+
+    def test_create_recurring_missing_name(self, client, auth_headers):
+        """缺少名稱應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_invalid_amount(self, client, auth_headers):
+        """無效金額應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "測試", "amount": -100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_invalid_type(self, client, auth_headers):
+        """無效類型應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "測試", "amount": 100, "type": "invalid", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_invalid_day(self, client, auth_headers):
+        """無效日期應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={"name": "測試", "amount": 100, "type": "expense", "day_of_month": 32},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_recurring_success(self, client, auth_headers):
+        """成功新增定期收支"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "房租",
+                "amount": 15000,
+                "type": "expense",
+                "category": "居住",
+                "day_of_month": 5,
+                "description": "每月房租",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code in [201, 500]
+
+    def test_update_recurring_invalid_id(self, client, auth_headers):
+        """無效 ID 更新應返回 400"""
+        response = client.put(
+            "/admin/api/recurring/invalid-id",
+            json={
+                "name": "新名稱",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_delete_recurring_invalid_id(self, client, auth_headers):
+        """無效 ID 刪除應返回 400"""
+        response = client.delete(
+            "/admin/api/recurring/invalid-id",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_apply_recurring_invalid_id(self, client, auth_headers):
+        """無效 ID 套用應返回 400"""
+        response = client.post(
+            "/admin/api/recurring/invalid-id/apply",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_delete_recurring_not_found(self, client, auth_headers):
+        """不存在的 ID 刪除應返回 404"""
+        valid_oid = "000000000000000000000099"
+        response = client.delete(
+            f"/admin/api/recurring/{valid_oid}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    def test_apply_recurring_not_found(self, client, auth_headers):
+        """不存在的 ID 套用應返回 404"""
+        valid_oid = "000000000000000000000099"
+        response = client.post(
+            f"/admin/api/recurring/{valid_oid}/apply",
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    def test_update_recurring_not_found(self, client, auth_headers):
+        """不存在的 ID 更新應返回 404"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "新名稱",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    def test_create_recurring_name_too_long(self, client, auth_headers):
+        """名稱過長應返回 400"""
+        response = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "a" * 51,
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_empty_name(self, client, auth_headers):
+        """空名稱更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "", "amount": 100, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_name_too_long(self, client, auth_headers):
+        """名稱過長更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "a" * 51,
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_amount(self, client, auth_headers):
+        """無效金額更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": -100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_zero_amount(self, client, auth_headers):
+        """零金額更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "測試", "amount": 0, "type": "expense", "day_of_month": 1},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_type(self, client, auth_headers):
+        """無效類型更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": 100,
+                "type": "invalid",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_day_zero(self, client, auth_headers):
+        """日期為 0 更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={"name": "測試", "amount": 100, "type": "expense", "day_of_month": 0},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_invalid_day_high(self, client, auth_headers):
+        """日期超過 31 更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 32,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_update_recurring_category_too_long(self, client, auth_headers):
+        """分類名稱過長更新應返回 400"""
+        valid_oid = "000000000000000000000099"
+        response = client.put(
+            f"/admin/api/recurring/{valid_oid}",
+            json={
+                "name": "測試",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+                "category": "a" * 31,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_create_and_apply_recurring(self, client, auth_headers):
+        """建立定期收支後套用為記帳記錄"""
+        # 先建立一筆定期收支
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "測試水電費",
+                "amount": 1000,
+                "type": "expense",
+                "category": "居住",
+                "day_of_month": 15,
+                "description": "每月水電",
+            },
+            headers=auth_headers,
+        )
+        # 若 DB 未連線則跳過
+        if create_resp.status_code != 201:
+            return
+        data = create_resp.get_json()
+        item_id = data.get("id")
+        assert item_id is not None
+
+        # 套用為實際記帳記錄
+        apply_resp = client.post(
+            f"/admin/api/recurring/{item_id}/apply",
+            headers=auth_headers,
+        )
+        assert apply_resp.status_code == 201
+        apply_data = apply_resp.get_json()
+        assert "id" in apply_data
+
+        # 清理：刪除測試資料
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_create_and_update_recurring(self, client, auth_headers):
+        """建立定期收支後更新"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "原始名稱",
+                "amount": 500,
+                "type": "income",
+                "category": "薪資",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        # 更新
+        update_resp = client.put(
+            f"/admin/api/recurring/{item_id}",
+            json={
+                "name": "新名稱",
+                "amount": 600,
+                "type": "income",
+                "category": "薪資",
+                "day_of_month": 5,
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 200
+
+        # 清理
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_create_and_delete_recurring(self, client, auth_headers):
+        """建立定期收支後刪除"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "待刪除項目",
+                "amount": 200,
+                "type": "expense",
+                "day_of_month": 10,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        delete_resp = client.delete(
+            f"/admin/api/recurring/{item_id}",
+            headers=auth_headers,
+        )
+        assert delete_resp.status_code == 200
+
+
+class TestAuthExtended:
+    """登出端點測試"""
+
+    def test_logout_with_valid_token(self, client, auth_headers):
+        """有效 token 可以成功登出"""
+        response = client.post("/api/auth/logout", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "message" in data
+
+    def test_logout_without_token(self, client):
+        """未登入時登出應回傳 401"""
+        response = client.post("/api/auth/logout")
+        assert response.status_code in [401, 403]
+
+
+class TestTokenSecurity:
+    """Token 安全性測試"""
+
+    def _make_expired_token(self):
+        """產生已過期的 JWT"""
+        import jwt as pyjwt
+        from datetime import timedelta
+
+        payload = {
+            "user_id": "000000000000000000000001",
+            "email": "test@example.com",
+            "name": "Test User",
+            "exp": datetime.utcnow() - timedelta(hours=1),
+            "iat": datetime.utcnow() - timedelta(hours=2),
+            "type": "access",
+        }
+        return pyjwt.encode(
+            payload, "test-jwt-secret-key-for-testing-only", algorithm="HS256"
+        )
+
+    def test_expired_token_rejected(self, client):
+        """過期 token 應被拒絕"""
+        token = self._make_expired_token()
+        response = client.get(
+            "/admin/api/accounting/records",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code in [401, 403]
+
+    def test_tampered_token_rejected(self, client):
+        """竄改的 token 應被拒絕"""
+        token = auth_module.generate_jwt(
+            "000000000000000000000001", "test@example.com", "Test User"
+        )
+        # 在 payload 部分加入隨機字元使 signature 失效
+        parts = token.split(".")
+        tampered = parts[0] + "." + parts[1] + "TAMPERED." + parts[2]
+        response = client.get(
+            "/admin/api/accounting/records",
+            headers={"Authorization": f"Bearer {tampered}"},
+        )
+        assert response.status_code in [401, 403]
+
+    def test_missing_bearer_prefix_rejected(self, client, auth_headers):
+        """沒有 Bearer 前綴的 token 應被拒絕"""
+        # auth_headers 格式為 {"Authorization": "Bearer <token>"}
+        raw_token = auth_headers["Authorization"].split(" ", 1)[1]
+        response = client.get(
+            "/admin/api/accounting/records",
+            headers={"Authorization": raw_token},
+        )
+        assert response.status_code in [401, 403]
+
+
+class TestRecurringAuthorization:
+    """跨用戶授權測試"""
+
+    def _auth_headers_for(self, user_id, email):
+        token = auth_module.generate_jwt(user_id, email, "Other User")
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_user_b_cannot_delete_user_a_recurring(self, client, auth_headers):
+        """用戶 B 不能刪除用戶 A 的定期項目"""
+        # 用戶 A 建立一個定期項目
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "用戶A的項目",
+                "amount": 100,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return  # DB 未連線，跳過
+        item_id = create_resp.get_json().get("id")
+
+        # 用戶 B 嘗試刪除
+        user_b_headers = self._auth_headers_for(
+            "000000000000000000000002", "userb@example.com"
+        )
+        delete_resp = client.delete(
+            f"/admin/api/recurring/{item_id}", headers=user_b_headers
+        )
+        assert delete_resp.status_code == 404
+
+        # 清理：用戶 A 自行刪除
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_user_b_cannot_apply_user_a_recurring(self, client, auth_headers):
+        """用戶 B 不能套用用戶 A 的定期項目"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "用戶A套用測試",
+                "amount": 200,
+                "type": "expense",
+                "day_of_month": 15,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        user_b_headers = self._auth_headers_for(
+            "000000000000000000000002", "userb@example.com"
+        )
+        apply_resp = client.post(
+            f"/admin/api/recurring/{item_id}/apply", headers=user_b_headers
+        )
+        assert apply_resp.status_code == 404
+
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+    def test_user_b_cannot_update_user_a_recurring(self, client, auth_headers):
+        """用戶 B 不能更新用戶 A 的定期項目"""
+        create_resp = client.post(
+            "/admin/api/recurring",
+            json={
+                "name": "用戶A更新測試",
+                "amount": 300,
+                "type": "expense",
+                "day_of_month": 20,
+            },
+            headers=auth_headers,
+        )
+        if create_resp.status_code != 201:
+            return
+        item_id = create_resp.get_json().get("id")
+
+        user_b_headers = self._auth_headers_for(
+            "000000000000000000000002", "userb@example.com"
+        )
+        update_resp = client.put(
+            f"/admin/api/recurring/{item_id}",
+            json={
+                "name": "竄改名稱",
+                "amount": 999,
+                "type": "expense",
+                "day_of_month": 1,
+            },
+            headers=user_b_headers,
+        )
+        assert update_resp.status_code == 404
+
+        client.delete(f"/admin/api/recurring/{item_id}", headers=auth_headers)
+
+
+class TestBudgetEdgeCases:
+    """預算邊界條件測試"""
+
+    def test_negative_budget_rejected(self, client, auth_headers):
+        """負數預算應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": -100}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_invalid_category_rejected(self, client, auth_headers):
+        """不在允許清單的分類應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"不存在的分類XYZ": 500}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_non_numeric_budget_rejected(self, client, auth_headers):
+        """非數字預算應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": "abc"}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_missing_budget_key_rejected(self, client, auth_headers):
+        """缺少 budget key 應被拒絕"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"data": {"早餐": 100}},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_zero_budget_accepted(self, client, auth_headers):
+        """預算為 0 是合法的（清除預算）"""
+        response = client.post(
+            "/admin/api/accounting/budget",
+            json={"budget": {"早餐": 0}},
+            headers=auth_headers,
+        )
+        # 若 DB 未連線回 500，連線時應 200
+        assert response.status_code in [200, 500]
+
+
+class TestRecordsSearch:
+    """記錄搜尋與排序測試"""
+
+    def test_records_search_param_accepted(self, client, auth_headers):
+        """search 參數應被接受（不報錯）"""
+        response = client.get(
+            "/admin/api/accounting/records?search=午餐",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "records" in data
+        assert "total" in data
+
+    def test_records_sort_by_amount(self, client, auth_headers):
+        """sort_by=amount 應被接受"""
+        response = client.get(
+            "/admin/api/accounting/records?sort_by=amount&sort_order=asc",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_sort_by_date_desc(self, client, auth_headers):
+        """預設按日期降冪排序"""
+        response = client.get(
+            "/admin/api/accounting/records?sort_by=date&sort_order=desc",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_invalid_page_string(self, client, auth_headers):
+        """page=abc 應回傳 400"""
+        response = client.get(
+            "/admin/api/accounting/records?page=abc",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_records_page_zero_clamped(self, client, auth_headers):
+        """page=0 應被 clamp 至 1，不報錯"""
+        response = client.get(
+            "/admin/api/accounting/records?page=0",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_large_limit_capped(self, client, auth_headers):
+        """limit=999 應被上限截斷，不報錯"""
+        response = client.get(
+            "/admin/api/accounting/records?limit=999",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+    def test_records_page_beyond_total(self, client, auth_headers):
+        """page=9999 應回傳空列表而非錯誤"""
+        response = client.get(
+            "/admin/api/accounting/records?page=9999",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "records" in data
+
+
+class TestPeriodComparisonWeek:
+    """環比比較 - 本週統計測試"""
+
+    def test_comparison_week_period(self, client, auth_headers):
+        """week period 應回傳正確結構"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=week",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "current" in data
+        assert "previous" in data
+        assert "changes" in data
+
+    def test_comparison_week_labels(self, client, auth_headers):
+        """week period 的 label 應含週"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=week",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "label" in data["current"]
+        assert "label" in data["previous"]
+        assert "週" in data["current"]["label"]
+
+    def test_comparison_invalid_period(self, client, auth_headers):
+        """無效 period 應回傳 400"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=invalid",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    def test_comparison_month_data_structure(self, client, auth_headers):
+        """month period 回傳結構完整性"""
+        response = client.get(
+            "/admin/api/accounting/comparison?period=month",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        for section in ("current", "previous"):
+            assert "income" in data[section]
+            assert "expense" in data[section]
+            assert "balance" in data[section]
+            assert "label" in data[section]
+        assert "income_pct" in data["changes"]
+        assert "expense_pct" in data["changes"]
+        assert "balance_pct" in data["changes"]
+
+    def test_comparison_cache_hit_same_data(self, client, auth_headers):
+        """同一 period 連續兩次呼叫應回傳相同資料（快取命中）"""
+        r1 = client.get(
+            "/admin/api/accounting/comparison?period=month",
+            headers=auth_headers,
+        )
+        r2 = client.get(
+            "/admin/api/accounting/comparison?period=month",
+            headers=auth_headers,
+        )
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.get_json() == r2.get_json()
+
+
+class TestStatsCacheInvalidation:
+    """統計快取失效測試"""
+
+    def test_stats_returns_valid_structure(self, client, auth_headers):
+        """stats 端點應回傳正確結構"""
+        response = client.get(
+            "/admin/api/accounting/stats",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "total_income" in data or "income" in data or isinstance(data, dict)
+
+    def test_stats_cache_same_data_twice(self, client, auth_headers):
+        """連續兩次 GET /stats 應回傳相同資料"""
+        r1 = client.get("/admin/api/accounting/stats", headers=auth_headers)
+        r2 = client.get("/admin/api/accounting/stats", headers=auth_headers)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.get_json() == r2.get_json()
+
+    def test_create_record_then_stats_consistent(self, client, auth_headers):
+        """新增記錄後 stats 仍可正常回傳（快取失效後重新計算）"""
+        client.post(
+            "/admin/api/accounting/records",
+            json={
+                "amount": 100,
+                "type": "expense",
+                "category": "餐飲",
+                "description": "測試快取失效",
+                "date": "2026-03-15",
+            },
+            headers=auth_headers,
+        )
+        response = client.get("/admin/api/accounting/stats", headers=auth_headers)
+        assert response.status_code == 200
+
+
+class TestForgotPasswordFlow:
+    """忘記密碼流程測試"""
+
+    def test_forgot_password_no_body(self, client):
+        """無 body 應回傳 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            content_type="application/json",
+            data="",
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_missing_email(self, client):
+        """缺少 email 欄位應回傳 400"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": ""},
+        )
+        assert response.status_code == 400
+
+    def test_forgot_password_nonexistent_email(self, client):
+        """不存在的 email 也應回傳 200（防止用戶枚舉）"""
+        response = client.post(
+            "/api/auth/forgot-password",
+            json={"email": "nonexistent_9999@example.com"},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "message" in data
+
+    def test_send_reset_email_no_smtp_config(self):
+        """SMTP 未設定時 send_reset_email 應回傳 False"""
+        import routes.auth as auth_routes
+
+        original_user = auth_routes.SMTP_USERNAME
+        original_pass = auth_routes.SMTP_PASSWORD
+        try:
+            auth_routes.SMTP_USERNAME = ""
+            auth_routes.SMTP_PASSWORD = ""
+            result = auth_routes.send_reset_email(
+                "test@example.com", "http://example.com/reset"
+            )
+            assert result is False
+        finally:
+            auth_routes.SMTP_USERNAME = original_user
+            auth_routes.SMTP_PASSWORD = original_pass
+
+    def test_reset_password_invalid_token(self, client):
+        """無效 token 應回傳 400"""
+        response = client.post(
+            "/api/auth/reset-password",
+            json={"token": "invalid-token-xyz", "new_password": "NewPass123!"},
+        )
+        assert response.status_code in [400, 404]
+
+
+class TestImportExportJSON:
+    """JSON 備份匯出與匯入測試"""
+
+    def test_export_json_format(self, client, auth_headers):
+        """JSON 備份應回傳正確格式"""
+        response = client.get(
+            "/admin/api/accounting/export?format=json",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "version" in data
+        assert "exported_at" in data
+        assert "count" in data
+        assert "records" in data
+        assert isinstance(data["records"], list)
+
+    def test_import_valid_records(self, client, auth_headers):
+        """匯入合法記錄應回傳 imported 筆數"""
+        payload = {
+            "records": [
+                {
+                    "type": "expense",
+                    "amount": 150,
+                    "category": "午餐",
+                    "date": "2024-01-15",
+                    "description": "測試匯入",
+                    "expense_type": "variable",
+                }
+            ]
+        }
+        response = client.post(
+            "/admin/api/accounting/import",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "imported" in data
+        assert "duplicates" in data
+        assert "invalid" in data
+        assert "total" in data
+        assert data["total"] == 1
+
+    def test_import_duplicate_skipped(self, client, auth_headers):
+        """重複記錄應被略過"""
+        payload = {
+            "records": [
+                {
+                    "type": "expense",
+                    "amount": 999,
+                    "category": "午餐",
+                    "date": "2024-02-01",
+                    "description": "去重測試",
+                    "expense_type": "",
+                }
+            ]
+        }
+        # 第一次匯入
+        client.post("/admin/api/accounting/import", json=payload, headers=auth_headers)
+        # 第二次匯入相同資料
+        response = client.post(
+            "/admin/api/accounting/import",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["duplicates"] == 1
+        assert data["imported"] == 0
+
+    def test_import_invalid_records_skipped(self, client, auth_headers):
+        """不合法記錄應被略過"""
+        payload = {
+            "records": [
+                {"type": "invalid", "amount": -100, "category": "", "date": "bad-date"},
+            ]
+        }
+        response = client.post(
+            "/admin/api/accounting/import",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["invalid"] == 1
+        assert data["imported"] == 0
+
+    def test_import_missing_records_field(self, client, auth_headers):
+        """缺少 records 欄位應回傳 400"""
+        response = client.post(
+            "/admin/api/accounting/import",
+            json={"data": []},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+
+class TestStatsOverview:
+    """整合財務概覽統計測試（/admin/api/stats/overview）"""
+
+    def test_overview_no_auth_returns_401(self, client):
+        r = client.get("/admin/api/stats/overview")
+        assert r.status_code in [401, 403]
+
+    def test_overview_empty_returns_zero_fields(self, client, auth_headers):
+        """全新用戶，所有欄位應為數值（不一定為 0，因為共用 user_id 可能有既有資料）"""
+        r = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.get_json()
+        for field in [
+            "cash_balance",
+            "receivable",
+            "payable",
+            "net_balance",
+            "lent_count",
+            "borrowed_count",
+            "group_count",
+        ]:
+            assert field in data
+            assert isinstance(data[field], (int, float))
+
+    def test_overview_lent_increments_receivable(self, client, auth_headers):
+        """新增 lent 欠款後 receivable 應增加"""
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        client.post(
+            "/admin/api/debts",
+            json={"debt_type": "lent", "person": "X", "amount": 400},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["receivable"] >= before + 400
+
+    def test_overview_borrowed_increments_payable(self, client, auth_headers):
+        """新增 borrowed 欠款後 payable 應增加"""
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["payable"]
+
+        client.post(
+            "/admin/api/debts",
+            json={"debt_type": "borrowed", "person": "Y", "amount": 200},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["payable"] >= before + 200
+
+    def test_overview_partial_repay_reduces_receivable(self, client, auth_headers):
+        """部分還款後 receivable 應減少"""
+        cr = client.post(
+            "/admin/api/debts",
+            json={"debt_type": "lent", "person": "Z", "amount": 600},
+            headers=auth_headers,
+        )
+        debt_id = cr.get_json()["id"]
+
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        client.post(
+            f"/admin/api/debts/{debt_id}/repay",
+            json={"amount": 300},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["receivable"] <= before - 300
+
+    def test_overview_settled_debt_excluded(self, client, auth_headers):
+        """已結清欠款不應計入 receivable"""
+        cr = client.post(
+            "/admin/api/debts",
+            json={"debt_type": "lent", "person": "Settled", "amount": 100},
+            headers=auth_headers,
+        )
+        debt_id = cr.get_json()["id"]
+
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        client.post(f"/admin/api/debts/{debt_id}/settle", headers=auth_headers)
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        # 結清後 receivable 應比之前少（此欠款已從統計移除）
+        assert r1.get_json()["receivable"] <= before
+
+    def test_overview_members_uses_remaining_share(self, client, auth_headers):
+        """含 members 的 lent 欠款，receivable 應計算未還金額（share - paid_amount）"""
+        cr = client.post(
+            "/admin/api/debts",
+            json={
+                "debt_type": "lent",
+                "person": "Group",
+                "amount": 600,
+                "members": [
+                    {"name": "A", "share": 300},
+                    {"name": "B", "share": 300},
+                ],
+            },
+            headers=auth_headers,
+        )
+        debt_id = cr.get_json()["id"]
+
+        r0 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        before = r0.get_json()["receivable"]
+
+        # A 還了 100，receivable 應減少 100
+        client.post(
+            f"/admin/api/debts/{debt_id}/members/0/repay",
+            json={"amount": 100},
+            headers=auth_headers,
+        )
+
+        r1 = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r1.get_json()["receivable"] <= before - 100
+
+    def test_overview_group_count_always_zero(self, client, auth_headers):
+        """group_count 欄位應永遠為 0（群組類型已整合進 lent/borrowed）"""
+        r = client.get("/admin/api/stats/overview", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.get_json()["group_count"] == 0
+
+
+class TestExportFormats:
+    """CSV / XLSX 匯出格式覆蓋率補充"""
+
+    def test_export_csv_format(self, client, auth_headers):
+        """CSV 匯出應回傳 200 且 Content-Type 包含 text/csv"""
+        r = client.get(
+            "/admin/api/accounting/export?format=csv",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "text/csv" in r.content_type or "csv" in r.headers.get(
+            "Content-Disposition", ""
+        )
+
+    def test_export_xlsx_format(self, client, auth_headers):
+        """XLSX 匯出應回傳 200 且 Content-Type 包含 spreadsheetml"""
+        r = client.get(
+            "/admin/api/accounting/export?format=xlsx",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "spreadsheetml" in r.content_type or "xlsx" in r.headers.get(
+            "Content-Disposition", ""
+        )
+
+    def test_export_with_date_range(self, client, auth_headers):
+        """帶日期範圍的 CSV 匯出"""
+        r = client.get(
+            "/admin/api/accounting/export?format=csv&start_date=2024-01-01&end_date=2024-12-31",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_export_with_type_filter(self, client, auth_headers):
+        """帶 type 篩選的 CSV 匯出"""
+        r = client.get(
+            "/admin/api/accounting/export?format=csv&type=income",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_export_invalid_format_defaults_csv(self, client, auth_headers):
+        """非法 format 參數應 fallback 至 CSV"""
+        r = client.get(
+            "/admin/api/accounting/export?format=xml",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "csv" in r.content_type or "csv" in r.headers.get(
+            "Content-Disposition", ""
+        )
+
+
+class TestSendResetEmailSMTP:
+    """send_reset_email SMTP 路徑測試"""
+
+    def test_send_reset_email_smtp_success(self):
+        """SMTP 設定完整且呼叫成功時應回傳 True"""
+        import smtplib
+        from unittest.mock import MagicMock, patch
+
+        import routes.auth as auth_routes
+
+        original_user = auth_routes.SMTP_USERNAME
+        original_pass = auth_routes.SMTP_PASSWORD
+        original_from = auth_routes.SMTP_FROM_EMAIL
+        auth_routes.SMTP_USERNAME = "sender@gmail.com"
+        auth_routes.SMTP_PASSWORD = "password123"
+        auth_routes.SMTP_FROM_EMAIL = "sender@gmail.com"
+        try:
+            mock_server = MagicMock()
+            with patch("smtplib.SMTP") as mock_smtp_cls:
+                mock_smtp_cls.return_value.__enter__ = MagicMock(
+                    return_value=mock_server
+                )
+                mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+                result = auth_routes.send_reset_email(
+                    "user@example.com", "http://example.com?reset_token=abc"
+                )
+            assert result is True
+        finally:
+            auth_routes.SMTP_USERNAME = original_user
+            auth_routes.SMTP_PASSWORD = original_pass
+            auth_routes.SMTP_FROM_EMAIL = original_from
+
+    def test_send_reset_email_smtp_exception(self):
+        """SMTP 連線失敗時應回傳 False"""
+        from unittest.mock import patch
+
+        import routes.auth as auth_routes
+
+        original_user = auth_routes.SMTP_USERNAME
+        original_pass = auth_routes.SMTP_PASSWORD
+        auth_routes.SMTP_USERNAME = "sender@gmail.com"
+        auth_routes.SMTP_PASSWORD = "password123"
+        try:
+            with patch("smtplib.SMTP", side_effect=Exception("Connection refused")):
+                result = auth_routes.send_reset_email(
+                    "user@example.com", "http://example.com?reset_token=abc"
+                )
+            assert result is False
+        finally:
+            auth_routes.SMTP_USERNAME = original_user
+            auth_routes.SMTP_PASSWORD = original_pass
+
+
+class TestErrorPaths:
+    """各模組 DB 例外 / 驗證錯誤補充"""
+
+    def test_export_db_error(self, client, auth_headers):
+        """export 時 DB 例外 → 500"""
+        import db as db_module
+        from unittest.mock import patch
+
+        with patch.object(db_module, "accounting_records_collection") as m:
+            m.find.side_effect = Exception("DB error")
+            r = client.get(
+                "/admin/api/accounting/export?format=csv",
+                headers=auth_headers,
+            )
+        assert r.status_code == 500
+
+    def test_import_db_error(self, client, auth_headers):
+        """import 時 DB 例外 → 500"""
+        import db as db_module
+        from unittest.mock import patch
+
+        with patch.object(db_module, "accounting_records_collection") as m:
+            m.find_one.side_effect = Exception("DB error")
+            r = client.post(
+                "/admin/api/accounting/import",
+                json={
+                    "records": [
+                        {
+                            "type": "expense",
+                            "amount": 100,
+                            "category": "餐飲",
+                            "date": "2024-01-01",
+                        }
+                    ]
+                },
+                headers=auth_headers,
+            )
+        assert r.status_code == 500
+
+    def test_stats_with_date_range(self, client, auth_headers):
+        """帶有效日期範圍的 stats 請求"""
+        r = client.get(
+            "/admin/api/accounting/stats?start_date=2024-01-01&end_date=2024-12-31",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_trends_invalid_months(self, client, auth_headers):
+        """非整數 months 參數應回傳 400"""
+        r = client.get(
+            "/admin/api/accounting/trends?months=abc",
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_comparison_invalid_period(self, client, auth_headers):
+        """非法 period 應回傳 400"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=daily",
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_comparison_period_week(self, client, auth_headers):
+        """period=week 應回傳 200"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=week",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_comparison_period_quarter(self, client, auth_headers):
+        """period=quarter 應回傳 200"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=quarter",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_comparison_period_year(self, client, auth_headers):
+        """period=year 應回傳 200"""
+        r = client.get(
+            "/admin/api/accounting/comparison?period=year",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+    def test_update_profile_email_already_in_use(self, client, auth_headers):
+        """更新 profile 時 email 已被其他用戶使用 → 409"""
+        import time
+
+        other_email = f"other{int(time.time()*1000)}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": other_email,
+                "password": "OtherP@ss2026!Xy",
+                "name": "Other User",
+            },
+        )
+        r = client.put(
+            "/api/user/profile",
+            json={"email": other_email},
+            headers=auth_headers,
+        )
+        assert r.status_code == 409
+
+    def test_update_profile_no_fields(self, client, auth_headers):
+        """更新 profile 時沒有有效欄位 → 400"""
+        r = client.put(
+            "/api/user/profile",
+            json={},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_change_password_wrong_old_password(self, client, auth_headers):
+        """舊密碼錯誤 → 401（使用 mock 確保 DB 有用戶）"""
+        if not auth_headers:
+            pytest.skip("需要認證")
+        import db as db_module
+        from unittest.mock import patch
+        import auth as auth_module
+        from bson import ObjectId
+
+        fake_id = ObjectId()
+        fake_hash = auth_module.hash_password("CorrectOldPass2026!")
+        fake_user = {
+            "_id": fake_id,
+            "email": "mockuser@example.com",
+            "password_hash": fake_hash,
+            "name": "Mock",
+        }
+        with patch.object(db_module, "users_collection") as m:
+            m.find_one.return_value = fake_user
+            r = client.post(
+                "/api/user/change-password",
+                json={"old_password": "WrongOld!!", "new_password": "NewPass2026!Xy"},
+                headers=auth_headers,
+            )
+        assert r.status_code == 401
+
+    def test_change_password_empty_fields(self, client, auth_headers):
+        """空密碼欄位 → 400"""
+        r = client.post(
+            "/api/user/change-password",
+            json={"old_password": "", "new_password": ""},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_validate_password_no_data(self, client):
+        """validate-password 不帶 body → 400"""
+        r = client.post(
+            "/api/auth/validate-password",
+            data="not-json",
+            content_type="text/plain",
+        )
+        assert r.status_code == 400
+
+    def test_status_endpoint(self, client):
+        """GET /status 應回傳 ok"""
+        r = client.get("/status")
+        assert r.status_code == 200
+        assert r.get_json()["status"] == "ok"
 
 
 if __name__ == "__main__":

@@ -1,0 +1,10 @@
+{
+  "name": "accounting-system-frontend",
+  "private": true,
+  "scripts": {
+    "lint": "npx eslint js-refactored/ --ext .js"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}
