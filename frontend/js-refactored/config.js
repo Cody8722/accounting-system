@@ -20,9 +20,10 @@ export function detectBackendUrl() {
         return 'http://localhost:5001';
     }
 
-    // Tailscale / 反向代理同源部署：前端與 API 同網域，走相對路徑（nginx 代理到後端）
+    // Tailscale / 反向代理同源部署：前端與 API 同網域，走相對路徑（nginx 代理到後端）。
+    // /test/ 底下（測試環境）→ /test/api；根目錄（正式）→ /api。
     if (hostname.endsWith('.ts.net')) {
-        return '';
+        return window.location.pathname.startsWith('/test/') ? '/test' : '';
     }
 
     // 區域網路（同 Wi-Fi 手機存取）

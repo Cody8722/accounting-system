@@ -1,0 +1,28 @@
+version: '3.8'
+
+# 統一 HTTPS 入口（獨立長駐）：TLS 終結 + 路徑分流 / → 正式、/test/ → 測試。
+# 獨立於正式/測試 compose，不隨任一環境重啟而中斷。經外部 edge 網路解析各容器名。
+#
+# 部署（在正式 checkout 執行即可）：
+#   docker network create edge          # 若尚未建立
+#   docker compose -f docker-compose.proxy.yml up -d
+#   docker compose -f docker-compose.proxy.yml exec proxy ls /etc/nginx/certs
+
+services:
+  proxy:
+    image: nginx:alpine
+    container_name: accounting-proxy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
+      # tailscale cert 憑證；若 ${HOME} 未展開，改成絕對路徑如 /home/ubuntu/nginx/certs
+      - ${HOME}/nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

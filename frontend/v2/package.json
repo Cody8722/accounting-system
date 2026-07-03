@@ -1,0 +1,4 @@
+{
+  "//": "標記 frontend/v2 為 ES modules，讓 Node（單元測試）以 ESM 載入 js/*.js。瀏覽器以 <script type=module> 載入，不受此檔影響。",
+  "type": "module"
+}

@@ -4,6 +4,7 @@ import { genUser, apiRegister, loginV2 } from './helpers.js';
 /**
  * v2 核心流程（桌面外殼，viewport 1280×720）。
  * 每個 spec 只註冊一次帳號（避開註冊速率限制），每個測試各自登入。
+ * 同 spec 內串行（config 已設），各測試用不同金額避免互相干擾。
  */
 test.describe('v2 核心流程', () => {
   const user = genUser();
@@ -11,34 +12,83 @@ test.describe('v2 核心流程', () => {
   test.beforeAll(async () => { await apiRegister(user); });
   test.beforeEach(async ({ page }) => { await loginV2(page, user); });
 
+  /** 桌面版：開記一筆 → 填金額(input) → 選分類 → 儲存 → 彈窗關閉 */
+  async function addRecordDesktop(page, amount, leaf) {
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.fill('.overlay.center [data-el="amountInput"]', amount);
+    await page.click(`.overlay.center [data-leaf="${leaf}"]`);
+    await page.click('.overlay.center [data-el="save"]');
+    await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
+  }
+
   test('用計算機鍵盤記一筆，明細出現該筆', async ({ page }) => {
     await page.click('[data-el="add"]');
     await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
-
-    // 展開計算機，輸入 137
     await page.click('.overlay.center [data-el="calcToggle"]');
     for (const d of ['1', '3', '7']) {
       await page.click(`.overlay.center [data-digit="${d}"]`);
     }
     await expect(page.locator('.overlay.center [data-el="amountInput"]')).toHaveValue('137', { timeout: 5000 });
-
-    // 選分類 早餐 → 儲存
     await page.click('.overlay.center [data-leaf="早餐"]');
     await page.click('.overlay.center [data-el="save"]');
-
-    // 桌面存完關閉彈窗，明細（預設頁）出現該筆
     await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('早餐', { timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('137', { timeout: 10000 });
   });
 
+  test('編輯記錄：改金額後明細更新', async ({ page }) => {
+    await addRecordDesktop(page, '246', '午餐');
+    await expect(page.locator('.desktop-main')).toContainText('246', { timeout: 10000 });
+    // 點該列開啟編輯
+    await page.locator('.desktop-main [data-id]').filter({ hasText: '246' }).first().click();
+    await page.waitForSelector('.overlay [data-el="save"]', { timeout: 10000 });
+    await page.fill('.overlay [data-el="amount"]', '250');
+    await page.click('.overlay [data-el="save"]');
+    await page.waitForSelector('.overlay', { state: 'detached', timeout: 10000 });
+    await expect(page.locator('.desktop-main')).toContainText('250', { timeout: 10000 });
+  });
+
+  test('刪除記錄：確認後從明細消失', async ({ page }) => {
+    await addRecordDesktop(page, '468', '晚餐');
+    await expect(page.locator('.desktop-main')).toContainText('468', { timeout: 10000 });
+    await page.locator('.desktop-main [data-id]').filter({ hasText: '468' }).first().click();
+    await page.waitForSelector('.overlay [data-el="del"]', { timeout: 10000 });
+    await page.click('.overlay [data-el="del"]');
+    // showConfirm 的「確定」
+    await page.click('.overlay.center button:has-text("確定")');
+    await expect(page.locator('.desktop-main')).not.toContainText('468', { timeout: 10000 });
+  });
+
+  test('預算：設定分類預算後顯示', async ({ page }) => {
+    await page.click('[data-nav="budget"]');
+    await page.waitForSelector('[data-el="edit"]', { timeout: 10000 });
+    await page.click('[data-el="edit"]');
+    await page.waitForSelector('.overlay [data-cat="早餐"]', { timeout: 10000 });
+    await page.fill('.overlay [data-cat="早餐"]', '3000');
+    await page.click('.overlay [data-save="1"]');
+    await page.waitForSelector('.overlay', { state: 'detached', timeout: 10000 });
+    await expect(page.locator('.desktop-main')).toContainText('早餐', { timeout: 10000 });
+    await expect(page.locator('.desktop-main')).toContainText('3,000', { timeout: 10000 });
+  });
+
+  test('發票手動輸入：金額帶入記帳表單', async ({ page }) => {
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.click('.overlay.center [data-el="invoice"]');   // 桌面右欄「查詢並帶入」
+    await page.waitForSelector('[data-el="manual"]', { timeout: 10000 });
+    await page.click('[data-el="manual"]');
+    await page.waitForSelector('[data-el="amt"]', { timeout: 10000 });
+    await page.fill('[data-el="amt"]', '579');
+    await page.click('[data-el="ok"]');
+    await expect(page.locator('.overlay.center [data-el="amountInput"]')).toHaveValue('579', { timeout: 10000 });
+  });
+
   test('統計 / 預算 / 設定 皆可渲染', async ({ page }) => {
     await page.click('[data-nav="stats"]');
     await expect(page.locator('.desktop-main')).toContainText('分類佔比', { timeout: 10000 });
-
     await page.click('[data-nav="budget"]');
     await expect(page.locator('.desktop-main')).toContainText('總預算', { timeout: 10000 });
-
     await page.click('[data-nav="settings"]');
     await expect(page.locator('.desktop-main')).toContainText('帳戶管理', { timeout: 10000 });
   });

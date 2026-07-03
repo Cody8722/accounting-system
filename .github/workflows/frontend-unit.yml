@@ -1,0 +1,22 @@
+name: Frontend Unit Tests
+
+# 純函式單元測試（node:test，無需瀏覽器/伺服器）：resolveBackendUrl、parseInvoiceQR
+on:
+  push:
+    branches: [develop, release]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: Frontend unit (node:test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run unit tests
+        run: node --test frontend/tests/unit/*.test.js

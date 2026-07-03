@@ -1,63 +1,53 @@
 version: '3.8'
 
-# MongoDB 不在此 compose 內：使用「現有的 mongodb 容器」（在外部 shared-db 網路）。
-# 連線字串由 gitignore 的根目錄 .env 提供 MONGO_URI（見 .env.example）。
-# 測試庫：mongodb://accounting_test_user:<pw>@mongodb:27017/accounting_db_test?authSource=accounting_db_test
-# 穩定後切正式庫時只改 .env 的 MONGO_URI 即可。
+# 正式環境（release 分支，接 accounting_db）。
+# MongoDB 用「現有的 mongodb 容器」（外部 shared-db 網路）；MONGO_URI 由根目錄 .env 提供（見 .env.example）。
+# HTTPS 反向代理獨立於 docker-compose.proxy.yml（不在此檔），前後端經外部 edge 網路讓 proxy 解析容器名。
+#
+# 部署（正式 checkout ~/accounting-system-prod）：
+#   docker network create edge   # 若尚未建立（與測試環境共用）
+#   docker compose up -d
+#   docker compose -f docker-compose.proxy.yml up -d
 
 services:
   # 後端服務（Flask / gunicorn）
   backend:
     build: ./backend
     container_name: accounting-backend
-    ports:
-      - "5001:8080"           # 對外除錯用；穩定後可移除，只留 proxy 對外
+    restart: unless-stopped
     environment:
-      - MONGO_URI=${MONGO_URI:?請在根目錄 .env 設定 MONGO_URI（指向現有 mongodb 容器）}
+      - MONGO_URI=${MONGO_URI:?請在根目錄 .env 設定 MONGO_URI（正式庫 accounting_db）}
       - PORT=8080
       - TESTING=false
       # JWT_SECRET / SMTP / 密碼政策等，由掛載的 backend/.env 提供（load_dotenv 讀取）
     volumes:
       - ./backend:/app
     networks:
-      - accounting-network    # 與 frontend / proxy 互通
-      - shared-db             # 連到現有 mongodb 容器所在網路
+      - accounting-network    # 與 frontend 互通
+      - shared-db             # 連到現有 mongodb 容器
+      - edge                  # 讓獨立的 proxy 解析得到此容器
     command: python main.py
 
   # 前端服務（靜態文件服務器）
   frontend:
     image: nginx:alpine
     container_name: accounting-frontend
-    ports:
-      - "8080:80"             # 對外除錯用；穩定後可移除，只留 proxy 對外
+    restart: unless-stopped
     volumes:
-      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/v2:/usr/share/nginx/html:ro    # 根目錄直接服務 v2（/ 即現在的 /v2）
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     networks:
       - accounting-network
-
-  # 統一 HTTPS 入口（反向代理）：同源服務前端 + 後端，TLS 終結於此
-  proxy:
-    image: nginx:alpine
-    container_name: accounting-proxy
-    ports:
-      - "443:443"
-      - "80:80"
-    volumes:
-      - ./nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
-      # tailscale cert 產生的憑證（host 路徑）；若 ${HOME} 未展開，改成絕對路徑如 /home/ubuntu/nginx/certs
-      - ${HOME}/nginx/certs:/etc/nginx/certs:ro
-    depends_on:
-      - backend
-      - frontend
-    networks:
-      - accounting-network
+      - edge
 
 networks:
   accounting-network:
     driver: bridge
-  # 現有 MongoDB 容器所在的外部網路（需先存在：docker network ls 應看得到 shared-db）
+  # 現有 MongoDB 容器所在的外部網路
   shared-db:
+    external: true
+  # 與 proxy / 測試環境共用的外部網路（需先建立：docker network create edge）
+  edge:
     external: true
