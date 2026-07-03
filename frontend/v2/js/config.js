@@ -39,6 +39,17 @@ export function detectBackendUrl() {
   return resolveBackendUrl(window.location.hostname, window.location.pathname);
 }
 
+/**
+ * localStorage key 前綴：正式(/) 與 測試(/test/) 同 origin 共用 localStorage，
+ * 登入 token / 狀態必須分環境，否則會互相覆蓋或借用。
+ * 純函式，方便單元測試。
+ * @param {string} [pathname='/']
+ * @returns {string} '' | 'test:'
+ */
+export function storagePrefix(pathname = '/') {
+  return pathname.startsWith('/test/') ? 'test:' : '';
+}
+
 // 模組載入時計算；於非瀏覽器環境（如 Node 單元測試）安全 fallback，不觸碰 window
 export const backendUrl = typeof window !== 'undefined' ? detectBackendUrl() : '';
 
