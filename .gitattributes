@@ -62,3 +62,8 @@ docs/** linguist-documentation
 
 # Service worker (PWA infrastructure, not main app logic)
 **/service-worker.js linguist-vendored
+
+# ============================================
+# Line endings — shell scripts must stay LF（CRLF 會讓 Linux CI 的 bash 解析失敗）
+# ============================================
+*.sh text eol=lf
