@@ -70,3 +70,11 @@ frontend/Dockerfile
 *.db
 *.sqlite
 *.sqlite3
+
+# 工具產生的本機檔案（不進 repo）
+.serena/
+.claude/settings.local.json
+.playwright-mcp/
+
+# 舊版 v1 前端已移除；js-dist 為其過時的 minify 產物，不再打包
+frontend/js-dist/
