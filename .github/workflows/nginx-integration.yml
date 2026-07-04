@@ -60,15 +60,25 @@ jobs:
       - name: 啟動 HTTPS proxy
         run: docker compose -p accounting-proxy -f docker-compose.proxy.yml up -d
 
-      - name: 等待後端就緒（/health 回 200）
+      # 須等「兩個」後端都就緒：正式後端啟動早於測試後端，只等 /health 會漏掉測試後端
+      # （測試後端未就緒時 /test/api/... 會回 502）。故同時 gate 正式 /health 與測試 401。
+      - name: 等待正式與測試後端就緒
         run: |
+          ready() {
+            local code
+            code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 "$1" || true)"
+            [ "$code" = "$2" ]
+          }
           for i in $(seq 1 60); do
-            code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/health || true)"
-            if [ "$code" = "200" ]; then echo "就緒（第 $i 次嘗試）"; exit 0; fi
-            echo "等待中… ($i/60) 目前狀態=$code"
+            if ready https://localhost/health 200 \
+               && ready https://localhost/test/api/auth/verify 401; then
+              echo "正式與測試後端皆就緒（第 $i 次嘗試）"
+              exit 0
+            fi
+            echo "等待中… ($i/60)"
             sleep 3
           done
-          echo "逾時：/health 未在時限內就緒"
+          echo "逾時：後端未在時限內就緒"
           exit 1
 
       - name: 執行 nginx 冒煙測試
@@ -86,6 +96,9 @@ jobs:
 
       - name: 清理
         if: always()
+        # down 時 compose 仍會展開 environment 區塊，給 dummy MONGO_URI 避免必填變數報錯
+        env:
+          MONGO_URI: mongodb://mongodb:27017/dummy
         run: |
           docker compose -p accounting-proxy -f docker-compose.proxy.yml down || true
           docker compose -p accounting-test -f docker-compose.test.yml down || true
