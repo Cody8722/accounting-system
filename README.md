@@ -11,6 +11,7 @@
 | `README.md`（本文） | 系統介紹、部署方式、API 參考 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 版本更新日誌 |
 | [`docs/API.md`](docs/API.md) | API 完整文件（含請求/回應範例） |
+| [`docs/DEBT_ACCOUNTING_INTEGRATION.md`](docs/DEBT_ACCOUNTING_INTEGRATION.md) | 欠款與記帳整合功能規格書（整合統計/還款同步/群組分帳） |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 開發指南（環境設定、測試、提交規範） |
 | [`frontend/PWA-README.md`](frontend/PWA-README.md) | PWA 安裝、離線功能、Service Worker 說明 |
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 每次更新前端的必做清單 |
