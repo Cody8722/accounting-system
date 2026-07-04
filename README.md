@@ -16,6 +16,11 @@
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 每次更新前端的必做清單 |
 | [`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md) | 密碼強度規則與環境變數設定 |
 | [`backend/tests/README.md`](backend/tests/README.md) | 後端測試說明 |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 專案發展藍圖（短期/中期/長期目標） |
+| [`docs/ZEABUR_DEPLOYMENT.md`](docs/ZEABUR_DEPLOYMENT.md) | Zeabur 部署指南 |
+| [`docs/E2E_TESTING_GUIDE.md`](docs/E2E_TESTING_GUIDE.md) | Playwright E2E 測試完整指南 |
+| [`docs/FRONTEND_TESTING.md`](docs/FRONTEND_TESTING.md) | 前端測試實施指南 |
+| [`docs/TESTING_BEST_PRACTICES.md`](docs/TESTING_BEST_PRACTICES.md) | 測試最佳實踐指南 |
 
 ---
 
