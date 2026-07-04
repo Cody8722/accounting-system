@@ -11,11 +11,18 @@
 | `README.md`（本文） | 系統介紹、部署方式、API 參考 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 版本更新日誌 |
 | [`docs/API.md`](docs/API.md) | API 完整文件（含請求/回應範例） |
+| [`docs/DEBT_ACCOUNTING_INTEGRATION.md`](docs/DEBT_ACCOUNTING_INTEGRATION.md) | 欠款與記帳整合功能規格書（整合統計/還款同步/群組分帳） |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 開發指南（環境設定、測試、提交規範） |
 | [`frontend/PWA-README.md`](frontend/PWA-README.md) | PWA 安裝、離線功能、Service Worker 說明 |
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 每次更新前端的必做清單 |
 | [`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md) | 密碼強度規則與環境變數設定 |
 | [`backend/tests/README.md`](backend/tests/README.md) | 後端測試說明 |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 專案發展藍圖（短期/中期/長期目標） |
+| [`docs/ROADMAP_v2.md`](docs/ROADMAP_v2.md) | v2 發展藍圖（UX 優先） |
+| [`docs/ZEABUR_DEPLOYMENT.md`](docs/ZEABUR_DEPLOYMENT.md) | Zeabur 部署指南 |
+| [`docs/E2E_TESTING_GUIDE.md`](docs/E2E_TESTING_GUIDE.md) | Playwright E2E 測試完整指南 |
+| [`docs/FRONTEND_TESTING.md`](docs/FRONTEND_TESTING.md) | 前端測試實施指南 |
+| [`docs/TESTING_BEST_PRACTICES.md`](docs/TESTING_BEST_PRACTICES.md) | 測試最佳實踐指南 |
 
 ---
 
