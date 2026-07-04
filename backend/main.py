@@ -115,6 +115,7 @@ def check_csrf():
 
 @app.route("/", methods=["GET"])
 @app.route("/health", methods=["GET"])
+@limiter.exempt  # 健康檢查端點豁免全域限速：監控系統（Uptime Kuma）每分鐘輪詢，不應被限速誤判為錯誤
 def health_check():
     """輕量級健康檢查端點（無需認證）"""
     return jsonify({"status": "healthy", "service": "accounting-system"}), 200
