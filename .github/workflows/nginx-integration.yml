@@ -1,0 +1,94 @@
+name: Nginx Integration
+
+# 透過 nginx proxy 這一層做路由冒煙測試（有別於直連 backend 的單元/E2E）。
+# 在 CI 內完整重現「同域雙環境」部署：proxy + 正式(前後端) + 測試(前後端) + MongoDB，
+# 用自簽憑證跑 HTTPS，再以 curl 驗證 / 與 /test/ 的路由及 /test 前綴剝除。
+#
+# 僅在改動 nginx 設定 / compose / 本工作流程 / 冒煙腳本時觸發，避免拖慢主流程。
+
+on:
+  push:
+    branches: [develop, release]
+    paths:
+      - 'nginx*.conf'
+      - 'docker-compose*.yml'
+      - 'scripts/ci/nginx-smoke.sh'
+      - '.github/workflows/nginx-integration.yml'
+  pull_request:
+    branches: [develop, release]
+    paths:
+      - 'nginx*.conf'
+      - 'docker-compose*.yml'
+      - 'scripts/ci/nginx-smoke.sh'
+      - '.github/workflows/nginx-integration.yml'
+  workflow_dispatch:
+
+jobs:
+  nginx-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # compose 檔以 external 參照 edge / shared-db，CI 需先手動建立
+      - name: 建立外部 Docker 網路（edge / shared-db）
+        run: |
+          docker network create edge
+          docker network create shared-db
+
+      # 拋棄式 MongoDB：無認證，名為 mongodb（backend 以此名稱經 shared-db 解析）
+      - name: 啟動 MongoDB
+        run: docker run -d --name mongodb --network shared-db mongo:7
+
+      # 自簽憑證：SAN 含 localhost；檔名對齊 nginx-https.conf 寫死的 ts.net 路徑
+      - name: 產生自簽憑證
+        run: |
+          CERT_DIR="$HOME/nginx/certs"
+          mkdir -p "$CERT_DIR"
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$CERT_DIR/ubuntu-server.tail886591.ts.net.key" \
+            -out    "$CERT_DIR/ubuntu-server.tail886591.ts.net.crt" \
+            -days 2 -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,DNS:ubuntu-server.tail886591.ts.net,IP:127.0.0.1"
+
+      # 正式與測試共用同一份 compose 變數 MONGO_URI，以行內環境變數分別指定資料庫名
+      - name: 啟動正式環境（/ → accounting_db）
+        run: MONGO_URI=mongodb://mongodb:27017/accounting_db docker compose -p accounting up -d --build
+
+      - name: 啟動測試環境（/test/ → accounting_db_test）
+        run: MONGO_URI=mongodb://mongodb:27017/accounting_db_test docker compose -p accounting-test -f docker-compose.test.yml up -d --build
+
+      - name: 啟動 HTTPS proxy
+        run: docker compose -p accounting-proxy -f docker-compose.proxy.yml up -d
+
+      - name: 等待後端就緒（/health 回 200）
+        run: |
+          for i in $(seq 1 60); do
+            code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/health || true)"
+            if [ "$code" = "200" ]; then echo "就緒（第 $i 次嘗試）"; exit 0; fi
+            echo "等待中… ($i/60) 目前狀態=$code"
+            sleep 3
+          done
+          echo "逾時：/health 未在時限內就緒"
+          exit 1
+
+      - name: 執行 nginx 冒煙測試
+        run: bash scripts/ci/nginx-smoke.sh https://localhost
+
+      # 失敗時輸出各容器日誌以利除錯
+      - name: 輸出容器日誌（僅失敗時）
+        if: failure()
+        run: |
+          for c in accounting-proxy accounting-backend accounting-frontend \
+                   accounting-backend-test accounting-frontend-test mongodb; do
+            echo "===================== $c ====================="
+            docker logs "$c" 2>&1 || echo "(無法取得 $c 日誌)"
+          done
+
+      - name: 清理
+        if: always()
+        run: |
+          docker compose -p accounting-proxy -f docker-compose.proxy.yml down || true
+          docker compose -p accounting-test -f docker-compose.test.yml down || true
+          docker compose -p accounting down || true
+          docker rm -f mongodb || true
+          docker network rm edge shared-db || true
