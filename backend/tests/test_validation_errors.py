@@ -126,6 +126,19 @@ class TestHealthCheck:
         assert r.status_code == 200
         assert r.get_json()["status"] == "healthy"
 
+    def test_health_check_exempt_from_rate_limit(self):
+        """health_check 應豁免全域限速（Uptime Kuma 每分鐘輪詢不該被限速誤判）。
+
+        測試環境限速本身是停用的，故無法用「打爆端點看是否 429」驗證；
+        改為斷言 health_check 已登記於 flask-limiter 的路由豁免清單。
+        """
+        from main import limiter
+
+        exemptions = limiter.limit_manager._route_exemptions
+        assert any(
+            key.endswith("health_check") for key in exemptions
+        ), "health_check 未登記為限速豁免"
+
 
 # ==================== 記錄端點輸入驗證路徑 ====================
 
