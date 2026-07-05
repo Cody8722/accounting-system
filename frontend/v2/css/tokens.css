@@ -138,6 +138,21 @@ input, select, textarea { font-family:inherit; }
 .page-title { font-weight:700; font-size:27px; color:var(--text); }
 .page-sub { font-size:13px; color:var(--muted2); margin-top:3px; }
 
+/* ===== 電腦版概覽儀表板 ===== */
+.dash-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:18px; }
+.kpi { background:var(--surface); border:2px solid var(--border); border-radius:16px; padding:16px 18px; }
+.kpi-label { font-size:13px; color:var(--muted2); display:flex; align-items:center; gap:6px; margin-bottom:9px; }
+.kpi-label i { font-size:16px; }
+.kpi-value { font-weight:500; font-size:23px; letter-spacing:-.5px; line-height:1.1; }
+.kpi-sub { font-size:12px; color:var(--faint); margin-top:6px; }
+.dash-row { display:grid; gap:18px; margin-bottom:18px; }
+.dash-row.charts { grid-template-columns:1.25fr 1fr; }
+.dash-row.panels { grid-template-columns:1fr 1fr; }
+/* 視窗較窄（側欄佔位後不足以並排）時退回單欄堆疊 */
+@media (max-width:1080px) {
+  .dash-row.charts, .dash-row.panels { grid-template-columns:1fr; }
+}
+
 /* ===== 共用元件 ===== */
 .icon-btn {
   border:none; background:var(--fill); border-radius:999px; width:36px; height:36px;
