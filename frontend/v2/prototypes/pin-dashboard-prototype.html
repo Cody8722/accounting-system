@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>概覽儀表板 · 釘選式互動原型</title>
+<title>概覽儀表板 · 釘選式互動原型 v2（打磨版）</title>
 <style>
   :root {
     --bg: #f5f6f8; --surface: #ffffff; --fill: #eef0f3; --border: #e3e6ea;
@@ -48,15 +48,26 @@
   body { background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
   .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-  /* 整頁 = 視窗高度的 flex 直欄，永不滾動 */
   .wrap { height: 100%; max-width: 1180px; margin: 0 auto; padding: 16px 30px 18px;
     display: flex; flex-direction: column; }
 
   .top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
     flex-shrink: 0; margin-bottom: 13px; }
   h1 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -.4px; }
-  .sub { color: var(--muted2); font-size: 12.5px; margin-top: 3px; }
+  .sub { color: var(--muted2); font-size: 12.5px; margin-top: 3px; max-height: 40px; opacity: 1; overflow: hidden; }
   .sub b { color: var(--accent); font-weight: 500; }
+  /* 釘選時：整個頂部 chrome（標題＋KPI 列）一起讓位——不是把 deck 硬塞進剩餘空間，
+     而是主動把「非核心」資訊收合變小，把騰出來的高度讓給主角卡片，讓中間真的變大。
+     用真實版面屬性（font-size/padding/max-height）transition，不用 transform scale，
+     文字全程不失真、不跳動，跟卡片本身的打磨邏輯一致。 */
+  .wrap.compact .top { margin-bottom: 6px; }
+  .wrap.compact h1 { font-size: 16px; }
+  .wrap.compact .sub { opacity: 0; max-height: 0; margin-top: 0; }
+  /* 釘選/取消釘選的這一瞬間，chrome 跟配角縮圖一樣處理：不飛、不伸縮各個屬性，
+     單純在新位置瞬間藏起來（透明+模糊），動畫結束後才回淡入。 */
+  /* 不完全消失，只是模糊+稍微變暗——原本的「不完全隱藏」原則也適用在 chrome 上，
+     避免整頁瞬間空掉、只剩主角卡片孤零零在動的違和感。 */
+  .chrome-ghost { opacity: .45; filter: blur(9px); }
 
   .btn { font-family: var(--font); font-size: 12.5px; border: 1px solid var(--border); background: var(--surface);
     color: var(--text2); border-radius: 9px; padding: 7px 12px; cursor: pointer; display: inline-flex;
@@ -65,20 +76,22 @@
   .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .toolbar { display: flex; gap: 9px; }
 
-  /* KPI 列（壓縮：僅標籤 + 數值） */
   .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; flex-shrink: 0; margin-bottom: 13px; }
   .kpi { background: var(--surface); border: var(--card-bw) solid var(--card-bd); border-radius: 13px;
     padding: 11px 15px; box-shadow: var(--shadow); }
   .kpi .kl { font-size: 12px; color: var(--muted2); display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
   .kpi .kl svg { width: 14px; height: 14px; opacity: .85; }
   .kpi .kv { font-weight: 600; font-size: 19px; letter-spacing: -.3px; }
+  .wrap.compact .kpis { gap: 8px; margin-bottom: 8px; }
+  .wrap.compact .kpi { padding: 6px 12px; }
+  .wrap.compact .kpi .kl { margin-bottom: 1px; font-size: 10px; }
+  .wrap.compact .kpi .kv { font-size: 14px; }
 
-  /* ===== deck：吃滿剩餘視窗高度，內部空間重新分配 ===== */
   .deck {
     flex: 1; min-height: 0; display: grid; gap: 14px;
     grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; grid-auto-flow: row;
   }
-  .deck.pinned { grid-template-columns: 1fr 268px; grid-template-rows: 1fr 1fr 1fr; }
+  .deck.pinned { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 0.4fr; }
 
   .card {
     background: var(--surface); border: var(--card-bw) solid var(--card-bd); border-radius: 15px;
@@ -90,6 +103,7 @@
   .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card.is-pinned { cursor: default; border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
   .card.is-thumb { padding: 11px 13px; }
+  .card.morphing { pointer-events: none; }
 
   .chead { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; flex-shrink: 0; }
   .dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
@@ -101,20 +115,19 @@
   .is-pinned .pinbtn { color: var(--accent); background: var(--accent-soft); }
   .pinbtn svg { width: 16px; height: 16px; }
 
-  .cbody { flex: 1; min-height: 0; display: flex; flex-direction: column; filter: blur(0); transition: filter .3s ease, opacity .25s ease; }
-  /* 框架縮放期間：內容維持可見但「模糊」，讓人感受到內容也在變化，而非空殼移動；
-     框架到位後（移除 morphing）模糊才退去、內容同時切換成該階段的樣子 */
-  .card.morphing .cbody { filter: blur(6px); transition: none; }
-  /* 配角卡：框架動畫期間整張隱藏（不飛），避免空白卡彼此交錯重疊；到位後才淡入 */
-  .card.ghost { opacity: 0; }
+  /* cbody 的 blur 完全由 JS 逐幀驅動（動態物件），CSS 只負責靜態初始值；
+     ghost 卡的模糊→清晰改由淡入當下臨時指定 transition（見 JS），避免跟主角的
+     rAF 手動驅動互相搶奪同一個 filter 屬性造成不同步。 */
+  .cbody { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+  .card.ghost { opacity: .4; }
+  .card.ghost .cbody { filter: blur(9px); }
 
   .full-link { display: none; }
   .is-pinned .full-link { display: inline-flex; }
   .is-thumb .thumb-hide { display: none !important; }
   .is-thumb .cbody { justify-content: center; }
 
-  /* 縮圖狀態：大幅精簡內容，確保塞進實際縮圖高度、不溢出 */
-  .is-thumb .flink { display: none; }             /* 空的頁尾（查看完整頁只在釘選態）→ 收掉 */
+  .is-thumb .flink { display: none; }
   .is-thumb .chead { margin-bottom: 8px; }
   .is-thumb .donut-wrap { gap: 0; }
   .is-thumb .donut svg { width: 92px; height: 92px; }
@@ -165,11 +178,29 @@
   .brow .lab .n { color: var(--text2); }
   .brow .lab .v { color: var(--muted2); }
 
+  /* 骨架佔位圖：模糊最深那一刻，真實內容淡出、簡化色塊淡入到峰值，再一起淡回真實內容。
+     每張卡自己的骨架形狀對應自己的內容（圓環/波浪/列表/進度條），不是四張卡套同一套樣板。 */
+  .skel-overlay { position: absolute; inset: 0; opacity: 0; pointer-events: none; display: flex; }
+  .skel-bar { border-radius: 4px; background: var(--fill); flex-shrink: 0; }
+  .skel-circle { border-radius: 50%; background: var(--fill); flex-shrink: 0; }
+  .skel-donut { align-items: center; justify-content: center; gap: 22px; }
+  .skel-donut .skel-legend { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+  .skel-trend { align-items: flex-end; gap: 8px; padding: 4px 2px 0; }
+  .skel-trend .skel-bar { flex: 1; }
+  .skel-recent { flex-direction: column; gap: 12px; padding-top: 2px; }
+  .skel-recent .skel-row { display: flex; align-items: center; gap: 11px; }
+  .skel-recent .skel-row .skel-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .skel-budget { flex-direction: column; gap: 10px; padding-top: 2px; }
+
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
     background: var(--text); color: var(--surface); font-size: 13.5px; padding: 11px 18px; border-radius: 12px;
     box-shadow: 0 8px 30px rgba(0,0,0,.3); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
     z-index: 50; display: flex; align-items: center; gap: 8px; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .diag { position: fixed; right: 18px; bottom: 18px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 12px; font-size: 11.5px; color: var(--muted2); box-shadow: var(--shadow);
+    font-family: var(--mono); z-index: 40; }
 </style>
 </head>
 <body>
@@ -192,7 +223,6 @@
     </div>
   </div>
 
-  <!-- KPI 列 -->
   <div class="kpis">
     <div class="kpi"><div class="kl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h.01"/></svg>淨資產</div><div class="kv mono" style="color:var(--income)">NT$ 40,823</div></div>
     <div class="kpi"><div class="kl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/></svg>現金結餘</div><div class="kv mono" style="color:var(--income)">NT$ 40,823</div></div>
@@ -207,7 +237,7 @@
         <button class="pinbtn" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7z"/></svg></button>
       </div>
       <div class="cbody">
-        <div class="donut-wrap">
+        <div class="donut-wrap skel-target">
           <div class="donut" id="donutSvg"></div>
           <div class="legend thumb-hide">
             <div class="row"><span class="dot" style="background:var(--c1)"></span><span class="n">居住</span><span class="v mono">45%</span></div>
@@ -215,6 +245,14 @@
             <div class="row"><span class="dot" style="background:var(--c4)"></span><span class="n">餐飲</span><span class="v mono">14%</span></div>
             <div class="row"><span class="dot" style="background:var(--c3)"></span><span class="n">娛樂</span><span class="v mono">12%</span></div>
             <div class="row"><span class="dot" style="background:var(--c5)"></span><span class="n">交通</span><span class="v mono">4%</span></div>
+          </div>
+        </div>
+        <div class="skel-overlay skel-donut">
+          <div class="skel-circle" style="width:96px;height:96px"></div>
+          <div class="skel-legend">
+            <div class="skel-bar" style="width:76px;height:9px"></div>
+            <div class="skel-bar" style="width:60px;height:9px"></div>
+            <div class="skel-bar" style="width:68px;height:9px"></div>
           </div>
         </div>
         <div class="flink"><button class="full-link" type="button" data-nav="統計">查看完整「統計」頁 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button></div>
@@ -226,7 +264,15 @@
         <button class="pinbtn" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7z"/></svg></button>
       </div>
       <div class="cbody">
-        <div class="spark" id="sparkSvg"></div>
+        <div class="spark skel-target" id="sparkSvg"></div>
+        <div class="skel-overlay skel-trend">
+          <div class="skel-bar" style="height:38%"></div>
+          <div class="skel-bar" style="height:26%"></div>
+          <div class="skel-bar" style="height:55%"></div>
+          <div class="skel-bar" style="height:22%"></div>
+          <div class="skel-bar" style="height:12%"></div>
+          <div class="skel-bar" style="height:80%"></div>
+        </div>
         <div class="flink"><button class="full-link" type="button" data-nav="統計">查看完整「統計」頁 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button></div>
       </div>
     </article>
@@ -236,7 +282,12 @@
         <button class="pinbtn" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7z"/></svg></button>
       </div>
       <div class="cbody">
-        <div id="txList"></div>
+        <div id="txList" class="skel-target"></div>
+        <div class="skel-overlay skel-recent">
+          <div class="skel-row"><div class="skel-circle" style="width:29px;height:29px"></div><div class="skel-lines"><div class="skel-bar" style="width:58%;height:9px"></div><div class="skel-bar" style="width:36%;height:8px"></div></div></div>
+          <div class="skel-row"><div class="skel-circle" style="width:29px;height:29px"></div><div class="skel-lines"><div class="skel-bar" style="width:44%;height:9px"></div><div class="skel-bar" style="width:30%;height:8px"></div></div></div>
+          <div class="skel-row"><div class="skel-circle" style="width:29px;height:29px"></div><div class="skel-lines"><div class="skel-bar" style="width:64%;height:9px"></div><div class="skel-bar" style="width:40%;height:8px"></div></div></div>
+        </div>
         <div class="flink"><button class="full-link" type="button" data-nav="明細">查看完整「明細」頁 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button></div>
       </div>
     </article>
@@ -246,9 +297,17 @@
         <button class="pinbtn" type="button" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8V4h6v6.8l2 3.2H7z"/></svg></button>
       </div>
       <div class="cbody">
-        <div class="bud-total"><span class="big mono">2,677 <span style="font-size:13px;color:var(--faint)">/ 26,500</span></span><span style="font-size:12.5px;color:var(--muted2)">剩 23,823</span></div>
-        <div class="track"><i style="width:10%"></i></div>
-        <div id="budRows" class="thumb-hide"></div>
+        <div class="skel-target">
+          <div class="bud-total"><span class="big mono">2,677 <span style="font-size:13px;color:var(--faint)">/ 26,500</span></span><span style="font-size:12.5px;color:var(--muted2)">剩 23,823</span></div>
+          <div class="track"><i style="width:10%"></i></div>
+          <div id="budRows" class="thumb-hide"></div>
+        </div>
+        <div class="skel-overlay skel-budget">
+          <div class="skel-bar" style="height:13px;width:60%"></div>
+          <div class="skel-bar" style="height:8px;width:100%"></div>
+          <div class="skel-bar" style="height:9px;width:85%"></div>
+          <div class="skel-bar" style="height:9px;width:70%"></div>
+        </div>
         <div class="flink"><button class="full-link" type="button" data-nav="預算">查看完整「預算」頁 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></button></div>
       </div>
     </article>
@@ -304,7 +363,6 @@
       ['電影/展覽','2026-07-03','−320','var(--text)','var(--c3)'],
       ['午餐','2026-07-01 · 便當','−250','var(--text)','var(--c4)'],
     ];
-    // 縮圖態只保留前 2 筆（index >= 2 加 thumb-hide），避免超出縮圖高度
     document.getElementById('txList').innerHTML = rows.map(([n,s,a,ac,ic], i) =>
       `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, ${ic} 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" stroke="${ic}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="13" rx="2"/><path d="M4 10h16"/></svg></div>
        <div class="nm"><b>${n}</b><small>${s}</small></div><div class="amt mono" style="color:${ac}">${a}</div></div>`).join('');
@@ -322,21 +380,63 @@
   let pinned = null;
   let flipDur = 0.4; // 正常節奏（秒）；慢動作鈕以此為基準倍率放慢（診斷用）
 
-  // 只調整「框架」：deck 版型 + 各卡 grid 定位（不動內容細節）
+  // ── 打磨重點：整個「主角/前主角」FLIP + 標題反向補償 + 模糊，
+  // 全部由同一個 rAF 迴圈、同一個 progress 值驅動 ──
+  // 舊版：CSS transition 驅動主角位移（瀏覽器合成執行緒），另外用 rAF 讀 getComputedStyle
+  // 反向補償標題（主執行緒逐幀取樣）。兩者是「各自獨立的時間軸」，即使都是 0.4s，
+  // 每一幀的取樣時機仍可能有 1 影格級的落差 → 標題感覺有微幅殘留誤差。
+  // 新版：兩者共用同一個 eased progress（同一次數學運算），不再有兩條時間軸，
+  // 從根本上消除文字的殘留晃動。
+  const MORPH_BLUR = 10; // px，模糊峰值（原 6px 偏弱、看不出失焦感；10px 在放大過程仍可辨讀輪廓但明顯失焦）
+  const easeInOutSine = t => -(Math.cos(Math.PI * t) - 1) / 2;
+
+  // ── 標題列改用「脫離縮放、獨立疊層」而非「反向補償」──
+  // 舊法：標題留在會 scale() 的卡片裡，每幀算 1/scale 抵銷。問題在於文字一旦被非 1
+  // 的 scale 影響過（即使瞬間又被抵銷回 1），瀏覽器仍會用當下的合成矩陣重新為文字
+  // 抓字（re-rasterize glyph），兩個 transform 疊在一起在次像素上對不齊，看起來就是
+  // 「還在跳」。新法：把標題整塊 clone 一份，放到不受卡片 transform 影響的固定疊層，
+  // 全程只用 left/top/width/height 這些「真的版面屬性」在移動——瀏覽器排版引擎本來
+  // 就穩定計算這些數字，圓點、文字、圖示自然用它們原本的字級/尺寸「黏著格線」平移，
+  // 不需要任何 scale／反向 scale，字體渲染全程不受影響。
+  const headOverlay = document.createElement('div');
+  headOverlay.style.cssText = 'position:fixed; inset:0; pointer-events:none; z-index:9999;';
+  document.body.appendChild(headOverlay);
+
+  const wrapEl = document.querySelector('.wrap');
+  const topEl = document.querySelector('.top');
+  const kpisEl = document.querySelector('.kpis');
+  const h1El = document.querySelector('h1');
+  const subEl = document.querySelector('.sub');
+  const kpiEls = [...document.querySelectorAll('.kpi')];
+  const lerp = (a, b, t) => a + (b - a) * t;
+
   function applyFrameLayout(pin) {
+    // 釘選時同步收合上方 chrome（標題副標＋KPI 列），把讓出來的高度還給 deck，
+    // 讓主角卡片「真的變大」而不是被固定版頭擠壓成扁扁一條。這一步要跟 grid 版型
+    // 改動同時發生（都在量測 FLIP「last」座標之前），這樣主角動畫本身就會把
+    // 「往上長高」這件事一併算進去，不會動畫結束後 chrome 才又收一次造成二次跳動。
+    wrapEl.classList.toggle('compact', !!pin);
     if (!pin) {
       deck.classList.remove('pinned');
-      cards.forEach(c => { c.style.gridColumn = ''; c.style.gridRow = ''; });
+      cards.forEach(c => { c.style.gridColumn = ''; c.style.gridRow = ''; c.style.maxWidth = ''; c.style.width = ''; c.style.margin = ''; c.style.justifySelf = ''; });
     } else {
       deck.classList.add('pinned');
-      let r = 1;
+      let col = 1;
       cards.forEach(c => {
-        if (c === pin) { c.style.gridColumn = '1'; c.style.gridRow = '1 / span 3'; }
-        else { c.style.gridColumn = '2'; c.style.gridRow = String(r++); }
+        if (c === pin) {
+          c.style.gridColumn = '1 / -1'; c.style.gridRow = '1';
+          // 主角寬度上限＋置中，避免橫向被硬拉滿版（1920 這種寬螢幕上會變成過扁的長條）；
+          // 這裡用 inline style（不是 is-pinned class）是因為 FLIP 量測「last」座標時
+          // is-pinned 還沒套用，若改用 class 量到的會是滿版寬度，動畫結束瞬間再收窄置中，
+          // 造成到位後又跳一下的違和感。frame 版型與這個寬度上限必須同時生效。
+          c.style.maxWidth = 'min(1040px, 100%)'; c.style.width = '100%'; c.style.margin = '0'; c.style.justifySelf = 'center';
+        } else {
+          c.style.gridColumn = String(col++); c.style.gridRow = '2';
+          c.style.maxWidth = ''; c.style.width = ''; c.style.margin = ''; c.style.justifySelf = '';
+        }
       });
     }
   }
-  // 只切換「內容細節」：釘選/縮圖的精簡程度、padding、邊框強調、aria
   function applyContentState(pin) {
     cards.forEach(c => {
       const isPin = c === pin, isThumb = pin && c !== pin;
@@ -346,89 +446,278 @@
     });
   }
 
-  // 反向補償：主角框架 scale 期間，每一格讀取當下縮放比例，對「標題列各元素」
-  // （分類圓點、標題文字、釘選 icon）各自套 1/scale（繞各自中心）。
-  // 關鍵是補償「個別元素」而非整個 .chead —— 這樣：
-  //   (1) 字級/圓點/icon 尺寸維持固定、不被拉伸；
-  //   (2) 各元素「位置」仍由卡片 transform 決定 → 跟著 FLIP 平滑插值移動，
-  //       右上角 icon 會沿著卡片右緣同步過渡，不再瞬間跳到最終座標。
-  function startHeadCounterScale(hero) {
-    const els = [...hero.querySelectorAll('.chead > .dot, .chead > .ctitle, .chead > .pinbtn')];
-    if (!els.length) return () => {};
-    els.forEach(el => { el.style.transformOrigin = 'center'; });
-    let running = true;
-    const tick = () => {
-      if (!running) return;
-      const tf = getComputedStyle(hero).transform;
-      let sx = 1, sy = 1;
-      if (tf && tf !== 'none') { const m = new DOMMatrixReadOnly(tf); sx = m.a || 1; sy = m.d || 1; }
-      const t = `scale(${1 / sx}, ${1 / sy})`;
-      els.forEach(el => { el.style.transform = t; });
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    return () => { running = false; els.forEach(el => { el.style.transform = ''; el.style.transformOrigin = ''; }); };
-  }
-
-  // 原型：預設一律播動畫，讓 artifact 環境（沙箱 iframe 可能回報 reduced-motion）也看得到動畫。
-  // 可用工具列「動畫 開/關」直接對比跳變 vs 動畫。正式版應改回依 prefers-reduced-motion 決定。
   let animEnabled = true;
   let animating = false;
 
   function togglePin(card) {
     if (animating) return;
+    // 自癒性清理：若上一次動畫因某種未預期情況中斷（例如頁面被切到後台節流、或 rAF 被外部接手中斷），
+    // 可能殘留未移除的標題疊層 clone、真實標題仍被 visibility:hidden。
+    // 這裡在每次點擊前強制清空，確保不會有舊的殘留狀態汚染這一次新動畫。
+    [...deck.querySelectorAll(':scope > .chead')].forEach(el => el.remove());
+    cards.forEach(c => { const h = c.querySelector('.chead'); if (h) h.style.visibility = ''; });
+    const prevPinned = pinned;
     pinned = (pinned === card) ? null : card;
-    const hero = card; // 只有「被點的卡」做空間動畫（飛/縮放）；其餘卡不飛，避免路徑交錯重疊
+    const newHero = pinned;
+    const oldHero = (prevPinned && prevPinned !== pinned) ? prevPinned : null;
+    // movers：真正做空間 FLIP 動畫的卡片。使用者要求「每張卡都真的動，允許互相交錯/重疊」，
+    // 所以這裡不再區分主角/配角——四張卡全部都做 FLIP + 失焦模糊，只是主角的位移/縮放
+    // 幅度通常最大（真正變大的那張），縮圖彼此之間可能只是換個排列順序，位移較小。
+    const movers = cards;
+    // chrome（標題副標＋KPI 列）只有在「有主角 ⇄ 沒有主角」這種轉場才需要收合/展開；
+    // A→B 直接切換時 chrome 全程維持收合狀態，不用跟著再動一次。
+    const chromeChanging = (!!prevPinned) !== (!!pinned);
+    const toCompact = !!pinned;
 
-    if (!animEnabled) {   // 跳變：直接切換版型與內容，無動畫
+    if (!animEnabled) {
       applyFrameLayout(pinned); applyContentState(pinned);
-      cards.forEach(c => { c.style.transform = ''; c.style.opacity = ''; c.classList.remove('ghost', 'morphing'); });
+      cards.forEach(c => {
+        c.style.transform = ''; c.style.opacity = ''; c.classList.remove('ghost', 'morphing');
+        const b = c.querySelector('.cbody'); if (b) b.style.filter = '';
+        const h = c.querySelector('.chead'); if (h) h.style.visibility = '';
+      });
+      headOverlay.innerHTML = '';
+      topEl.style.opacity = ''; topEl.style.filter = ''; topEl.style.transition = '';
+      kpisEl.style.opacity = ''; kpisEl.style.filter = ''; kpisEl.style.transition = '';
       return;
     }
 
-    // 量測 → 套框架版型 → 隱藏內容
-    const first = cards.map(c => c.getBoundingClientRect());
-    applyFrameLayout(pinned);
-    cards.forEach(c => c.classList.add('morphing'));
-    const last = cards.map(c => c.getBoundingClientRect());
+    const first = new Map(cards.map(c => [c, c.getBoundingClientRect()]));
+    const headFirst = new Map(cards.map(c => [c, c.querySelector('.chead').getBoundingClientRect()]));
+    applyFrameLayout(pinned); // 先套用「最終」grid 定位（含 chrome compact class），量到目的地座標
+    const last = new Map(cards.map(c => [c, c.getBoundingClientRect()]));
+    const headLast = new Map(cards.map(c => [c, c.querySelector('.chead').getBoundingClientRect()]));
+    // .deck 的畫面位置本來就會因為「chrome 收合/展開」而改變（chrome 變矮，.deck 在 flex 直排下
+    // 會被推高）。但 frame() 逐幀動畫 chrome 尺寸時，用的是「從頭 lerp」的獨立數值，
+    // 這段期間 chrome 的即時渲染尺寸不等於量測 last 當下（已經整個套用 compact）的尺寸，
+    // 於是 .deck 這段期間的實際螢幕位置會偏離 last 假設的位置——卡片本身用 transform 位移，
+    // 會被這個「意外的 deck 位移」帶著多跑一段，但標題疊層 clone 是用量到的『絕對螢幕座標』獨立
+    // 定位，不受這個 deck 位移影響，兩者因此對不上。
+    // 解法：動畫期間把 .deck 從 flex 排版中抽出來，用 position:fixed 釘死在 last 量到的那個畫面矩形，
+    // chrome 尺寸怎麼動都不會再牽動 .deck 的實際位置。
+    const deckLastRect = deck.getBoundingClientRect();
+    const deckPrevStyle = deck.getAttribute('style') || '';
 
-    cards.forEach((c, i) => {
-      if (c === hero) {
-        // 主角：FLIP 從舊位置/尺寸平滑縮放到新定點
-        const dx = first[i].left - last[i].left, dy = first[i].top - last[i].top;
-        const sx = first[i].width / last[i].width || 1, sy = first[i].height / last[i].height || 1;
-        c.style.transition = 'none';
-        c.style.transformOrigin = 'top left';
-        c.style.transform = `translate(${dx}px,${dy}px) scale(${sx},${sy})`;
-      } else {
-        // 配角：不飛，直接在新位置隱藏（整張 ghost），等主角到位後再淡入
-        c.style.transition = 'none';
-        c.style.transform = '';
-        c.classList.add('ghost');
+    // v3-reload-marker
+    // 「格子（外框）平滑跟著 FLIP 縮放，但裡面的數字/字級是 CSS class 瞬間切換」——
+    // 這裡把 is-pinned/is-thumb 會影響「字級」的幾個地方，同樣改成逐幀真實 font-size 插值，
+    // 跟外框動畫共用同一個 eased，字才不會在動畫結束那一刻突然彈一下。
+    const roleOf = (c) => (c === pinned ? 'pin' : (pinned ? 'thumb' : 'grid'));
+    const roleOfPrev = (c) => (c === prevPinned ? 'pin' : (prevPinned ? 'thumb' : 'grid'));
+    const FONT_SIZES = {
+      ctitle: { grid: 14.5, pin: 14.5, thumb: 13 },
+      amt:    { grid: 20,   pin: 26,   thumb: 15 },
+      lab:    { grid: 11,   pin: 11,   thumb: 9 },
+      big:    { grid: 20,   pin: 24,   thumb: 16 },
+    };
+    function fontLerpEntry(el, key, fromRole, toRole) {
+      if (!el) return null;
+      const from = FONT_SIZES[key][fromRole], to = FONT_SIZES[key][toRole];
+      if (from === to) return null; // 這張卡這次角色沒變，不用插值
+      return { el, from, to };
+    }
+
+    // 圖示尺寸（圓餅圖 svg / 交易圖示）也一起納入這套逐幀插值，不再靠 CSS class 瞬間切換：
+    const SIZE_PX = {
+      donutSvg: { grid: 128, pin: 128, thumb: 92 },
+      txIcon:   { grid: 29,  pin: 29,  thumb: 26 },
+    };
+    function sizeLerpEntries(c, selector, sizeKey, fromRole, toRole) {
+      const from = SIZE_PX[sizeKey][fromRole], to = SIZE_PX[sizeKey][toRole];
+      if (from === to) return [];
+      return [...c.querySelectorAll(selector)].map(el => ({ el, from, to }));
+    }
+
+    // 配角卡切到縮圖時，「多餘」的內容（圖例、第3筆以後交易、額外預算列）原本用 CSS
+    // `display:none` 在動畫結束那一刻瞬間消失，跟外框已經平滑完成的縮放不同調、顯得突兀。
+    // 這裡讓它們改成 opacity 淡出/淡入，跟外框動畫共用同一個進度，結束時才真正 display:none。
+    function extraFadeEntries(c, fromRole, toRole) {
+      const before = fromRole !== 'thumb', after = toRole !== 'thumb';
+      if (before === after) return [];
+      return [...c.querySelectorAll('.thumb-hide')].map(el => ({ el, from: before ? 1 : 0, to: after ? 1 : 0 }));
+    }
+
+    const moverData = movers.map(c => {
+      const f = first.get(c), l = last.get(c);
+      const hf = headFirst.get(c), hl = headLast.get(c);
+      const realHead = c.querySelector('.chead');
+      // 焦點卡（使用者這次點的那張，不管是變大還是縮小）壓在最上層；其他卡都同一層。
+      const z = (c === card) ? 10 : 1;
+      const clone = realHead.cloneNode(true);
+      clone.style.cssText = 'position:fixed; margin:0; box-sizing:border-box;';
+      clone.style.left = hf.left + 'px';
+      clone.style.top = hf.top + 'px';
+      clone.style.width = hf.width + 'px';
+      clone.style.height = hf.height + 'px';
+      clone.style.zIndex = String(z + 1); // 只比自己這張卡高一層（蓋過自己的卡身，不影響其他卡）
+      deck.appendChild(clone); // 跟卡片同一個容器（不進獨立的高 z-index 疊層），z-index 才能跟卡片本身互相比較
+      realHead.style.visibility = 'hidden'; // 版面空間保留，只是不畫出來，避免卡片內容跳動
+
+      const fromRole = roleOfPrev(c), toRole = roleOf(c);
+      const fontLerps = [
+        fontLerpEntry(clone.querySelector('.ctitle'), 'ctitle', fromRole, toRole),
+        fontLerpEntry(c.querySelector('.center .amt'), 'amt', fromRole, toRole),
+        fontLerpEntry(c.querySelector('.center .lab'), 'lab', fromRole, toRole),
+        fontLerpEntry(c.querySelector('.bud-total .big'), 'big', fromRole, toRole),
+      ].filter(Boolean);
+      const sizeLerps = [
+        ...sizeLerpEntries(c, '.donut svg', 'donutSvg', fromRole, toRole),
+        ...sizeLerpEntries(c, '.tx .ic', 'txIcon', fromRole, toRole),
+      ];
+      const extraFades = extraFadeEntries(c, fromRole, toRole);
+      const skelOverlay = c.querySelector('.skel-overlay');
+      const skelContent = c.querySelector('.skel-target');
+
+      // 「主角」（這次變大或縮小成主角的那張）位移/縮放幅度通常遠大於縮圖列的其他卡。
+      // 若全部共用同一條 eased 曲線，縮圖卡在實际像素上很快就接近終點、看起來像「提前定位完成」，
+      // 主角卻還在明顯變大——造成「格子先縮完才放大」的錯覚。
+      // 解法：非主角的卡用一條「落後」的曲線（eased​​^POW，0<POW<1時反而提前，>1時延後），
+      // 讓它們的尺寸變化均匀地拖到接近整段動畫結束，與主角的視覚進度更接近。
+      const isHero = (c === newHero) || (c === oldHero);
+
+      return {
+        card: c, first: f, last: l,
+        dx: f.left - l.left, dy: f.top - l.top,
+        sx0: (f.width / l.width) || 1, sy0: (f.height / l.height) || 1,
+        realHead, clone, hf, hl, z, fontLerps, sizeLerps, extraFades, skelOverlay, skelContent, isHero,
+        cbody: c.querySelector('.cbody'),
+      };
+    });
+
+    cards.forEach(c => {
+      c.classList.remove('ghost');
+      c.classList.add('morphing');
+      c.style.transition = 'none';
+      c.style.opacity = '';
+      c.style.transformOrigin = 'top left';
+      c.style.zIndex = (c === card) ? '10' : '1'; // 焦點卡（使用者點的那張）壓在最上層，不管變大還是縮小
+    });
+    // 「查看完整 XX 頁」這个按鈕只有真正完全定位成主角後才應該出現：它現在是當卡片從主角開始變回縮圖時，
+    // 依賴 applyContentState 只在動畫最後一刻才移除 is-pinned class，導致這個按鈕在整段縮小過程中都仍然顯示，
+    // 只有最後一幀才突然消失——與「變化過程中不應出現」相反。這裡在動畫一開始就立即把它藏起來（不等到結束），
+    // 真正變回主角時又會在動畫結束那一刻才自然出現（不受影響，因為它本來就只在 is-pinned 下顯示）。
+    moverData.forEach(m => {
+      const fromRole = roleOfPrev(m.card), toRole = roleOf(m.card);
+      if (fromRole === 'pin' && toRole !== 'pin') {
+        const fl = m.card.querySelector('.full-link');
+        if (fl) fl.style.display = 'none';
       }
+    });
+    if (chromeChanging) {
+      // chrome 也改進同一個 rAF 迴圈逐幀更新（不在動畫結束後另起一段獨立的 CSS transition），
+      // 跟卡片本身的失焦曲線用同一個 eased，一定會在同一幀一起完成。
+      topEl.style.transition = 'none'; kpisEl.style.transition = 'none';
+      topEl.style.opacity = '.45'; kpisEl.style.opacity = '.45';
+      // 把 .deck 釘死在量到的最終位置與尺寸，讓 chrome 尺寸逐幀變化時不會牽動 .deck 的實際位置，
+      // 卡片的 transform 位移／縮放才會全程跟標題疊層 clone（用絕對螢幕座標）保持同步。
+      deck.style.position = 'fixed';
+      deck.style.left = deckLastRect.left + 'px';
+      deck.style.top = deckLastRect.top + 'px';
+      deck.style.width = deckLastRect.width + 'px';
+      deck.style.height = deckLastRect.height + 'px';
+    }    moverData.forEach(m => {
+      m.card.style.transform = `translate(${m.dx}px,${m.dy}px) scale(${m.sx0},${m.sy0})`;
+      if (m.cbody) { m.cbody.style.transition = 'none'; m.cbody.style.filter = 'blur(0px)'; }
     });
 
     animating = true;
-    let stopCounter = () => {};
-    requestAnimationFrame(() => {
-      hero.style.transition = 'transform ' + flipDur + 's cubic-bezier(.37,0,.63,1)';
-      hero.style.transform = '';
-      stopCounter = startHeadCounterScale(hero); // 標題列各元素反向補償，抵消拉伸並讓 icon 跟著卡片平滑移動
-    });
+    const durMs = flipDur * 1000;
+    let start = null;
 
-    // Phase 2：主角框架到位後，才切換內容並淡入（主角內容 + 配角整張）
-    setTimeout(() => {
-      stopCounter();                          // 停止補償、清掉標題暫時的 transform
-      applyContentState(pinned);
-      cards.forEach(c => {
-        c.classList.remove('morphing');       // 主角 .cbody 淡入
-        if (c !== hero) {
-          c.style.transition = 'opacity .28s ease';
-          c.classList.remove('ghost');         // 配角整張淡入
+    function frame(ts) {
+      if (start === null) start = ts;
+      const raw = Math.min(1, (ts - start) / durMs);
+      const eased = easeInOutSine(raw);
+      // 失焦→對焦曲線：兩端為 0（清晰）、正中為峰值（最模糊），跟位移/縮放共用同一個 eased 值，
+      // 保證「模糊最重的瞬間」正好是卡片移動最快的瞬間，觀感上像鏡頭在追蹤這個物件而暫時失焦。
+      const HERO_LAG_POW = 1.7; // 非主角卡（縮圖列）的專屬進度曲線指數：>1 讓它們「故意落後」於全域 eased，
+      // 尺寸變化延到動畫後段才追上，避免縮圖比主角早幾拍看起來「定位完成」。
+      moverData.forEach(m => {
+        const p = m.isHero ? eased : Math.pow(eased, HERO_LAG_POW);
+        const focus = Math.sin(p * Math.PI); // 失焦曲線也跟著各自的進度走，模糊峰值對應各自視覺移動最快的瞬間
+        const tx = m.dx * (1 - p), ty = m.dy * (1 - p);
+        const sx = m.sx0 + (1 - m.sx0) * p, sy = m.sy0 + (1 - m.sy0) * p;
+        m.card.style.transform = `translate(${tx}px,${ty}px) scale(${sx},${sy})`;
+        // 標題疊層：純粹移動＋改變寬高（真實版面屬性），完全不用 scale，
+        // 圓點/文字/圖示的字級與尺寸全程維持原生渲染，瀏覽器排版引擎自己把
+        // 各元素「黏」在正確位置（例如釘選鈕靠右的 margin-left:auto 照樣生效）。
+        const cx = m.hf.left + (m.hl.left - m.hf.left) * p;
+        const cy = m.hf.top + (m.hl.top - m.hf.top) * p;
+        const cw = m.hf.width + (m.hl.width - m.hf.width) * p;
+        const ch = m.hf.height + (m.hl.height - m.hf.height) * p;
+        m.clone.style.width = cw + 'px';
+        m.clone.style.height = ch + 'px';
+        m.clone.style.transform = `translate(${cx - m.hf.left}px, ${cy - m.hf.top}px)`;
+        if (m.cbody) m.cbody.style.filter = `blur(${(focus * MORPH_BLUR).toFixed(2)}px)`;
+        m.fontLerps.forEach(fl => { fl.el.style.fontSize = lerp(fl.from, fl.to, p).toFixed(2) + 'px'; });
+        m.sizeLerps.forEach(sl => { const v = lerp(sl.from, sl.to, p).toFixed(2) + 'px'; sl.el.style.width = v; sl.el.style.height = v; });
+        m.extraFades.forEach(fe => { fe.el.style.opacity = lerp(fe.from, fe.to, p).toFixed(2); });
+        // 骨架佔位圖：模糊峰值那一刻真實內容淡出、骨架淡入，兩者相反相成，共用同一個 focus 曲線，
+        // 結束時自然都回到 0/1，不會残留一定透明度。
+        if (m.skelOverlay) {
+          m.skelOverlay.style.opacity = (focus * 0.92).toFixed(2);
+          if (m.skelContent) m.skelContent.style.opacity = (1 - focus * 0.92).toFixed(2);
         }
       });
+      if (chromeChanging) {
+        // chrome（標題/KPI）跟縮圖列同屬「壓縮/退場」的一群，套用同一條落後曲線，
+        // 才不會跟縮圖卡一樣，比主角早收合完畢。
+        const chromeP = Math.pow(eased, HERO_LAG_POW);
+        const t = toCompact ? chromeP : (1 - chromeP); // 0=展開尺寸, 1=收合尺寸
+        const chromeFocus = Math.sin(chromeP * Math.PI);
+        topEl.style.opacity = String(0.45 + 0.55 * chromeP);
+        topEl.style.filter = `blur(${(chromeFocus * MORPH_BLUR).toFixed(2)}px)`;
+        kpisEl.style.opacity = topEl.style.opacity;
+        kpisEl.style.filter = topEl.style.filter;
+        // 真實版面屬性插值（不是 transform scale）：標題字級/KPI padding/間距真的逐幀縮小，
+        // 文字不會因為 scale 而模糊。
+        topEl.style.marginBottom = lerp(13, 6, t) + 'px';
+        h1El.style.fontSize = lerp(21, 16, t) + 'px';
+        subEl.style.opacity = lerp(1, 0, t);
+        subEl.style.maxHeight = lerp(40, 0, t) + 'px';
+        subEl.style.marginTop = lerp(3, 0, t) + 'px';
+        kpisEl.style.gap = lerp(12, 8, t) + 'px';
+        kpisEl.style.marginBottom = lerp(13, 8, t) + 'px';
+        kpiEls.forEach(k => {
+          k.style.padding = lerp(11, 6, t).toFixed(1) + 'px ' + lerp(15, 12, t).toFixed(1) + 'px';
+          const kl = k.querySelector('.kl'), kv = k.querySelector('.kv');
+          if (kl) { kl.style.marginBottom = lerp(6, 1, t).toFixed(1) + 'px'; kl.style.fontSize = lerp(12, 10, t).toFixed(1) + 'px'; }
+          if (kv) kv.style.fontSize = lerp(19, 14, t).toFixed(1) + 'px';
+        });
+      }
+      if (raw < 1) { requestAnimationFrame(frame); return; }
+
+      moverData.forEach(m => {
+        m.card.style.transform = ''; m.card.style.transformOrigin = ''; m.card.classList.remove('morphing');
+        m.card.style.zIndex = '';
+        if (m.cbody) { m.cbody.style.filter = ''; m.cbody.style.transition = ''; }
+        m.fontLerps.forEach(fl => { fl.el.style.fontSize = ''; }); // 交給對應的 is-pinned/is-thumb CSS 規則接手，數值本來就一致
+        m.sizeLerps.forEach(sl => { sl.el.style.width = ''; sl.el.style.height = ''; });
+        m.extraFades.forEach(fe => { fe.el.style.opacity = ''; }); // 交給 .is-thumb .thumb-hide 的 display:none 接手
+        if (m.skelOverlay) m.skelOverlay.style.opacity = '';
+        if (m.skelContent) m.skelContent.style.opacity = '';
+        m.clone.remove();
+        const fl = m.card.querySelector('.full-link');
+        if (fl) fl.style.display = ''; // 交給 .is-pinned .full-link 的 CSS 規則接手
+        m.realHead.style.visibility = '';
+      });
+      if (chromeChanging) {
+        topEl.style.opacity = ''; topEl.style.filter = ''; topEl.style.marginBottom = '';
+        h1El.style.fontSize = '';
+        subEl.style.opacity = ''; subEl.style.maxHeight = ''; subEl.style.marginTop = '';
+        kpisEl.style.opacity = ''; kpisEl.style.filter = ''; kpisEl.style.gap = ''; kpisEl.style.marginBottom = '';
+        kpiEls.forEach(k => {
+          k.style.padding = '';
+          const kl = k.querySelector('.kl'), kv = k.querySelector('.kv');
+          if (kl) { kl.style.marginBottom = ''; kl.style.fontSize = ''; }
+          if (kv) kv.style.fontSize = '';
+        });
+        deck.setAttribute('style', deckPrevStyle); // 解除釘死，交還給 flex 版面自然決定位置
+      }
+      applyContentState(pinned);
       animating = false;
-    }, flipDur * 1000 + 40);
+    }
+    requestAnimationFrame(frame);
   }
 
   cards.forEach(card => {
@@ -443,7 +732,6 @@
   });
   document.getElementById('reset').addEventListener('click', () => { if (pinned) togglePin(pinned); });
 
-  // 動畫 開/關：可直接對比「跳變」與「動畫」兩種體驗
   const animBtn = document.getElementById('anim');
   animBtn.addEventListener('click', () => {
     if (animating) return;
@@ -451,7 +739,6 @@
     animBtn.lastChild.textContent = animEnabled ? '動畫 開' : '動畫 關';
   });
 
-  // 慢動作：以正常節奏 0.4s 為基準，循環 1× / 2× / 4× 放慢（診斷用，可看清縮放過程）
   const speedBtn = document.getElementById('speed');
   const MULTS = [1, 2, 4];
   let speedMult = 1;
