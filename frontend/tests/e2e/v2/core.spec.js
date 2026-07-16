@@ -101,17 +101,31 @@ test.describe('v2 核心流程', () => {
     await expect(page.locator('.desktop-main')).toContainText('帳戶管理', { timeout: 10000 });
   });
 
-  test('電腦版預設落地在概覽，KPI 卡渲染', async ({ page }) => {
-    // beforeEach 登入後，電腦版預設畫面即為概覽
+  test('電腦版預設落地在概覽，KPI 卡與四張卡渲染', async ({ page }) => {
+    // beforeEach 登入後，電腦版預設畫面即為概覽（釘選式 deck）
     await expect(page.locator('.desktop-main')).toContainText('概覽', { timeout: 10000 });
-    await expect(page.locator('.desktop-main .kpi').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.pindash .kpi').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('淨資產', { timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('本月支出', { timeout: 10000 });
+    await expect(page.locator('.pindash .deck .card')).toHaveCount(4);
   });
 
-  test('概覽「看全部」導向明細', async ({ page }) => {
-    await expect(page.locator('.desktop-main')).toContainText('最近交易', { timeout: 10000 });
-    await page.locator('.desktop-main [data-el="all"]').first().click();
+  test('概覽：釘選卡片放大，再點取消', async ({ page }) => {
+    const donut = page.locator('.card[data-id="donut"]');
+    await expect(donut).toBeVisible({ timeout: 10000 });
+    await donut.click(); // 釘選
+    await expect(page.locator('.pindash .deck.pinned')).toBeVisible({ timeout: 5000 });
+    await expect(donut).toHaveClass(/is-pinned/, { timeout: 5000 }); // 動畫結束後套上
+    await donut.click(); // 取消釘選
+    await expect(page.locator('.pindash .deck.pinned')).toHaveCount(0, { timeout: 5000 });
+  });
+
+  test('概覽：釘選後從「查看完整頁」導向明細', async ({ page }) => {
+    const recent = page.locator('.card[data-id="recent"]');
+    await recent.click(); // 釘選最近交易
+    const link = recent.locator('.full-link'); // 釘選態才顯示
+    await expect(link).toBeVisible({ timeout: 5000 });
+    await link.click();
     await expect(page.locator('.desktop-main [data-type="all"]')).toBeVisible({ timeout: 10000 });
   });
 
