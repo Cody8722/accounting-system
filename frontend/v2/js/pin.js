@@ -292,6 +292,18 @@ export function mountPinDeck(root, { onNav } = {}) {
     handlers.push([card, onClick, onKey]);
   });
 
+  // 部分瀏覽器在「短版載入中」DOM 一次性換成完整 deck 內容後，
+  // 版面寬度（尤其是換高瞬間垂直捲軸才出現/消失的情況）偶爾要等到下一次
+  // window resize 才會重新正確計算，導致右側出現灰邊、deck 未撐滿容器。
+  // 雙層 rAF 確保在瀏覽器完成這次插入的版面配置與繪製之後才觸發；
+  // router.js 的 resize 監聽只在跨越手機/桌面斷點時才會重新渲染，
+  // 停在桌面模式不會觸發多餘的重繪，安全地模擬使用者手動 resize 的效果。
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+  });
+
   return function cleanup() {
     handlers.forEach(([c, ck, k]) => { c.removeEventListener('click', ck); c.removeEventListener('keydown', k); });
     [...deck.querySelectorAll(':scope > .chead')].forEach((el) => el.remove());
