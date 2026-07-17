@@ -9,12 +9,15 @@ import { getUserData } from './api.js';
 import { escapeHtml } from './utils.js';
 import { themeToggleIcon, cycleTheme } from './theme.js';
 import { openAdd, closeAdd } from './add.js';
+import { renderDashboardDesktop } from './dashboard.js';
 import { renderLedgerMobile, renderLedgerDesktop } from './ledger.js';
 import { renderStatsMobile, renderStatsDesktop } from './stats.js';
 import { renderBudgetMobile, renderBudgetDesktop } from './budget.js';
 import { renderSettingsMobile, renderSettingsDesktop } from './settings.js';
 
+// desktopOnly：概覽為電腦版專屬（資訊密度優先），手機版底部導覽不顯示
 const NAV = [
+  { key: 'dashboard', dLabel: '概覽', icon: 'ti-layout-dashboard', desktopOnly: true },
   { key: 'ledger', mLabel: '帳本', dLabel: '明細', icon: 'ti-notebook' },
   { key: 'stats', mLabel: '統計', dLabel: '統計', icon: 'ti-chart-donut' },
   { key: 'budget', mLabel: '預算', dLabel: '預算', icon: 'ti-target-arrow' },
@@ -28,14 +31,15 @@ function currentMode() { return window.innerWidth >= 900 ? 'desktop' : 'mobile';
 
 const RENDERERS = {
   mobile: { ledger: renderLedgerMobile, stats: renderStatsMobile, budget: renderBudgetMobile, settings: renderSettingsMobile },
-  desktop: { ledger: renderLedgerDesktop, stats: renderStatsDesktop, budget: renderBudgetDesktop, settings: renderSettingsDesktop },
+  desktop: { dashboard: renderDashboardDesktop, ledger: renderLedgerDesktop, stats: renderStatsDesktop, budget: renderBudgetDesktop, settings: renderSettingsDesktop },
 };
 
 function renderView() {
   const screen = root.querySelector('[data-el="screen"]');
   if (!screen) return;
   const fn = RENDERERS[mode][state.view];
-  if (fn) fn(screen);
+  if (!fn) return;
+  fn(screen);
   // 更新導覽 active
   root.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.view));
 }
@@ -46,7 +50,8 @@ export function setView(view) {
 }
 
 function buildMobile() {
-  const nav = NAV.slice(0, 2), navR = NAV.slice(2);
+  const mnav = NAV.filter((n) => !n.desktopOnly);
+  const nav = mnav.slice(0, 2), navR = mnav.slice(2);
   const tab = (n) => `<button class="tab" data-nav="${n.key}"><i class="ti ${n.icon}"></i><span>${n.mLabel}</span></button>`;
   root.innerHTML = `
     <div class="phone-backdrop">
@@ -90,12 +95,16 @@ function buildDesktop() {
 
 function mount() {
   mode = currentMode();
+  // 該模式沒有此畫面的 renderer（例如手機沒有 dashboard）→ 退回明細
+  if (!RENDERERS[mode][state.view]) state.view = 'ledger';
   if (mode === 'mobile') buildMobile(); else buildDesktop();
   renderView();
 }
 
 export function initRouter(rootEl) {
   root = rootEl;
+  // 電腦版登入後預設落地在「概覽」；手機版維持「帳本」
+  state.view = currentMode() === 'desktop' ? 'dashboard' : 'ledger';
   mount();
   // 響應式：跨越 900px 斷點時重建外殼
   let lastMode = mode;
@@ -103,6 +112,8 @@ export function initRouter(rootEl) {
     const m = currentMode();
     if (m !== lastMode) { lastMode = m; closeAdd(); mount(); }
   });
+  // 儀表板/摘要卡「看全部」導頁（透過事件解耦，避免 router↔dashboard 循環 import）
+  on('nav', (v) => setView(v));
   // 資料/月份變動 → 重繪當前畫面
   on('records:changed', renderView);
   on('month:changed', renderView);

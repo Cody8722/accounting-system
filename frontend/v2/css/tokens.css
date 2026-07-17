@@ -14,6 +14,7 @@
   --income-soft:#e7f3ec; --expense-soft:#f6ecec;
   --nav-bg:rgba(255,255,255,.94);
   --shadow:0 8px 24px rgba(0,0,0,.08);
+  --card-bd:var(--border-strong); --card-bw:2px;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -25,6 +26,7 @@
   --income-soft:#16291f; --expense-soft:#2c1a1a;
   --nav-bg:rgba(22,22,27,.94);
   --shadow:0 8px 24px rgba(0,0,0,.4);
+  --card-bd:var(--border); --card-bw:1.5px;
 }
 :root {
   --accent:#1f6feb; --income:#3f8f66; --expense:#b15c58;
@@ -137,6 +139,117 @@ input, select, textarea { font-family:inherit; }
 .page { padding:30px 36px; max-width:1120px; margin:0 auto; }
 .page-title { font-weight:700; font-size:27px; color:var(--text); }
 .page-sub { font-size:13px; color:var(--muted2); margin-top:3px; }
+
+/* ===== 電腦版概覽儀表板（釘選式，Claude Design 打磨定案）=====
+   全部樣式 scope 在 .pindash 底下，避免與全域 .card/.kpi 等衝突。
+   動畫邏輯見 js/pin.js；原型見 prototypes/pin-dashboard-prototype.html。 */
+.pindash { height:100%; max-width:1180px; margin:0 auto; padding:16px 30px 18px; display:flex; flex-direction:column; }
+.pindash .top { display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-shrink:0; margin-bottom:13px; }
+.pindash h1 { font-size:21px; font-weight:700; margin:0; letter-spacing:-.4px; color:var(--text); }
+.pindash .sub { color:var(--muted2); font-size:12.5px; margin-top:3px; max-height:40px; opacity:1; overflow:hidden; }
+.pindash .sub b { color:var(--accent); font-weight:500; }
+.pindash.compact .top { margin-bottom:6px; }
+.pindash.compact h1 { font-size:16px; }
+.pindash.compact .sub { opacity:0; max-height:0; margin-top:0; }
+
+.pindash .kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; flex-shrink:0; margin-bottom:13px; }
+.pindash .kpi { background:var(--surface); border:var(--card-bw) solid var(--card-bd); border-radius:13px; padding:11px 15px; box-shadow:var(--shadow); }
+.pindash .kpi .kl { font-size:12px; color:var(--muted2); display:flex; align-items:center; gap:5px; margin-bottom:6px; }
+.pindash .kpi .kl svg { width:14px; height:14px; opacity:.85; }
+.pindash .kpi .kv { font-weight:600; font-size:19px; letter-spacing:-.3px; }
+.pindash.compact .kpis { gap:8px; margin-bottom:8px; }
+.pindash.compact .kpi { padding:6px 12px; }
+.pindash.compact .kpi .kl { margin-bottom:1px; font-size:10px; }
+.pindash.compact .kpi .kv { font-size:14px; }
+
+.pindash .deck { flex:1; min-height:0; display:grid; gap:14px; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; grid-auto-flow:row; }
+.pindash .deck.pinned { grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 0.4fr; }
+
+.pindash .card { background:var(--surface); border:var(--card-bw) solid var(--card-bd); border-radius:15px; padding:16px 17px; overflow:hidden; cursor:pointer; position:relative; display:flex; flex-direction:column; min-height:0; min-width:0; box-shadow:var(--shadow); will-change:transform; }
+.pindash .card:hover { border-color:color-mix(in srgb, var(--accent) 45%, var(--card-bd)); }
+.pindash .card:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.pindash .card.is-pinned { cursor:default; border-color:color-mix(in srgb, var(--accent) 55%, var(--card-bd)); }
+.pindash .card.is-thumb { padding:11px 13px; }
+.pindash .card.morphing { pointer-events:none; }
+
+.pindash .chead { display:flex; align-items:center; gap:9px; margin-bottom:11px; flex-shrink:0; }
+.pindash .dot { width:9px; height:9px; border-radius:3px; flex-shrink:0; }
+.pindash .ctitle { font-weight:600; font-size:14.5px; color:var(--text); }
+.pindash .is-thumb .ctitle { font-size:13px; }
+.pindash .pinbtn { margin-left:auto; width:28px; height:28px; border-radius:8px; border:none; background:transparent; color:var(--faint); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pindash .card:hover .pinbtn { color:var(--muted2); }
+.pindash .is-pinned .pinbtn { color:var(--accent); background:var(--accent-soft); }
+.pindash .pinbtn svg { width:16px; height:16px; }
+
+.pindash .cbody { flex:1; min-height:0; display:flex; flex-direction:column; position:relative; }
+.pindash .card.ghost { opacity:.4; }
+.pindash .card.ghost .cbody { filter:blur(9px); }
+
+.pindash .full-link { display:none; }
+.pindash .is-pinned .full-link { display:inline-flex; }
+.pindash .is-thumb .thumb-hide { display:none !important; }
+.pindash .is-thumb .cbody { justify-content:center; }
+.pindash .is-thumb .flink { display:none; }
+.pindash .is-thumb .chead { margin-bottom:8px; }
+.pindash .is-thumb .donut-wrap { gap:0; }
+.pindash .is-thumb .donut svg { width:92px; height:92px; }
+.pindash .is-thumb .center .amt { font-size:15px; }
+.pindash .is-thumb .center .lab { font-size:9px; }
+.pindash .is-thumb .tx { padding:4px 0; border-bottom:none; }
+.pindash .is-thumb .tx .ic { width:26px; height:26px; }
+.pindash .is-thumb .bud-total { margin-bottom:6px; }
+.pindash .is-thumb .bud-total .big { font-size:16px; }
+
+.pindash .flink { margin-top:auto; padding-top:12px; }
+.pindash .full-link { align-items:center; gap:6px; font-size:13px; color:var(--accent); background:var(--accent-soft); border:none; border-radius:10px; padding:9px 14px; cursor:pointer; font-family:var(--font); font-weight:500; }
+.pindash .full-link:hover { filter:brightness(.97); }
+.pindash .full-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+.pindash .donut-wrap { display:flex; align-items:center; justify-content:center; gap:22px; flex:1; min-height:0; }
+.pindash .donut { position:relative; flex-shrink:0; }
+.pindash .donut svg { display:block; }
+.pindash .donut .center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+.pindash .center .lab { font-size:11px; color:var(--muted2); }
+.pindash .center .amt { font-weight:600; font-size:20px; color:var(--text); }
+.pindash .is-pinned .center .amt { font-size:26px; }
+.pindash .legend { display:flex; flex-direction:column; gap:8px; }
+.pindash .legend .row { display:flex; align-items:center; gap:9px; font-size:13px; }
+.pindash .legend .row span.n { flex:1; color:var(--text2); }
+.pindash .legend .row span.v { color:var(--muted2); }
+
+.pindash .spark { flex:1; min-height:0; display:flex; align-items:stretch; }
+.pindash .spark svg { width:100%; height:100%; }
+
+.pindash .tx { display:flex; align-items:center; gap:11px; padding:7px 0; border-bottom:1px solid var(--border); }
+.pindash .tx:last-of-type { border-bottom:none; }
+.pindash .tx .ic { width:29px; height:29px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.pindash .tx .ic svg { width:15px; height:15px; }
+.pindash .tx .nm { flex:1; min-width:0; }
+.pindash .tx .nm b { font-weight:500; font-size:13.5px; color:var(--text); display:block; }
+.pindash .tx .nm small { font-size:11.5px; color:var(--muted2); }
+.pindash .tx .amt { font-size:13.5px; font-weight:500; }
+
+.pindash .bud-total { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:8px; }
+.pindash .bud-total .big { font-size:20px; font-weight:600; color:var(--text); }
+.pindash .is-pinned .bud-total .big { font-size:24px; }
+.pindash .track { height:8px; border-radius:5px; background:var(--fill); overflow:hidden; }
+.pindash .track > i { display:block; height:100%; border-radius:5px; background:var(--accent); }
+.pindash .brow { margin-top:12px; }
+.pindash .brow .lab { display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:5px; }
+.pindash .brow .lab .n { color:var(--text2); }
+.pindash .brow .lab .v { color:var(--muted2); }
+
+.pindash .skel-overlay { position:absolute; inset:0; opacity:0; pointer-events:none; display:flex; }
+.pindash .skel-bar { border-radius:4px; background:var(--fill); flex-shrink:0; }
+.pindash .skel-circle { border-radius:50%; background:var(--fill); flex-shrink:0; }
+.pindash .skel-donut { align-items:center; justify-content:center; gap:22px; }
+.pindash .skel-donut .skel-legend { display:flex; flex-direction:column; gap:8px; justify-content:center; }
+.pindash .skel-trend { align-items:flex-end; gap:8px; padding:4px 2px 0; }
+.pindash .skel-trend .skel-bar { flex:1; }
+.pindash .skel-recent { flex-direction:column; gap:12px; padding-top:2px; }
+.pindash .skel-recent .skel-row { display:flex; align-items:center; gap:11px; }
+.pindash .skel-recent .skel-row .skel-lines { flex:1; display:flex; flex-direction:column; gap:6px; }
+.pindash .skel-budget { flex-direction:column; gap:10px; padding-top:2px; }
 
 /* ===== 共用元件 ===== */
 .icon-btn {

@@ -18,7 +18,7 @@ async function fetchData() {
   return { stats, trends };
 }
 
-function donutCard(stats) {
+export function donutCard(stats) {
   const cats = (stats.category_stats || []).map((c) => ({ label: c._id || '其他', value: c.total, color: categoryMeta(c._id).color }));
   const totalExp = cats.reduce((s, c) => s + c.value, 0);
   const wrap = document.createElement('div');
@@ -65,7 +65,7 @@ function barsCard(trends) {
   return wrap;
 }
 
-function lineCard(trends) {
+export function lineCard(trends) {
   const pts = trends.months.map((m, i) => ({ label: m, value: trends.expense[i] || 0 }));
   const wrap = document.createElement('div');
   wrap.className = 'card';

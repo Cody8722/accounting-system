@@ -70,6 +70,46 @@ function openEditor(current, onSaved) {
   document.body.appendChild(ov);
 }
 
+/**
+ * 精簡預算摘要卡（供電腦版概覽儀表板複用）。
+ * 自帶資料抓取（budget + stats），回傳一張 .card 元件。
+ */
+export async function budgetSummaryCard() {
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.style.cssText = 'padding:18px';
+  let data;
+  try {
+    data = await fetchData();
+  } catch (e) {
+    wrap.innerHTML = `<div style="color:var(--expense)">${escapeHtml(e.message)}</div>`;
+    return wrap;
+  }
+  const totalBudget = Object.values(data.budget).reduce((s, v) => s + v, 0);
+  const totalSpent = data.totalExpense;
+  const pct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+  const left = totalBudget - totalSpent;
+  const top = BUDGET_CATEGORIES.filter((c) => data.budget[c] > 0)
+    .map((c) => ({ c, b: data.budget[c], s: data.spentMap[c] || 0 }))
+    .sort((a, b) => b.s / b.b - a.s / a.b)
+    .slice(0, 4);
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="font-weight:600;font-size:15px;color:var(--text)">預算概覽</span>
+      <button class="link" data-el="all">看預算 <i class="ti ti-chevron-right"></i></button>
+    </div>
+    ${totalBudget === 0
+      ? '<div style="text-align:center;color:var(--muted2);padding:22px 0">尚未設定預算</div>'
+      : `<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:7px">
+          <span class="mono" style="font-size:20px;font-weight:500;color:var(--text)">${fmtMoney(totalSpent)} <span style="font-size:13px;color:var(--faint)">/ ${fmtMoney(totalBudget)}</span></span>
+          <span style="font-size:13px;color:${left >= 0 ? 'var(--muted2)' : 'var(--expense)'}">${left >= 0 ? `剩 ${fmtMoney(left)}` : `超支 ${fmtMoney(-left)}`}</span>
+        </div>
+        <div class="track" style="margin-bottom:16px"><div class="bar" style="width:${Math.min(100, pct)}%;background:${left >= 0 ? 'var(--accent)' : 'var(--expense)'}"></div></div>
+        ${top.map((x) => rowHtml(x.c, x.b, x.s)).join('')}`}`;
+  wrap.querySelector('[data-el="all"]').onclick = () => emit('nav', 'budget');
+  return wrap;
+}
+
 async function render(container, mode) {
   const title = mode === 'desktop'
     ? '<div class="page-title" style="margin-bottom:20px">預算</div>'
@@ -104,7 +144,9 @@ async function render(container, mode) {
   if (mode === 'desktop') {
     const page = document.createElement('div'); page.className = 'page';
     page.innerHTML = title; page.appendChild(inner);
-    inner.style.maxWidth = '640px';
+    // 電腦版：總預算卡滿寬，各分類進度改雙欄吃滿橫向空間（不再侷限 640px 窄欄）
+    const rowsEl = inner.querySelector('[data-el="rows"]');
+    if (rowsEl && rowsEl.children.length > 1) rowsEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;column-gap:32px';
     container.innerHTML = ''; container.appendChild(page);
   } else {
     container.innerHTML = title;
