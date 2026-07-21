@@ -224,14 +224,15 @@ def get_wallet_balances():
         agg = list(db.accounting_records_collection.aggregate(pipeline))
 
         # wallet_id(字串或 None) -> {income, expense}
+        # 注意：舊資料可能完全沒有 wallet_id 欄位，此時 MongoDB 的 $group _id
+        # 會直接省略該 key（而非給 null），故一律用 .get() 讀取，不可用 []。
         sums = {}
         for row in agg:
-            wid = row["_id"]["wallet_id"]
+            wid = row["_id"].get("wallet_id")
             key = str(wid) if wid else None
             bucket = sums.setdefault(key, {"income": 0.0, "expense": 0.0})
-            bucket[row["_id"]["type"]] = (
-                bucket.get(row["_id"]["type"], 0.0) + row["total"]
-            )
+            rtype = row["_id"].get("type")
+            bucket[rtype] = bucket.get(rtype, 0.0) + row["total"]
 
         def build(key, name, icon=None, color=None, is_default=False):
             s = sums.get(key, {"income": 0.0, "expense": 0.0})

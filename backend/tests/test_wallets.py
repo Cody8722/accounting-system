@@ -414,6 +414,30 @@ class TestWalletBalances:
         found = next(b for b in balances if b["wallet_id"] == created_wallet_id)
         assert found["balance"] == 0
 
+    def test_legacy_record_without_wallet_id_field_does_not_crash(
+        self, client, auth_headers
+    ):
+        """舊資料（此功能上線前建立的記錄）完全沒有 wallet_id 欄位，
+        而非顯式設為 None——MongoDB 的 $group _id 會直接省略該 key，
+        端點需以 .get() 讀取，不可用 [] 直接索引，否則 KeyError 500。"""
+        if db_module.accounting_records_collection is None:
+            pytest.skip("DB not available")
+        legacy_doc = {
+            "user_id": ObjectId("000000000000000000000101"),
+            "type": "income",
+            "amount": 500,
+            "category": "測試",
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "description": "",
+        }
+        db_module.accounting_records_collection.insert_one(legacy_doc)
+
+        r = client.get("/admin/api/wallets/balances", headers=auth_headers)
+        assert r.status_code == 200
+        balances = r.get_json()
+        unclassified = next(b for b in balances if b["wallet_id"] is None)
+        assert unclassified["income"] >= 500
+
 
 # ---------------------------------------------------------------------------
 # TestWalletBalanceHistory
