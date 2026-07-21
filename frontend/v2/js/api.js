@@ -49,11 +49,17 @@ export async function apiCall(endpoint, options = {}) {
   return response;
 }
 
-/** 呼叫並解析 JSON；非 2xx 丟出 error 訊息 */
+/** 呼叫並解析 JSON；非 2xx 丟出 error 訊息（Error 物件附帶 .status 與 .body 完整回應，
+ * 供需要讀取額外欄位的呼叫端使用，如支出現金不足時 409 回應裡的提領金額試算） */
 export async function apiJson(endpoint, options = {}) {
   const res = await apiCall(endpoint, options);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `請求失敗 (${res.status})`);
+  if (!res.ok) {
+    const err = new Error(data.error || `請求失敗 (${res.status})`);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
   return data;
 }
 

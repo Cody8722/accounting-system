@@ -66,9 +66,13 @@ function sparkInner(pts, labels) {
 function txRowsInner(records) {
   if (!records.length) return '<div style="text-align:center;color:var(--muted2);padding:24px 0">本月尚無記錄</div>';
   return records.slice(0, 5).map((r, i) => {
+    const sub = `${escapeHtml(r.date)}${r.description ? ' · ' + escapeHtml(r.description) : ''}`;
+    if (r.type === 'transfer') {
+      return `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, #8a8a94 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/></svg></div>
+        <div class="nm"><b>內部轉移</b><small>${sub}</small></div><div class="amt mono" style="color:var(--muted2)">${fmtMoney(r.amount)}</div></div>`;
+    }
     const m = categoryMeta(r.category);
     const income = r.type === 'income';
-    const sub = `${escapeHtml(r.date)}${r.description ? ' · ' + escapeHtml(r.description) : ''}`;
     return `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, ${m.color} 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" stroke="${m.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="13" rx="2"/><path d="M4 10h16"/></svg></div>
       <div class="nm"><b>${escapeHtml(r.category)}</b><small>${sub}</small></div><div class="amt mono" style="color:${income ? 'var(--income)' : 'var(--text)'}">${income ? '+' : '−'}${fmtMoney(r.amount)}</div></div>`;
   }).join('');
