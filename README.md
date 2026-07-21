@@ -250,7 +250,9 @@ pytest
 
 ## 資料庫結構
 
-資料庫名稱：`accounting_db`，包含四個集合：
+資料庫名稱：`accounting_db`，包含**五個**集合（`users`／`records`／`budget`／`recurring`／`debts`）。
+
+> ⚠️ 以下為對照後端實際程式碼（`backend/routes/*.py`）確認過的真實欄位。`user_id` 在 `records`／`budget` 皆為 **ObjectId**（非字串），三個資料表寫入時一律用 `ObjectId(request.user_id)`。
 
 ### users（用戶帳號）
 
@@ -258,14 +260,16 @@ pytest
 {
   _id: ObjectId,
   email: String,                    // Email（唯一索引，用於登入）
-  password_hash: String,            // bcrypt 雜湊密碼
+  password_hash: String,            // PBKDF2-SHA256 雜湊密碼
   name: String,                     // 顯示名稱
   created_at: DateTime,
   last_login: DateTime,
   is_active: Boolean,               // false 時禁止登入
   email_verified: Boolean,          // 預留欄位，目前未啟用 Email 驗證流程
   password_last_updated: DateTime,
-  requires_password_change: Boolean // 強制修改密碼旗標
+  requires_password_change: Boolean,// 強制修改密碼旗標
+  password_reset_token: String,     // 忘記密碼流程用（可選，用完即 $unset）
+  password_reset_expires: DateTime  // reset token 效期（可選）
 }
 ```
 
@@ -274,14 +278,21 @@ pytest
 ```javascript
 {
   _id: ObjectId,
-  user_id: String,      // 所屬用戶 ID（對應 users._id），舊資料此欄位可能為空
-  type: String,         // 'income'（收入）或 'expense'（支出）
-  amount: Number,       // 金額（正數）
-  category: String,     // 分類，預設 12 種或自訂字串
-  expense_type: String, // 支出類型：'fixed'（固定）｜'variable'（變動）｜'onetime'（一次性）｜null
-  date: String,         // 日期，格式 YYYY-MM-DD
-  description: String,  // 說明備註（可為空）
-  created_at: DateTime
+  user_id: ObjectId,     // 所屬用戶 ID（對應 users._id）；舊資料可能為空，查詢須做 null 處理
+  type: String,          // 'income'（收入）或 'expense'（支出）
+  amount: Number,        // 金額（正數，上限 9,999,999.99）
+  category: String,      // 分類，預設集合或自訂字串（最多 50 字元）
+  expense_type: String,  // 支出類型：'fixed'｜'variable'｜'onetime'｜null（可選）
+  date: String,          // 日期，格式 YYYY-MM-DD
+  description: String,   // 說明備註（可為空，最多 500 字元）
+  created_at: DateTime,
+  updated_at: DateTime,  // 更新記錄時才有（可選）
+
+  // 以下三個欄位僅「欠款還款同步寫入」的記錄才有（見 debts 集合）；
+  // 一般手動記帳不會帶這些欄位，前端也不提供手動輸入介面
+  debt_id: ObjectId,     // 對應 debts._id（可選）
+  auto_generated: Boolean, // true = 由還款動作自動產生（可選）
+  debt_deleted: Boolean  // 對應的欠款已被刪除，但保留這筆記帳歷史（可選）
 }
 ```
 
@@ -290,9 +301,9 @@ pytest
 ```javascript
 {
   _id: ObjectId,
-  user_id: String,   // 所屬用戶 ID
-  month: String,     // 月份，格式 YYYY-MM
-  budget: {          // 各分類月度預算（元）
+  user_id: ObjectId, // 所屬用戶 ID
+  month: String,     // 月份，格式 YYYY-MM；與 user_id 組成唯一索引
+  budget: {          // 各分類月度預算（元），key 僅限 ALLOWED_CATEGORIES（見 backend/extensions.py）
     早餐: Number, 午餐: Number, 晚餐: Number,
     點心: Number, 飲料: Number, 交通: Number,
     娛樂: Number, 購物: Number, 醫療: Number,
@@ -311,12 +322,40 @@ pytest
   name: String,        // 名稱（1-50 字元）
   amount: Number,      // 金額（正數）
   type: String,        // 'income'（收入）或 'expense'（支出）
-  category: String,    // 分類（最多 30 字元）
+  category: String,    // 分類（最多 30 字元，預設「其他」）
   day_of_month: Number,// 每月幾號（1-31，超出月份天數自動調整）
   description: String, // 說明（可為空，最多 200 字元）
   created_at: DateTime
 }
 ```
+
+### debts（欠款追蹤）
+
+```javascript
+{
+  _id: ObjectId,
+  user_id: ObjectId,     // 所屬用戶
+  debt_type: String,     // 'lent'（我借出）或 'borrowed'（我借入）
+                          // 舊資料可能仍有 'group'，啟動時由 migrate_group_debts() 一次性遷移為 lent+members
+  person: String,        // 對象姓名或標題（最多 50 字元）
+  amount: Number,        // 總金額
+  reason: String,        // 事由（可選，最多 200 字元）
+  date: String,          // YYYY-MM-DD
+  paid_amount: Number,   // 已還金額累計
+  is_settled: Boolean,   // 是否已結清
+  repayments: [          // 單人欠款的還款紀錄
+    { amount: Number, date: String, note: String }
+  ],
+  members: [             // 多人分帳時才有（單人欠款為空陣列）
+    { name: String, share: Number, paid_amount: Number, is_settled: Boolean }
+  ],
+  created_at: DateTime
+}
+```
+
+> 還款時（`POST /admin/api/debts/<id>/repay` 或分帳成員還款）會**同步在 `records` 插入一筆**帶 `debt_id`/`auto_generated: true` 的記帳記錄（收入分類「債務收回」或支出分類「債務償還」），讓現金流與欠款狀態保持一致。刪除欠款時，對應的自動記帳記錄不會被刪除，而是標記 `debt_deleted: true` 保留歷史。
+>
+> 列表/單筆查詢回傳時，`members` 非空的欠款會動態附加 `total_members`／`paid_members`／`pending_receivable`（未存於資料庫，即時計算）。
 
 ---
 
@@ -363,7 +402,9 @@ Token 有效期：**7 天**。過期後需重新登入。
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | `GET` | `/admin/api/accounting/stats` | 當月收入 / 支出 / 結餘 / 分類統計 |
-| `GET` | `/admin/api/accounting/comparison` | 環比分析，支援 `period=month/quarter/year` |
+| `GET` | `/admin/api/accounting/comparison` | 環比分析，支援 `period=week/month/quarter/year` |
+| `GET` | `/admin/api/accounting/trends` | 月度收支趨勢，支援 `months`（預設 6，最大 24） |
+| `GET` | `/admin/api/stats/overview` | 整合財務概覽：現金餘額 + 欠款應收應付合併計算淨資產 |
 
 ### 預算管理（需 Token）
 
@@ -381,6 +422,22 @@ Token 有效期：**7 天**。過期後需重新登入。
 | `PUT` | `/admin/api/recurring/<id>` | 更新指定項目 |
 | `DELETE` | `/admin/api/recurring/<id>` | 刪除指定項目 |
 | `POST` | `/admin/api/recurring/<id>/apply` | 套用為一筆實際記帳記錄 |
+
+### 欠款追蹤（需 Token）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/admin/api/debts` | 列出欠款，支援 `type=lent/borrowed`、`show_settled=true` |
+| `POST` | `/admin/api/debts` | 新增欠款（`debt_type` 為 `lent` 我借出或 `borrowed` 我借入，可選 `members` 陣列做多人分帳） |
+| `GET` | `/admin/api/debts/<id>` | 取得單筆欠款 |
+| `PUT` | `/admin/api/debts/<id>` | 更新欠款 |
+| `DELETE` | `/admin/api/debts/<id>` | 刪除欠款（對應的自動記帳記錄保留，標記 `debt_deleted`） |
+| `POST` | `/admin/api/debts/<id>/repay` | 新增還款（單人），**同步寫入一筆記帳記錄** |
+| `POST` | `/admin/api/debts/<id>/members/<idx>/repay` | 分帳成員還款，同步寫入記帳記錄 |
+| `POST` | `/admin/api/debts/<id>/settle` | 切換結清狀態 |
+| `PUT` | `/admin/api/debts/<id>/members/<idx>/pay` | 群組分帳：切換成員已付款狀態 |
+
+匯出/匯入（需 Token）：`GET /admin/api/accounting/export`（支援 `format=csv/xlsx/json`）、`POST /admin/api/accounting/import`（JSON 備份還原）。
 
 ---
 
