@@ -14,11 +14,13 @@ import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta } from './config.js';
 import { showToast, todayStr, escapeHtml } from './utils.js';
 import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
+import { fetchWallets, walletChipsHtml } from './wallet.js';
 
 let host = null;          // 掛載容器（覆蓋層）
 let mode = 'mobile';      // mobile | desktop
 let type = 'expense';     // expense | income
 let category = '';        // 目前選取的葉分類
+let walletId = null;      // 目前選取的錢包（null = 未分類），與 category 各自獨立的欄位
 let date = todayStr();
 let note = '';
 let recurring = false;
@@ -107,6 +109,14 @@ function highlightCat() {
   host.querySelectorAll('[data-el="catArea"] [data-leaf]').forEach((b) => b.classList.toggle('active', b.dataset.leaf === category));
 }
 
+function renderWalletArea() {
+  const area = host.querySelector('[data-el="walletArea"]');
+  if (area) area.innerHTML = walletChipsHtml(walletId);
+}
+function highlightWallet() {
+  host.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((b) => b.classList.toggle('active', (b.dataset.wallet || null) === walletId));
+}
+
 function refresh() {
   if (!host) return;
   const amt = displayAmount();
@@ -127,6 +137,7 @@ function refresh() {
   if (recBtn) recBtn.style.color = recurring ? 'var(--accent)' : 'var(--muted)';
 
   highlightCat();
+  highlightWallet();
 }
 
 function openCategorySheet() {
@@ -197,7 +208,7 @@ async function save() {
   try {
     await apiJson('/admin/api/accounting/records', {
       method: 'POST',
-      body: JSON.stringify({ type, amount, category, date, description: note, expense_type: null }),
+      body: JSON.stringify({ type, amount, category, date, description: note, expense_type: null, wallet_id: walletId }),
     });
     if (recurring) {
       const day = Number(date.slice(8, 10)) || 1;
@@ -256,6 +267,7 @@ function onHostClick(e) {
   if (t.closest('[data-el="calcToggle"]')) { host.querySelector('[data-el="keypadPanel"]').classList.toggle('hidden'); return; }
   const leaf = t.closest('[data-leaf]'); if (leaf) { category = leaf.dataset.leaf; highlightCat(); return; }
   if (t.closest('[data-more]')) return openCategorySheet();
+  const wb = t.closest('[data-wallet]'); if (wb) { walletId = wb.dataset.wallet || null; highlightWallet(); return; }
   const dg = t.closest('[data-digit]'); if (dg) return pressDigit(dg.dataset.digit);
   const opb = t.closest('[data-op]'); if (opb) return pressOp(opb.dataset.op);
   if (t.closest('[data-back]')) return backspace();
@@ -297,6 +309,10 @@ function buildMobile() {
       </div>
       <div style="padding:16px 18px 6px">
         <div data-el="catArea" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px"></div>
+      </div>
+      <div style="padding:6px 18px 0">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">錢包</div>
+        <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
       <div style="margin:6px 18px 0;display:flex;align-items:center;gap:10px">
         <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:12px;padding:11px 13px">
@@ -344,6 +360,8 @@ function buildDesktop() {
           <div data-el="keypadPanel" class="keypad hidden" style="margin-bottom:16px">${keypadHtml()}</div>
           <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">分類</div>
           <div data-el="catArea"></div>
+          <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">錢包</div>
+          <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
           <div style="font-size:13px;color:var(--muted2);margin:6px 0 8px">備註 / 日期</div>
           <div style="display:flex;gap:10px;margin-bottom:14px">
             <input data-el="note" class="field" placeholder="加個備註…" style="flex:1">
@@ -389,9 +407,12 @@ function buildDesktop() {
 export function openAdd(initialType = 'expense') {
   if (host) return;
   mode = window.innerWidth >= 900 ? 'desktop' : 'mobile';
-  type = initialType; category = ''; date = todayStr(); note = ''; recurring = false;
+  type = initialType; category = ''; walletId = null; date = todayStr(); note = ''; recurring = false;
   acc = null; op = null; buf = '';
   if (mode === 'desktop') buildDesktop(); else buildMobile();
   renderCatArea();
+  renderWalletArea();
   refresh();
+  // 錢包清單快取可能尚未載入過（例如尚未開過設定頁的錢包管理）；抓回後重繪一次 chips
+  fetchWallets().then(renderWalletArea).catch(() => {});
 }

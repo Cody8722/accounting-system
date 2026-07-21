@@ -194,6 +194,40 @@ def validate_category(category: str) -> Tuple[bool, str]:
     return True, category
 
 
+MAX_WALLET_NAME_LENGTH = 30
+
+
+def validate_wallet_name(name: Any) -> Tuple[bool, str]:
+    """驗證錢包名稱"""
+    if not name or not isinstance(name, str):
+        return False, "錢包名稱不可為空"
+
+    name = name.strip()
+
+    if not name:
+        return False, "錢包名稱不可為空"
+
+    if len(name) > MAX_WALLET_NAME_LENGTH:
+        return False, f"錢包名稱長度不可超過 {MAX_WALLET_NAME_LENGTH} 個字元"
+
+    return True, name
+
+
+def parse_object_id_list(raw: str) -> Tuple[bool, Any]:
+    """將逗號分隔的 ObjectId 字串解析為陣列；任一格式錯誤即整體失敗。
+    用於 wallet_ids 等多值篩選參數（$in 查詢）。
+    """
+    ids = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if not validate_objectid(part):
+            return False, f"無效的 ID: {part}"
+        ids.append(ObjectId(part))
+    return True, ids
+
+
 def validate_description(description: str) -> Tuple[bool, str]:
     """驗證描述"""
     if not isinstance(description, str):

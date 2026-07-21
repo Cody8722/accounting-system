@@ -24,6 +24,7 @@ from extensions import (
     MAX_PAGE_SIZE,
     _cache_invalidate_user,
     limiter,
+    parse_object_id_list,
     require_auth,
     validate_amount,
     validate_category,
@@ -33,6 +34,24 @@ from extensions import (
     validate_objectid,
     validate_record_type,
 )
+
+
+def _resolve_wallet_id(raw, user_oid):
+    """驗證 wallet_id 屬於當前使用者；raw 為 None/空字串代表「不指定錢包」。
+    回傳 (True, ObjectId|None) 或 (False, 錯誤訊息)。
+    """
+    if raw in (None, "", "null"):
+        return True, None
+    if not validate_objectid(raw):
+        return False, "無效的 wallet_id"
+    wallet_oid = ObjectId(raw)
+    if db.wallets_collection is None:
+        return False, "資料庫未初始化"
+    wallet = db.wallets_collection.find_one({"_id": wallet_oid, "user_id": user_oid})
+    if not wallet:
+        return False, "找不到該錢包或無權限使用"
+    return True, wallet_oid
+
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +99,21 @@ def get_accounting_records():
 
         if category:
             query["category"] = category
+
+        # 多值篩選（鎖定模式用）：wallet_ids/categories 逗號分隔，優先於單值 category
+        wallet_ids_param = request.args.get("wallet_ids", "").strip()
+        if wallet_ids_param:
+            valid, result = parse_object_id_list(wallet_ids_param)
+            if not valid:
+                return jsonify({"error": result}), 400
+            if result:
+                query["wallet_id"] = {"$in": result}
+
+        categories_param = request.args.get("categories", "").strip()
+        if categories_param:
+            cats = [c.strip() for c in categories_param.split(",") if c.strip()]
+            if cats:
+                query["category"] = {"$in": cats}
 
         if search:
             query["description"] = {"$regex": re.escape(search), "$options": "i"}
@@ -188,6 +222,11 @@ def add_accounting_record():
             if not valid:
                 return jsonify({"error": msg}), 400
 
+        user_oid = ObjectId(request.user_id)
+        valid, wallet_id = _resolve_wallet_id(data.get("wallet_id"), user_oid)
+        if not valid:
+            return jsonify({"error": wallet_id}), 400
+
         record = {
             "type": data["type"],
             "amount": amount,
@@ -195,8 +234,9 @@ def add_accounting_record():
             "date": data["date"],
             "description": description,
             "expense_type": expense_type,
+            "wallet_id": wallet_id,
             "created_at": datetime.now(),
-            "user_id": ObjectId(request.user_id),
+            "user_id": user_oid,
         }
 
         result = db.accounting_records_collection.insert_one(record)
@@ -274,6 +314,14 @@ def update_accounting_record(record_id):
                 if not valid:
                     return jsonify({"error": msg}), 400
             update_data["expense_type"] = data["expense_type"]
+
+        if "wallet_id" in data:
+            valid, wallet_id = _resolve_wallet_id(
+                data["wallet_id"], ObjectId(request.user_id)
+            )
+            if not valid:
+                return jsonify({"error": wallet_id}), 400
+            update_data["wallet_id"] = wallet_id
 
         update_data["updated_at"] = datetime.now()
 

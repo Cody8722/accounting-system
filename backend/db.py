@@ -28,6 +28,7 @@ accounting_budget_collection = None
 users_collection = None
 recurring_collection = None
 debts_collection = None
+wallets_collection = None
 
 
 def init_db():
@@ -42,6 +43,7 @@ def init_db():
     global users_collection
     global recurring_collection
     global debts_collection
+    global wallets_collection
 
     MONGO_URI = os.getenv("MONGO_URI")
 
@@ -75,6 +77,7 @@ def init_db():
         users_collection = accounting_db["users"]
         recurring_collection = accounting_db["recurring"]
         debts_collection = accounting_db["debts"]
+        wallets_collection = accounting_db["wallets"]
 
         _create_indexes()
         logger.info("✅ 已連接到記帳資料庫")
@@ -148,6 +151,16 @@ def _create_indexes():
         )
         debts_collection.create_index(
             [("user_id", ASCENDING), ("is_settled", ASCENDING)], background=True
+        )
+
+        # 錢包索引
+        wallets_collection.create_index([("user_id", ASCENDING)], background=True)
+        wallets_collection.create_index(
+            [("user_id", ASCENDING), ("archived", ASCENDING)], background=True
+        )
+        # 記帳記錄依錢包查詢/聚合（餘額計算、篩選）
+        accounting_records_collection.create_index(
+            [("user_id", ASCENDING), ("wallet_id", ASCENDING)], background=True
         )
 
         logger.info("✅ 資料庫索引已建立（背景執行）")

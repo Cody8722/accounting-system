@@ -9,6 +9,7 @@ import { getUserData } from './api.js';
 import { escapeHtml } from './utils.js';
 import { themeToggleIcon, cycleTheme } from './theme.js';
 import { openAdd, closeAdd } from './add.js';
+import { forceUnlock } from './lock.js';
 import { renderDashboardDesktop } from './dashboard.js';
 import { renderLedgerMobile, renderLedgerDesktop } from './ledger.js';
 import { renderStatsMobile, renderStatsDesktop } from './stats.js';
@@ -110,13 +111,23 @@ export function initRouter(rootEl) {
   let lastMode = mode;
   window.addEventListener('resize', () => {
     const m = currentMode();
-    if (m !== lastMode) { lastMode = m; closeAdd(); mount(); }
+    if (m !== lastMode) {
+      lastMode = m;
+      closeAdd();
+      // 鎖定模式僅限手機觸發；跨到桌面時強制解鎖，避免桌面版意外繼承手機端設定的篩選
+      if (m === 'desktop') forceUnlock();
+      mount();
+    }
   });
   // 儀表板/摘要卡「看全部」導頁（透過事件解耦，避免 router↔dashboard 循環 import）
   on('nav', (v) => setView(v));
   // 資料/月份變動 → 重繪當前畫面
   on('records:changed', renderView);
   on('month:changed', renderView);
+  // 鎖定狀態改變（進入/解除/切換選項）→ 重繪當前畫面套用新篩選
+  on('lock:changed', renderView);
+  // 錢包新增/改名/封存 → 重繪（帳本頁餘額摘要條等需要反映最新清單）
+  on('wallets:changed', renderView);
   // 記一筆關閉後刷新（可能有連續記帳）
   window.addEventListener('add:closed', () => emit('records:changed'));
 }
