@@ -8,12 +8,15 @@ import { apiJson } from './api.js';
 import { BUDGET_CATEGORIES, categoryMeta } from './config.js';
 import { fmtMoney, escapeHtml, showToast } from './utils.js';
 import { monthRange, emit } from './store.js';
+import { lockQueryParams, lockBadgeHtml, bindLockBadge } from './lock.js';
 
 async function fetchData() {
   const { start, end, label } = monthRange();
+  // 鎖定篩選只套用在「已用」的計算（stats），預算設定本身（budget）維持不受篩選影響——
+  // 使用者設定的是「每月各分類總預算」，不會因為暫時鎖定某個錢包/分類的檢視就跟著改變。
   const [budget, stats] = await Promise.all([
     apiJson(`/admin/api/accounting/budget?month=${label}`),
-    apiJson(`/admin/api/accounting/stats?start_date=${start}&end_date=${end}`),
+    apiJson(`/admin/api/accounting/stats?start_date=${start}&end_date=${end}${lockQueryParams()}`),
   ]);
   const spentMap = {};
   for (const c of (stats.category_stats || [])) spentMap[c._id] = c.total;
@@ -113,7 +116,7 @@ export async function budgetSummaryCard() {
 async function render(container, mode) {
   const title = mode === 'desktop'
     ? '<div class="page-title" style="margin-bottom:20px">預算</div>'
-    : '<div style="padding:6px 20px 0;flex-shrink:0"><span style="font-weight:700;font-size:22px;color:var(--text)">預算</span></div>';
+    : `<div style="padding:6px 20px 0;flex-shrink:0">${lockBadgeHtml()}<span style="font-weight:700;font-size:22px;color:var(--text)">預算</span></div>`;
   container.innerHTML = mode === 'desktop' ? `<div class="page">${title}<div class="page-sub">載入中…</div></div>` : `${title}<div style="padding:40px;text-align:center;color:var(--muted2)">載入中…</div>`;
   let data;
   try { data = await fetchData(); } catch (e) { container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--expense)">${escapeHtml(e.message)}</div>`; return; }
@@ -150,6 +153,7 @@ async function render(container, mode) {
     container.innerHTML = ''; container.appendChild(page);
   } else {
     container.innerHTML = title;
+    bindLockBadge(container);
     const scroll = document.createElement('div');
     scroll.className = 'noscroll';
     scroll.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px 100px';

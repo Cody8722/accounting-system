@@ -9,6 +9,7 @@ import { escapeHtml, showToast, showConfirm, fmtMoney, monthStr } from './utils.
 import { getThemePref, setThemePref } from './theme.js';
 import { logout, changePassword } from './auth.js';
 import { monthRange, emit } from './store.js';
+import { openWalletManager } from './wallet.js';
 
 function sheet(title, bodyHtml) {
   const ov = document.createElement('div');
@@ -201,6 +202,7 @@ async function render(container, mode) {
     </div>
     ${menuGroup([
       { act: 'account', icon: 'ti-wallet', label: '帳戶管理' },
+      { act: 'wallet', icon: 'ti-coin', label: '錢包管理' },
       { act: 'category', icon: 'ti-category', label: '分類設定' },
       { act: 'recurring', icon: 'ti-repeat', label: '定期項目', extra: recurCount },
     ])}
@@ -220,6 +222,7 @@ async function render(container, mode) {
     if (row) {
       const act = row.dataset.act;
       if (act === 'account') openAccount();
+      else if (act === 'wallet') openWalletManager();
       else if (act === 'category') openCategory();
       else if (act === 'recurring') openRecurring();
       else if (act === 'export') openExport();
