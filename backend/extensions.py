@@ -55,7 +55,7 @@ ALLOWED_CATEGORIES = [
 def get_rate_limit_key():
     """
     優先用 JWT user_id 作為 rate limit key，讓每個用戶有獨立的 bucket。
-    Zeabur 等雲端平台的 reverse proxy 會讓所有請求共用同一個 REMOTE_ADDR，
+    nginx reverse proxy 之後的部署會讓所有請求共用同一個 REMOTE_ADDR，
     若用 IP 作 key 會導致所有用戶共享配額，容易觸發 429（iOS 上可能顯示為 402）。
     未登入的請求（登入、註冊）才 fallback 到 IP。
     """

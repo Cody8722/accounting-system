@@ -19,7 +19,7 @@
 | [`backend/tests/README.md`](backend/tests/README.md) | 後端測試說明 |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | 專案發展藍圖（短期/中期/長期目標） |
 | [`docs/ROADMAP_v2.md`](docs/ROADMAP_v2.md) | v2 發展藍圖（UX 優先） |
-| [`docs/ZEABUR_DEPLOYMENT.md`](docs/ZEABUR_DEPLOYMENT.md) | Zeabur 部署指南 |
+| [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md) | NAS 同域雙環境部署操作手冊（正式 `/` + 測試 `/test/`） |
 | [`docs/E2E_TESTING_GUIDE.md`](docs/E2E_TESTING_GUIDE.md) | Playwright E2E 測試完整指南 |
 | [`docs/FRONTEND_TESTING.md`](docs/FRONTEND_TESTING.md) | 前端測試實施指南 |
 | [`docs/TESTING_BEST_PRACTICES.md`](docs/TESTING_BEST_PRACTICES.md) | 測試最佳實踐指南 |
@@ -67,7 +67,7 @@ pytest --cov=. --cov-report=term-missing   # 含覆蓋率
   - [環境需求](#環境需求)
   - [後端設定](#後端設定)
   - [前端設定](#前端設定)
-- [部署到 Zeabur](#部署到-zeabur)
+- [部署](#部署)
 - [資料庫結構](#資料庫結構)
 - [API 端點](#api-端點)
 - [安全建議](#安全建議)
@@ -161,7 +161,7 @@ FRONTEND_URLS=http://localhost:8080
 |---------|:----:|--------|------|
 | `MONGO_URI` | ✅ | 無 | MongoDB 連線字串。本地測試可用 `mongodb://localhost:27017/accounting_db` |
 | `JWT_SECRET` | ✅ | 無 | JWT 簽名金鑰。使用下方指令產生：`python -c "import secrets; print(secrets.token_hex(32))"` |
-| `FRONTEND_URLS` | | `http://localhost:8080,https://accounting-system.zeabur.app` | 允許跨域的前端網址（逗號分隔）。本地開發使用預設值即可 |
+| `FRONTEND_URLS` | | `http://localhost:8080` | 允許跨域的前端網址（逗號分隔）。本地開發使用預設值即可；正式環境請明確設定為實際部署網域 |
 
 > **注意**：`.env` 檔案不應提交到 Git。請確認 `.gitignore` 已包含 `.env`。
 
@@ -180,15 +180,15 @@ python main.py
 
 前端是純靜態網頁，不需要建構工具。
 
-**後端 URL 自動偵測邏輯**（`frontend/index.html`）：
+**後端 URL 自動偵測邏輯**（`frontend/v2/js/config.js` 的 `resolveBackendUrl()`）：
 
 | 前端執行環境 | 自動對應後端 |
 |------------|------------|
 | `localhost` / `127.0.0.1` | `http://localhost:5001` |
-| `accounting-system.zeabur.app` | `https://accounting-system-ghth.zeabur.app` |
-| 其他 Zeabur 網域（含 `zeabur.app`） | 自動將 `frontend` 替換為 `backend` |
+| 區域網路 IP（`192.168.*`／`10.*`／`172.16-31.*`） | `http://<該 IP>:5001` |
+| Tailscale 網域（`*.ts.net`，NAS 同域雙環境部署） | 同源相對路徑；依路徑是否為 `/test/` 分流至 `/test/api` 或 `/api`，由 nginx 代理到對應環境的後端 |
 
-如需指定自訂後端網址，編輯 `frontend/index.html` 中的 `detectBackendUrl()` 函式。
+如需指定自訂後端網址，編輯 `frontend/v2/js/config.js` 中的 `resolveBackendUrl()` 函式。
 
 **啟動前端開發伺服器：**
 
@@ -202,38 +202,23 @@ python -m http.server 8080
 
 ---
 
-## 部署到 Zeabur
+## 部署
 
-### 架構說明
+正式環境為自架 NAS，透過 Docker Compose + nginx reverse proxy 手動部署，**沒有任何 CI/CD 自動部署機制**——`develop`/`release` 的 GitHub Actions 只跑測試，不會觸發部署。合併 PR 後仍需自行 SSH 進 NAS 執行部署指令。
 
-本系統分為兩個獨立服務部署：
+完整的雙環境（正式 `/` + 測試 `/test/`）部署操作手冊請參考 [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md)，涵蓋：Tailscale 網域下的路徑分流、`docker-compose.yml`/`docker-compose.test.yml`/`docker-compose.proxy.yml` 三份 compose 的啟動順序、驗收清單與常見排錯。
 
+日常更新（以正式環境為例）：
+
+```bash
+ssh <NAS>
+cd ~/accounting-system-prod
+git pull origin release
+docker compose up -d --build --force-recreate
 ```
-前端（靜態網站）                後端（Flask API）
-accounting-system.zeabur.app  →  accounting-system-ghth.zeabur.app
-  frontend/                        backend/
-```
-
-### 後端部署
-
-1. 在 Zeabur 建立新服務，從 Git 部署（根目錄選 `backend`）
-2. 設定以下環境變數：
-
-| 變數名稱 | 值 |
-|---------|---|
-| `MONGO_URI` | MongoDB Atlas 連線字串（`mongodb+srv://...`） |
-| `JWT_SECRET` | 32 字元以上隨機字串 |
-| `FRONTEND_URLS` | 前端網址，如 `https://accounting-system.zeabur.app` |
-
-3. **MongoDB Atlas 設定**：在 Atlas 控制台的「Network Access」中，將 Zeabur IP 白名單設為 `0.0.0.0/0`（允許所有 IP），因為 Zeabur 的出口 IP 為動態分配，無法固定。
-
-### 前端部署
 
 > **每次更新前端前，務必先更新 Service Worker 版本號！**
 > 詳細流程請參考 [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md)
-
-1. 更新 `frontend/service-worker.js` 第 14 行的版本號（目前為 `v1.3.6`）
-2. 在 Zeabur 建立靜態網站服務，根目錄選 `frontend`
 
 PWA 安裝與離線功能說明請參考 [`frontend/PWA-README.md`](frontend/PWA-README.md)
 
@@ -444,7 +429,7 @@ Token 有效期：**7 天**。過期後需重新登入。
 ## 安全建議
 
 1. **JWT_SECRET**：使用 32 字元以上的隨機字串，不要使用可預測的值。金鑰洩漏後需立即更換（所有用戶會被強制登出）
-2. **HTTPS**：生產環境務必使用 HTTPS（Zeabur 自動提供）
+2. **HTTPS**：生產環境務必使用 HTTPS（NAS 部署由 nginx + Tailscale 憑證提供，詳見 [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md)）
 3. **MongoDB**：不要使用擁有過多權限的資料庫帳號；定期備份資料
 4. **`.env` 檔案**：確認 `.gitignore` 已包含 `.env`，不要將金鑰提交到 Git
 
@@ -498,7 +483,7 @@ Token 有效期：**7 天**。過期後需重新登入。
 ### 資料庫 / 部署
 
 - **MongoDB Atlas**（建議）或本地 MongoDB
-- **Zeabur**：後端（Python）+ 前端（靜態網站）
+- **Docker Compose + nginx reverse proxy**：自架 NAS 手動部署（無 CI/CD 自動部署），詳見 [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md)
 
 ---
 

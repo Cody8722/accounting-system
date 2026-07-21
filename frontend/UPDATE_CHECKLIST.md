@@ -217,7 +217,7 @@ python -m http.server 8080
 
 ---
 
-## 🚀 部署到 Zeabur
+## 🚀 部署後檢查
 
 ### 自動更新時機
 

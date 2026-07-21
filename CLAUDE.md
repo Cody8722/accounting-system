@@ -24,7 +24,7 @@
 
 分支主幹見全域，本專案額外：
 - `develop`：CI 自動觸發測試
-- `release`：CI 自動觸發測試 **+ 部署**（不只是測試）
+- `release`：CI 自動觸發測試（**不含部署**）。正式環境部署完全手動：SSH 進 NAS 執行 `docker compose up -d --build --force-recreate`，詳見 [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md)。
 
 ---
 
@@ -38,7 +38,7 @@ backend/（Flask Python API）
 MongoDB（accounting_db）
 ```
 
-前端與後端分開部署。前端透過 `detectBackendUrl()`（`js-refactored/config.js`）自動偵測後端 URL（本地 → localhost:5001；Zeabur → 自動替換網域）。
+前端與後端分開部署。前端透過 `resolveBackendUrl()`（`frontend/v2/js/config.js`）自動偵測後端 URL（本地 → localhost:5001；區網 IP → 對應 IP:5001；`*.ts.net` Tailscale 網域 → 同源相對路徑，由 nginx 依 `/test/` 前綴分流至正式/測試環境）。正式環境為自架 NAS，透過 Docker Compose + nginx reverse proxy 手動部署，無任何 CI/CD 自動部署機制，詳見 [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md)。
 
 ### 後端（`backend/`）
 
@@ -203,7 +203,7 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 
 - **`records.user_id` 舊資料可能為空**：資料庫中歷史記錄的 `user_id` 欄位可能為 null，查詢時必須做 null 處理，不可假設一定有值。
 - **`records` vs `recurring` 的 `user_id` 型別不同**：`records.user_id` 是 **ObjectId**（經 `require_auth` 轉換），`recurring.user_id` 也是 ObjectId，但歷史資料可能混有 String，跨集合查詢時注意。
-- **不要硬寫後端 URL**：前端 `detectBackendUrl()`（`js-refactored/config.js`）會依執行環境自動切換後端位址（localhost:5001 或 Zeabur 網域），任何地方都不要 hardcode URL。
+- **不要硬寫後端 URL**：前端 `resolveBackendUrl()`（`frontend/v2/js/config.js`）會依執行環境自動切換後端位址（localhost:5001、區網 IP，或 NAS 的 `*.ts.net` 網域），任何地方都不要 hardcode URL。
 - **Service Worker 版本號需手動更新**：每次修改前端後，必須升版 `frontend/service-worker.js` 第 14 行的 `CACHE_NAME`，否則用戶端快取不會自動清除。詳見「前端更新必做事項」。
 - **E2E 測試並行策略**：同一 spec file 內**串行**（避免同帳號資料競爭），spec files **之間**才是並行（最多 4 workers）。不要在同一 spec file 內加 `test.parallel()`。
 - **後端測試必須設 `TESTING=true`**：未設定時 Flask app 會連接真實 MongoDB，測試資料會污染生產資料庫。
@@ -223,7 +223,7 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 | [`docs/E2E_TESTING_GUIDE.md`](docs/E2E_TESTING_GUIDE.md) | Playwright E2E 測試完整指南 |
 | [`docs/FRONTEND_TESTING.md`](docs/FRONTEND_TESTING.md) | 前端測試實施指南 |
 | [`docs/TESTING_BEST_PRACTICES.md`](docs/TESTING_BEST_PRACTICES.md) | 測試最佳實踐指南 |
-| [`docs/ZEABUR_DEPLOYMENT.md`](docs/ZEABUR_DEPLOYMENT.md) | Zeabur 部署指南 |
+| [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md) | NAS 同域雙環境部署操作手冊（正式 `/` + 測試 `/test/`） |
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 前端更新版本號檢查清單（Service Worker） |
 | [`frontend/PWA-README.md`](frontend/PWA-README.md) | PWA 安裝與離線功能說明 |
 | [`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md) | 密碼強度規則與環境變數設定 |

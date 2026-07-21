@@ -1,6 +1,6 @@
 """
 Gunicorn 配置文件
-針對 Zeabur 部署優化，解決記憶體和超時問題
+針對資源受限的 NAS 部署優化，解決記憶體和超時問題
 """
 
 import multiprocessing
@@ -39,7 +39,7 @@ loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 
 # Preload 應用（可能導致記憶體使用增加，但啟動更快）
-# 在 Zeabur 上先禁用 preload 以減少啟動記憶體
+# 先禁用 preload 以減少啟動記憶體
 preload_app = False
 
 # Worker 生命週期
