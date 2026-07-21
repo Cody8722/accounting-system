@@ -8,13 +8,15 @@ import { CATEGORY_TREE, categoryMeta } from './config.js';
 import { fmtMoney, escapeHtml, showToast, showConfirm, todayStr } from './utils.js';
 import { state, monthRange, shiftMonth, emit, on } from './store.js';
 import { openAdd } from './add.js';
+import { walletBalanceStripHtml, walletChipsHtml, walletMeta } from './wallet.js';
+import { lockQueryParams, lockBadgeHtml, bindLockBadge, openLockPicker } from './lock.js';
 
 let cache = [];              // 當月記錄
 let table = { type: 'all', category: '', query: '', sortBy: 'date', sortOrder: 'desc' };
 
 async function load() {
   const { start, end } = monthRange();
-  const data = await apiJson(`/admin/api/accounting/records?page=1&limit=200&start_date=${start}&end_date=${end}&sort_by=date&sort_order=desc`);
+  const data = await apiJson(`/admin/api/accounting/records?page=1&limit=200&start_date=${start}&end_date=${end}&sort_by=date&sort_order=desc${lockQueryParams()}`);
   cache = Array.isArray(data) ? data : (data.records || []);
   return cache;
 }
@@ -40,15 +42,22 @@ export async function renderLedgerMobile(container) {
   const head = container.querySelector('[data-el="head"]');
   const list = container.querySelector('[data-el="list"]');
   list.innerHTML = '<div style="text-align:center;color:var(--muted2);padding:40px 0">載入中…</div>';
-  let items;
-  try { items = await load(); } catch (e) { list.innerHTML = `<div style="text-align:center;color:var(--expense);padding:40px 0">${escapeHtml(e.message)}</div>`; return; }
+  let items, walletStrip;
+  try {
+    [items, walletStrip] = await Promise.all([load(), walletBalanceStripHtml()]);
+  } catch (e) { list.innerHTML = `<div style="text-align:center;color:var(--expense);padding:40px 0">${escapeHtml(e.message)}</div>`; return; }
   const t = totals(items);
   const { label } = monthRange();
   head.innerHTML = `
+    ${lockBadgeHtml()}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <span style="font-weight:700;font-size:22px;color:var(--text)">帳本</span>
-      <button class="icon-btn" data-el="theme"><i class="ti ti-moon"></i></button>
+      <div style="display:flex;gap:8px">
+        <button class="icon-btn" data-el="lock" title="鎖定篩選"><i class="ti ti-lock-open"></i></button>
+        <button class="icon-btn" data-el="theme"><i class="ti ti-moon"></i></button>
+      </div>
     </div>
+    ${walletStrip}
     <div class="balance-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <span style="font-size:13px;color:var(--muted2)">${label} · 結餘</span>
@@ -75,6 +84,8 @@ export async function renderLedgerMobile(container) {
   head.querySelector('[data-el="prev"]').onclick = () => shiftMonth(-1);
   head.querySelector('[data-el="next"]').onclick = () => shiftMonth(1);
   head.querySelector('[data-el="theme"]').onclick = () => import('./theme.js').then((m) => m.cycleTheme());
+  head.querySelector('[data-el="lock"]').onclick = () => openLockPicker();
+  bindLockBadge(head);
 
   if (!items.length) { list.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:50px 0"><i class="ti ti-notebook" style="font-size:40px;color:var(--faint)"></i><div style="margin-top:10px;font-size:14px">本月尚無記錄</div></div>`; return; }
 
@@ -221,6 +232,8 @@ function openEdit(record) {
       <input data-el="amount" type="number" class="field mono" style="margin:6px 0 14px;font-size:18px" value="${record.amount}">
       <label style="font-size:13px;color:var(--muted2)">分類</label>
       <select data-el="category" class="field" style="margin:6px 0 14px">${leaves.map((l) => `<option ${l === record.category ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>
+      <label style="font-size:13px;color:var(--muted2)">錢包</label>
+      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletChipsHtml(record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id)}</div>
       <label style="font-size:13px;color:var(--muted2)">日期</label>
       <input data-el="date" type="date" class="field" style="margin:6px 0 14px" value="${record.date}">
       <label style="font-size:13px;color:var(--muted2)">備註</label>
@@ -231,11 +244,17 @@ function openEdit(record) {
       </div>
     </div>`;
   let curType = record.type;
+  let curWalletId = record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : (record.wallet_id || null);
   ov.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => {
     curType = b.dataset.t;
     ov.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('active', x === b));
     const nl = CATEGORY_TREE[curType].flatMap((g) => g.items);
     ov.querySelector('[data-el="category"]').innerHTML = nl.map((l) => `<option>${escapeHtml(l)}</option>`).join('');
+  });
+  ov.querySelector('[data-el="walletArea"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wallet]'); if (!b) return;
+    curWalletId = b.dataset.wallet || null;
+    ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
   });
   ov.querySelector('[data-el="save"]').onclick = async () => {
     const body = {
@@ -245,6 +264,7 @@ function openEdit(record) {
       date: ov.querySelector('[data-el="date"]').value || todayStr(),
       description: ov.querySelector('[data-el="note"]').value,
       expense_type: record.expense_type || null,
+      wallet_id: curWalletId,
     };
     if (!body.amount || body.amount <= 0) { showToast('金額須大於 0', 'warning'); return; }
     try {

@@ -8,12 +8,14 @@ import { categoryMeta } from './config.js';
 import { fmtMoney, escapeHtml } from './utils.js';
 import { monthRange } from './store.js';
 import { donut, bars, line } from './charts.js';
+import { lockQueryParams, lockBadgeHtml, bindLockBadge } from './lock.js';
 
 async function fetchData() {
   const { start, end } = monthRange();
+  const lock = lockQueryParams();
   const [stats, trends] = await Promise.all([
-    apiJson(`/admin/api/accounting/stats?start_date=${start}&end_date=${end}`),
-    apiJson('/admin/api/accounting/trends?months=6'),
+    apiJson(`/admin/api/accounting/stats?start_date=${start}&end_date=${end}${lock}`),
+    apiJson(`/admin/api/accounting/trends?months=6${lock}`),
   ]);
   return { stats, trends };
 }
@@ -95,7 +97,8 @@ async function render(container, mode) {
     page.appendChild(grid);
     container.innerHTML = ''; container.appendChild(page);
   } else {
-    container.innerHTML = '<div style="padding:6px 20px 0;flex-shrink:0"><span style="font-weight:700;font-size:22px;color:var(--text)">統計</span></div>';
+    container.innerHTML = `<div style="padding:6px 20px 0;flex-shrink:0">${lockBadgeHtml()}<span style="font-weight:700;font-size:22px;color:var(--text)">統計</span></div>`;
+    bindLockBadge(container);
     const scroll = document.createElement('div');
     scroll.className = 'noscroll';
     scroll.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px 100px;display:flex;flex-direction:column;gap:16px';
