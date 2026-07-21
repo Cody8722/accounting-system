@@ -15,6 +15,7 @@ def register_blueprints(app):
     from routes.recurring import bp as recurring_bp
     from routes.stats import bp as stats_bp
     from routes.user import bp as user_bp
+    from routes.wallets import bp as wallets_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(budget_bp)
@@ -24,3 +25,4 @@ def register_blueprints(app):
     app.register_blueprint(recurring_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(wallets_bp)

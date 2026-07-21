@@ -19,10 +19,33 @@ from extensions import (
     _cache_key,
     _cache_set,
     limiter,
+    parse_object_id_list,
     require_auth,
     validate_date,
     validate_record_type,
 )
+
+
+def _apply_wallet_category_filter(query):
+    """解析 wallet_ids/categories 多值篩選參數並合併進查詢條件。
+    回傳 (True, None) 或 (False, (response, status))；成功時直接修改傳入的 query dict。
+    """
+    wallet_ids_param = request.args.get("wallet_ids", "").strip()
+    if wallet_ids_param:
+        valid, result = parse_object_id_list(wallet_ids_param)
+        if not valid:
+            return False, (jsonify({"error": result}), 400)
+        if result:
+            query["wallet_id"] = {"$in": result}
+
+    categories_param = request.args.get("categories", "").strip()
+    if categories_param:
+        cats = [c.strip() for c in categories_param.split(",") if c.strip()]
+        if cats:
+            query["category"] = {"$in": cats}
+
+    return True, None
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +63,19 @@ def get_accounting_stats():
     try:
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
+        wallet_ids_param = request.args.get("wallet_ids", "")
+        categories_param = request.args.get("categories", "")
 
-        ck = _cache_key(request.user_id, "stats", start_date or "", end_date or "")
+        # 篩選條件（含 wallet_ids/categories）不同即為不同結果，必須一併納入 cache key，
+        # 否則使用者切換鎖定模式的篩選後會拿到舊篩選條件的快取結果
+        ck = _cache_key(
+            request.user_id,
+            "stats",
+            start_date or "",
+            end_date or "",
+            wallet_ids_param,
+            categories_param,
+        )
         cached = _cache_get(ck)
         if cached is not None:
             return jsonify(cached), 200
@@ -53,6 +87,10 @@ def get_accounting_stats():
             valid_end, _ = validate_date(end_date)
             if valid_start and valid_end:
                 query["date"] = {"$gte": start_date, "$lte": end_date}
+
+        ok, err = _apply_wallet_category_filter(query)
+        if not ok:
+            return err
 
         income_pipeline = [
             {"$match": {**query, "type": "income"}},
@@ -199,6 +237,9 @@ def get_monthly_trends():
             months_count = 24
 
         base_query = {"user_id": ObjectId(request.user_id)}
+        ok, err = _apply_wallet_category_filter(base_query)
+        if not ok:
+            return err
 
         income_pipeline = [
             {"$match": {**base_query, "type": "income"}},
