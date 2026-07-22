@@ -31,9 +31,12 @@ from extensions import (
     validate_date,
     validate_description,
     validate_expense_type,
+    validate_location,
     validate_objectid,
     validate_record_type,
 )
+
+CASH_WITHDRAWAL_UNIT = 1000  # 支出現金不足時，從銀行提領的最小單位（無條件進位）
 
 
 def _resolve_wallet_id(raw, user_oid):
@@ -51,6 +54,44 @@ def _resolve_wallet_id(raw, user_oid):
     if not wallet:
         return False, "找不到該錢包或無權限使用"
     return True, wallet_oid
+
+
+def _get_location_balance(user_oid, wallet_id, location):
+    """計算指定 (帳戶, 位置) 目前餘額：收入 − 支出 + 轉入 − 轉出。
+    wallet_id 可為 None（未分類帳戶），與其他帳戶一樣視為獨立的一個桶。
+    """
+
+    def _sum(match):
+        agg = list(
+            db.accounting_records_collection.aggregate(
+                [
+                    {"$match": match},
+                    {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+                ]
+            )
+        )
+        return agg[0]["total"] if agg else 0.0
+
+    base = {"user_id": user_oid, "wallet_id": wallet_id, "location": location}
+    income = _sum({**base, "type": "income"})
+    expense = _sum({**base, "type": "expense"})
+    transfer_in = _sum(
+        {
+            "user_id": user_oid,
+            "wallet_id": wallet_id,
+            "type": "transfer",
+            "to_location": location,
+        }
+    )
+    transfer_out = _sum(
+        {
+            "user_id": user_oid,
+            "wallet_id": wallet_id,
+            "type": "transfer",
+            "from_location": location,
+        }
+    )
+    return income - expense + transfer_in - transfer_out
 
 
 logger = logging.getLogger(__name__)
@@ -189,6 +230,14 @@ def add_accounting_record():
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
+        if data.get("type") == "transfer":
+            return (
+                jsonify(
+                    {"error": "內部轉移請使用 /admin/api/accounting/records/transfer"}
+                ),
+                400,
+            )
+
         required_fields = ["type", "amount", "category", "date"]
         for field in required_fields:
             if field not in data:
@@ -227,14 +276,71 @@ def add_accounting_record():
         if not valid:
             return jsonify({"error": wallet_id}), 400
 
+        record_type = data["type"]
+        source_transfer_id = None
+
+        if record_type == "income":
+            # 收入：位置必填，使用者手動選銀行或現金
+            valid, location = validate_location(data.get("location"), required=True)
+            if not valid:
+                return jsonify({"error": location}), 400
+        else:
+            # 支出：位置由系統自動判斷，忽略前端傳入的 location
+            cash_balance = _get_location_balance(user_oid, wallet_id, "cash")
+            if cash_balance >= amount:
+                location = "cash"
+            else:
+                deficit = amount - cash_balance
+                withdrawal = (
+                    math.ceil(deficit / CASH_WITHDRAWAL_UNIT) * CASH_WITHDRAWAL_UNIT
+                )
+                if not data.get("confirm_withdrawal"):
+                    return (
+                        jsonify(
+                            {
+                                "error": "cash_insufficient",
+                                "message": (
+                                    f"現金不足，需從銀行提領 NT$ {withdrawal:,.0f} "
+                                    "補齊，是否確認？"
+                                ),
+                                "cash_balance": cash_balance,
+                                "deficit": deficit,
+                                "withdrawal_amount": withdrawal,
+                            }
+                        ),
+                        409,
+                    )
+                # 使用者已確認：先寫入提領轉帳、再寫入支出。沒有 DB transaction，
+                # 刻意用這個順序——萬一第二步失敗，殘留的是「多一筆轉帳」（可回溯、
+                # 可補救），而不是「現金憑空減少卻沒有任何紀錄可查」。
+                transfer_doc = {
+                    "user_id": user_oid,
+                    "type": "transfer",
+                    "wallet_id": wallet_id,
+                    "from_location": "bank",
+                    "to_location": "cash",
+                    "amount": withdrawal,
+                    "date": data["date"],
+                    "description": "支出現金不足，自動提領",
+                    "auto_generated": True,
+                    "created_at": datetime.now(),
+                }
+                transfer_result = db.accounting_records_collection.insert_one(
+                    transfer_doc
+                )
+                source_transfer_id = transfer_result.inserted_id
+                location = "cash"
+
         record = {
-            "type": data["type"],
+            "type": record_type,
             "amount": amount,
             "category": category,
             "date": data["date"],
             "description": description,
             "expense_type": expense_type,
             "wallet_id": wallet_id,
+            "location": location,
+            "source_transfer_id": source_transfer_id,
             "created_at": datetime.now(),
             "user_id": user_oid,
         }
@@ -282,7 +388,26 @@ def update_accounting_record(record_id):
             valid, msg = validate_record_type(data["type"])
             if not valid:
                 return jsonify({"error": msg}), 400
+            if data["type"] == "transfer" or existing_record.get("type") == "transfer":
+                return (
+                    jsonify(
+                        {"error": "轉帳記錄的類型與帳戶內位置間移動無法透過此端點修改"}
+                    ),
+                    400,
+                )
             update_data["type"] = data["type"]
+
+        if "from_location" in data or "to_location" in data:
+            return jsonify({"error": "轉帳記錄的位置無法修改，請刪除後重新記錄"}), 400
+
+        if "location" in data:
+            final_type = update_data.get("type", existing_record.get("type"))
+            if final_type != "income":
+                return jsonify({"error": "只有收入記錄可以修改位置"}), 400
+            valid, location = validate_location(data["location"], required=True)
+            if not valid:
+                return jsonify({"error": location}), 400
+            update_data["location"] = location
 
         if "amount" in data:
             valid, result = validate_amount(data["amount"])
@@ -357,10 +482,17 @@ def delete_accounting_record(record_id):
             "user_id": ObjectId(request.user_id),
         }
 
-        result = db.accounting_records_collection.delete_one(query)
+        deleted = db.accounting_records_collection.find_one_and_delete(query)
 
-        if result.deleted_count == 0:
+        if not deleted:
             return jsonify({"error": "找不到該記錄或無權限刪除"}), 404
+
+        # 刪除連動：若這筆支出曾觸發自動提領現金，一併刪除對應的轉帳記錄
+        source_transfer_id = deleted.get("source_transfer_id")
+        if source_transfer_id:
+            db.accounting_records_collection.delete_one(
+                {"_id": source_transfer_id, "user_id": ObjectId(request.user_id)}
+            )
 
         _cache_invalidate_user(request.user_id)
         logger.info(f"刪除記帳記錄: {record_id} (user: {request.email})")
@@ -368,3 +500,89 @@ def delete_accounting_record(record_id):
     except Exception as e:
         logger.error(f"刪除記帳記錄失敗: {e}")
         return jsonify({"error": "刪除記錄失敗"}), 500
+
+
+@bp.route("/admin/api/accounting/records/transfer", methods=["POST"])
+@limiter.limit("50 per minute")
+@require_auth
+def add_transfer_record():
+    """新增內部轉移記錄（使用者手動記錄的存錢/領錢，同一帳戶內的位置間資金移動，
+    不計入收入/支出統計）"""
+    if db.accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        required_fields = [
+            "wallet_id",
+            "from_location",
+            "to_location",
+            "amount",
+            "date",
+        ]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"缺少必要欄位: {field}"}), 400
+
+        user_oid = ObjectId(request.user_id)
+
+        raw_wallet_id = data.get("wallet_id")
+        if not raw_wallet_id:
+            return jsonify({"error": "轉移必須指定帳戶"}), 400
+        valid, wallet_id = _resolve_wallet_id(raw_wallet_id, user_oid)
+        if not valid:
+            return jsonify({"error": wallet_id}), 400
+
+        valid, from_location = validate_location(
+            data.get("from_location"), required=True
+        )
+        if not valid:
+            return jsonify({"error": from_location}), 400
+
+        valid, to_location = validate_location(data.get("to_location"), required=True)
+        if not valid:
+            return jsonify({"error": to_location}), 400
+
+        if from_location == to_location:
+            return jsonify({"error": "轉出與轉入位置不可相同"}), 400
+
+        valid, result = validate_amount(data["amount"])
+        if not valid:
+            return jsonify({"error": result}), 400
+        amount = result
+
+        valid, result = validate_date(data["date"])
+        if not valid:
+            return jsonify({"error": result}), 400
+
+        description = data.get("description", "")
+        valid, description = validate_description(description)
+        if not valid:
+            return jsonify({"error": description}), 400
+
+        record = {
+            "user_id": user_oid,
+            "type": "transfer",
+            "wallet_id": wallet_id,
+            "from_location": from_location,
+            "to_location": to_location,
+            "amount": amount,
+            "date": data["date"],
+            "description": description,
+            "auto_generated": False,
+            "created_at": datetime.now(),
+        }
+
+        result = db.accounting_records_collection.insert_one(record)
+        _cache_invalidate_user(request.user_id)
+        logger.info(f"新增內部轉移: {result.inserted_id} (user: {request.email})")
+        return (
+            jsonify({"message": "轉移已記錄", "id": str(result.inserted_id)}),
+            201,
+        )
+    except Exception as e:
+        logger.error(f"新增內部轉移失敗: {e}")
+        return jsonify({"error": "新增轉移失敗"}), 500

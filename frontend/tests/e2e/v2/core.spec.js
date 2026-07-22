@@ -18,6 +18,19 @@ test.describe('v2 核心流程', () => {
     await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
   }
 
+  /** 支出送出後，若現金不足會另跳一個確認提領彈窗（沿用 .overlay.center，
+   * 與記一筆彈窗疊在一起）；沒有事先入帳現金的測試帳號第一次記支出必定
+   * 觸發，這裡統一處理，確認後才會真的寫入並關閉記一筆彈窗。 */
+  async function confirmWithdrawalIfNeeded(page) {
+    const confirmBtn = page.locator('.sheet.dialog [data-act="ok"]');
+    try {
+      await confirmBtn.waitFor({ state: 'visible', timeout: 8000 });
+      await confirmBtn.click();
+    } catch {
+      // 現金足夠、沒跳確認框——正常情況，不需處理
+    }
+  }
+
   /** 桌面版：切到明細 → 開記一筆 → 填金額(input) → 選分類 → 儲存 → 彈窗關閉 */
   async function addRecordDesktop(page, amount, leaf) {
     await gotoLedger(page);
@@ -26,6 +39,7 @@ test.describe('v2 核心流程', () => {
     await page.fill('.overlay.center [data-el="amountInput"]', amount);
     await page.click(`.overlay.center [data-leaf="${leaf}"]`);
     await page.click('.overlay.center [data-el="save"]');
+    await confirmWithdrawalIfNeeded(page);
     await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
   }
 
@@ -40,6 +54,7 @@ test.describe('v2 核心流程', () => {
     await expect(page.locator('.overlay.center [data-el="amountInput"]')).toHaveValue('137', { timeout: 5000 });
     await page.click('.overlay.center [data-leaf="早餐"]');
     await page.click('.overlay.center [data-el="save"]');
+    await confirmWithdrawalIfNeeded(page);
     await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('早餐', { timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('137', { timeout: 10000 });

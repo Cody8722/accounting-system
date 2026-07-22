@@ -11,16 +11,17 @@
 
 import { apiJson } from './api.js';
 import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta } from './config.js';
-import { showToast, todayStr, escapeHtml } from './utils.js';
+import { showToast, showConfirm, todayStr, escapeHtml } from './utils.js';
 import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
-import { fetchWallets, walletChipsHtml } from './wallet.js';
+import { fetchWallets, walletChipsHtml, locationChipsHtml } from './wallet.js';
 
 let host = null;          // 掛載容器（覆蓋層）
 let mode = 'mobile';      // mobile | desktop
 let type = 'expense';     // expense | income
 let category = '';        // 目前選取的葉分類
 let walletId = null;      // 目前選取的錢包（null = 未分類），與 category 各自獨立的欄位
+let location = null;      // 位置（bank/cash）——僅收入需要使用者手動選；支出由後端自動判斷
 let date = todayStr();
 let note = '';
 let recurring = false;
@@ -117,6 +118,14 @@ function highlightWallet() {
   host.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((b) => b.classList.toggle('active', (b.dataset.wallet || null) === walletId));
 }
 
+function renderLocationArea() {
+  const area = host.querySelector('[data-el="locationArea"]');
+  if (area) area.innerHTML = locationChipsHtml(location);
+}
+function highlightLocation() {
+  host.querySelectorAll('[data-el="locationArea"] [data-location]').forEach((b) => b.classList.toggle('active', b.dataset.location === location));
+}
+
 function refresh() {
   if (!host) return;
   const amt = displayAmount();
@@ -136,8 +145,13 @@ function refresh() {
   const recBtn = host.querySelector('[data-el="recBtn"]');
   if (recBtn) recBtn.style.color = recurring ? 'var(--accent)' : 'var(--muted)';
 
+  // 位置（銀行/現金）只有收入需要使用者選；支出完全不顯示，由後端自動判斷
+  const locationWrap = host.querySelector('[data-el="locationWrap"]');
+  if (locationWrap) locationWrap.classList.toggle('hidden', type !== 'income');
+
   highlightCat();
   highlightWallet();
+  highlightLocation();
 }
 
 function openCategorySheet() {
@@ -201,32 +215,54 @@ function openRecurSheet() {
   document.body.appendChild(ov);
 }
 
+/** 存檔成功後的共用收尾：定期排程、提示、清空計算機與備註、電腦版關閉 */
+async function finishSave(amount) {
+  if (recurring) {
+    const day = Number(date.slice(8, 10)) || 1;
+    await apiJson('/admin/api/recurring', {
+      method: 'POST',
+      body: JSON.stringify({ name: note || category, amount, type, category, day_of_month: day, description: `${recurSummary()}${note ? '・' + note : ''}` }),
+    }).catch(() => {});
+  }
+  showToast('已記一筆', 'success');
+  emit('records:changed');
+  // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
+  clearCalc();
+  note = '';
+  const noteInput = host.querySelector('[data-el="note"]');
+  if (noteInput) noteInput.value = '';
+  // 電腦版存完關閉（回到清單）；手機版留著連續記帳
+  if (mode === 'desktop') close();
+}
+
 async function save() {
   const amount = evaluate();
   if (!amount || amount <= 0) { showToast('請輸入金額', 'warning'); return; }
   if (!category) { showToast('請選擇分類', 'warning'); return; }
+  if (type === 'income' && !location) { showToast('請選擇位置', 'warning'); return; }
+
+  const payload = { type, amount, category, date, description: note, expense_type: null, wallet_id: walletId };
+  if (type === 'income') payload.location = location;
+
   try {
-    await apiJson('/admin/api/accounting/records', {
-      method: 'POST',
-      body: JSON.stringify({ type, amount, category, date, description: note, expense_type: null, wallet_id: walletId }),
-    });
-    if (recurring) {
-      const day = Number(date.slice(8, 10)) || 1;
-      await apiJson('/admin/api/recurring', {
-        method: 'POST',
-        body: JSON.stringify({ name: note || category, amount, type, category, day_of_month: day, description: `${recurSummary()}${note ? '・' + note : ''}` }),
-      }).catch(() => {});
-    }
-    showToast('已記一筆', 'success');
-    emit('records:changed');
-    // 連續記帳：清空金額與備註，保留類型/分類
-    clearCalc();
-    note = '';
-    const noteInput = host.querySelector('[data-el="note"]');
-    if (noteInput) noteInput.value = '';
-    // 電腦版存完關閉（回到清單）；手機版留著連續記帳
-    if (mode === 'desktop') close();
+    await apiJson('/admin/api/accounting/records', { method: 'POST', body: JSON.stringify(payload) });
+    await finishSave(amount);
   } catch (e) {
+    // 支出現金不足：後端回 409 附帶提領試算，跳確認框，確認後帶 confirm_withdrawal 重送
+    if (e.status === 409 && e.body && e.body.error === 'cash_insufficient') {
+      const ok = await showConfirm(e.body.message, { confirmText: '確認提領', danger: false });
+      if (!ok) return;
+      try {
+        await apiJson('/admin/api/accounting/records', {
+          method: 'POST',
+          body: JSON.stringify({ ...payload, confirm_withdrawal: true }),
+        });
+        await finishSave(amount);
+      } catch (e2) {
+        showToast(e2.message, 'error');
+      }
+      return;
+    }
     showToast(e.message, 'error');
   }
 }
@@ -260,14 +296,15 @@ function onHostClick(e) {
   const t = e.target;
   if (t.closest('[data-el="cancel"]')) return close();
   if (t.closest('[data-el="invoice"]')) return openInvoiceScan(invoiceCallback);
-  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; renderCatArea(); refresh(); return; }
-  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; location = null; renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; location = null; renderCatArea(); refresh(); return; }
   if (t.closest('[data-el="recBtn"]')) { recurring = !recurring; refresh(); if (recurring) openRecurSheet(); return; }
   if (t.closest('[data-el="recRow"]')) return openRecurSheet();
   if (t.closest('[data-el="calcToggle"]')) { host.querySelector('[data-el="keypadPanel"]').classList.toggle('hidden'); return; }
   const leaf = t.closest('[data-leaf]'); if (leaf) { category = leaf.dataset.leaf; highlightCat(); return; }
   if (t.closest('[data-more]')) return openCategorySheet();
   const wb = t.closest('[data-wallet]'); if (wb) { walletId = wb.dataset.wallet || null; highlightWallet(); return; }
+  const lb = t.closest('[data-location]'); if (lb) { location = lb.dataset.location; highlightLocation(); return; }
   const dg = t.closest('[data-digit]'); if (dg) return pressDigit(dg.dataset.digit);
   const opb = t.closest('[data-op]'); if (opb) return pressOp(opb.dataset.op);
   if (t.closest('[data-back]')) return backspace();
@@ -313,6 +350,10 @@ function buildMobile() {
       <div style="padding:6px 18px 0">
         <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">錢包</div>
         <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+      <div data-el="locationWrap" class="hidden" style="padding:10px 18px 0">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">位置</div>
+        <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
       <div style="margin:6px 18px 0;display:flex;align-items:center;gap:10px">
         <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:12px;padding:11px 13px">
@@ -362,6 +403,10 @@ function buildDesktop() {
           <div data-el="catArea"></div>
           <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">錢包</div>
           <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
+          <div data-el="locationWrap" class="hidden">
+            <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">位置</div>
+            <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
+          </div>
           <div style="font-size:13px;color:var(--muted2);margin:6px 0 8px">備註 / 日期</div>
           <div style="display:flex;gap:10px;margin-bottom:14px">
             <input data-el="note" class="field" placeholder="加個備註…" style="flex:1">
@@ -407,11 +452,12 @@ function buildDesktop() {
 export function openAdd(initialType = 'expense') {
   if (host) return;
   mode = window.innerWidth >= 900 ? 'desktop' : 'mobile';
-  type = initialType; category = ''; walletId = null; date = todayStr(); note = ''; recurring = false;
+  type = initialType; category = ''; walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
   acc = null; op = null; buf = '';
   if (mode === 'desktop') buildDesktop(); else buildMobile();
   renderCatArea();
   renderWalletArea();
+  renderLocationArea();
   refresh();
   // 錢包清單快取可能尚未載入過（例如尚未開過設定頁的錢包管理）；抓回後重繪一次 chips
   fetchWallets().then(renderWalletArea).catch(() => {});

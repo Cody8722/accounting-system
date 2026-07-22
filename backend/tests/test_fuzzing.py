@@ -69,6 +69,7 @@ def valid_base():
         "amount": 100.0,
         "category": "測試",
         "date": datetime.now().strftime("%Y-%m-%d"),
+        "confirm_withdrawal": True,  # 避免現金不足的 409 干擾其他欄位的模糊測試
     }
 
 
