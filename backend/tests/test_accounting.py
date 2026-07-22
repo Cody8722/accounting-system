@@ -63,6 +63,7 @@ class TestRecordCreation:
             "category": "飲食",
             "date": datetime.now().strftime("%Y-%m-%d"),
             "description": "午餐",
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -82,6 +83,7 @@ class TestRecordCreation:
             "category": "薪水",
             "date": datetime.now().strftime("%Y-%m-%d"),
             "description": "月薪",
+            "location": "cash",
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -174,6 +176,7 @@ class TestRecordCreation:
             "amount": 100.123456,  # 超過 2 位小數
             "category": "測試",
             "date": datetime.now().strftime("%Y-%m-%d"),
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -211,6 +214,7 @@ class TestRecordCreation:
             "amount": 100,
             "category": "測試",
             "date": future_date,
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -230,6 +234,7 @@ class TestRecordCreation:
             "amount": 100,
             "category": "測試",
             "date": "1900-01-01",
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -322,6 +327,7 @@ class TestRecordCreation:
             "category": "測試",
             "date": datetime.now().strftime("%Y-%m-%d"),
             "description": '<script>alert("XSS")</script>',
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -341,6 +347,7 @@ class TestRecordCreation:
             "amount": 100,
             "category": "'; DROP TABLE records; --",
             "date": datetime.now().strftime("%Y-%m-%d"),
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",
@@ -531,6 +538,7 @@ class TestConcurrency:
                 "amount": 100 + i,
                 "category": f"測試{i}",
                 "date": datetime.now().strftime("%Y-%m-%d"),
+                "confirm_withdrawal": True,
             }
             response = client.post(
                 "/admin/api/accounting/records",

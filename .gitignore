@@ -58,7 +58,7 @@ test-results/
 playwright-report/
 playwright/.cache/
 
-# Zeabur deployment - prevent accidental Dockerfile in frontend
+# 前端為純靜態網站，避免誤加 Dockerfile
 frontend/Dockerfile
 !frontend/Dockerfile.backup
 !frontend/Dockerfile.docker-legacy

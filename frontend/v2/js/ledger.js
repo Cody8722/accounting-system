@@ -8,7 +8,7 @@ import { CATEGORY_TREE, categoryMeta } from './config.js';
 import { fmtMoney, escapeHtml, showToast, showConfirm, todayStr } from './utils.js';
 import { state, monthRange, shiftMonth, emit, on } from './store.js';
 import { openAdd } from './add.js';
-import { walletBalanceStripHtml, walletChipsHtml, walletMeta } from './wallet.js';
+import { walletBalanceStripHtml, walletChipsHtml, walletOnlyChipsHtml, locationChipsHtml, LOCATION_META, walletMeta } from './wallet.js';
 import { lockQueryParams, lockBadgeHtml, bindLockBadge, openLockPicker } from './lock.js';
 
 let cache = [];              // 當月記錄
@@ -22,8 +22,12 @@ async function load() {
 }
 
 function totals(list) {
+  // 內部轉移（type=transfer）不計入收支統計，兩者皆不加總
   let income = 0, expense = 0;
-  for (const r of list) { if (r.type === 'income') income += r.amount; else expense += r.amount; }
+  for (const r of list) {
+    if (r.type === 'income') income += r.amount;
+    else if (r.type === 'expense') expense += r.amount;
+  }
   return { income, expense, balance: income - expense };
 }
 const rid = (r) => (r._id && r._id.$oid) ? r._id.$oid : r._id;
@@ -33,6 +37,15 @@ function catIconHtml(leaf, size = 38) {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const bg = m.color + (isDark ? '26' : '1f');
   return `<div class="cat-icon" style="width:${size}px;height:${size}px;background:${bg}"><i class="ti ${m.icon}" style="color:${m.color};font-size:${size * 0.52}px"></i></div>`;
+}
+
+function transferIconHtml(size = 38) {
+  return `<div class="cat-icon" style="width:${size}px;height:${size}px;background:var(--fill)"><i class="ti ti-arrows-right-left" style="color:var(--muted2);font-size:${size * 0.5}px"></i></div>`;
+}
+function transferLabel(r) {
+  const from = LOCATION_META[r.from_location]?.label || r.from_location;
+  const to = LOCATION_META[r.to_location]?.label || r.to_location;
+  return `${from} → ${to}`;
 }
 
 /* ============ 手機：帳本 ============ */
@@ -94,13 +107,22 @@ export async function renderLedgerMobile(container) {
   const dates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
   list.innerHTML = dates.map((d) => {
     const rows = groups[d];
-    const sum = rows.reduce((s, r) => s + (r.type === 'income' ? r.amount : -r.amount), 0);
+    // 內部轉移不計入當日收支小計
+    const sum = rows.reduce((s, r) => s + (r.type === 'income' ? r.amount : r.type === 'expense' ? -r.amount : 0), 0);
     return `<div style="margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:0 2px">
         <span style="font-weight:600;font-size:13px;color:var(--text3)">${d.slice(5)}</span>
         <span class="mono" style="font-size:12px;color:var(--muted2)">${sum >= 0 ? '+' : '−'}${fmtMoney(Math.abs(sum))}</span>
       </div>
-      <div class="card">${rows.map((r) => `
+      <div class="card">${rows.map((r) => r.type === 'transfer' ? `
+        <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
+          ${transferIconHtml()}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;font-size:15px;color:var(--text)">內部轉移</div>
+            <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || transferLabel(r))}</div>
+          </div>
+          <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${transferLabel(r)}</span>
+        </div>` : `
         <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
           ${catIconHtml(r.category)}
           <div style="flex:1;min-width:0">
@@ -158,7 +180,7 @@ export async function renderLedgerDesktop(container) {
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
         <div class="segment" style="background:var(--surface);border:1px solid var(--border)">
-          ${['all', 'expense', 'income'].map((v) => `<button data-type="${v}" class="${table.type === v ? 'active' : ''}" style="padding:6px 16px">${v === 'all' ? '全部' : v === 'expense' ? '支出' : '收入'}</button>`).join('')}
+          ${['all', 'expense', 'income', 'transfer'].map((v) => `<button data-type="${v}" class="${table.type === v ? 'active' : ''}" style="padding:6px 16px">${v === 'all' ? '全部' : v === 'expense' ? '支出' : v === 'income' ? '收入' : '轉帳'}</button>`).join('')}
         </div>
         <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;background:var(--surface);border:1px solid var(--border);border-radius:11px">
           <i class="ti ti-category" style="color:var(--muted2)"></i>
@@ -184,7 +206,14 @@ export async function renderLedgerDesktop(container) {
           <span style="font-weight:600;font-size:12px;color:var(--muted)">類型</span>
           <button data-sort="amount" style="display:flex;align-items:center;justify-content:flex-end;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:12px;color:var(--muted)">金額<i class="ti ${arrow('amount')}"></i></button>
         </div>
-        ${list.length ? list.map((r) => `
+        ${list.length ? list.map((r) => r.type === 'transfer' ? `
+          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
+            <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
+            <div style="display:flex;align-items:center;gap:10px">${transferIconHtml(30)}<span style="font-size:14px;color:var(--text)">${transferLabel(r)}</span></div>
+            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
+            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">轉帳</span></div>
+            <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
+          </div>` : `
           <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
             <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.category)}</span></div>
@@ -214,10 +243,16 @@ export async function renderLedgerDesktop(container) {
 
 /* ============ 編輯 / 刪除 ============ */
 function openEdit(record) {
+  if (record.type === 'transfer') return openEditTransfer(record);
+  return openEditIncomeExpense(record);
+}
+
+function openEditIncomeExpense(record) {
   const id = rid(record);
   const ov = document.createElement('div');
   ov.className = 'overlay';
   const leaves = CATEGORY_TREE[record.type].flatMap((g) => g.items);
+  const initialLocation = record.location || null;
   ov.innerHTML = `
     <div class="sheet">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -234,6 +269,10 @@ function openEdit(record) {
       <select data-el="category" class="field" style="margin:6px 0 14px">${leaves.map((l) => `<option ${l === record.category ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>
       <label style="font-size:13px;color:var(--muted2)">錢包</label>
       <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletChipsHtml(record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id)}</div>
+      <div data-el="locationWrap" class="${record.type === 'income' ? '' : 'hidden'}">
+        <label style="font-size:13px;color:var(--muted2)">位置</label>
+        <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${locationChipsHtml(initialLocation)}</div>
+      </div>
       <label style="font-size:13px;color:var(--muted2)">日期</label>
       <input data-el="date" type="date" class="field" style="margin:6px 0 14px" value="${record.date}">
       <label style="font-size:13px;color:var(--muted2)">備註</label>
@@ -245,16 +284,23 @@ function openEdit(record) {
     </div>`;
   let curType = record.type;
   let curWalletId = record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : (record.wallet_id || null);
+  let curLocation = initialLocation;
   ov.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => {
     curType = b.dataset.t;
     ov.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('active', x === b));
     const nl = CATEGORY_TREE[curType].flatMap((g) => g.items);
     ov.querySelector('[data-el="category"]').innerHTML = nl.map((l) => `<option>${escapeHtml(l)}</option>`).join('');
+    ov.querySelector('[data-el="locationWrap"]').classList.toggle('hidden', curType !== 'income');
   });
   ov.querySelector('[data-el="walletArea"]').addEventListener('click', (e) => {
     const b = e.target.closest('[data-wallet]'); if (!b) return;
     curWalletId = b.dataset.wallet || null;
     ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
+  });
+  ov.querySelector('[data-el="locationArea"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-location]'); if (!b) return;
+    curLocation = b.dataset.location;
+    ov.querySelectorAll('[data-el="locationArea"] [data-location]').forEach((x) => x.classList.toggle('active', x === b));
   });
   ov.querySelector('[data-el="save"]').onclick = async () => {
     const body = {
@@ -267,6 +313,10 @@ function openEdit(record) {
       wallet_id: curWalletId,
     };
     if (!body.amount || body.amount <= 0) { showToast('金額須大於 0', 'warning'); return; }
+    if (curType === 'income') {
+      if (!curLocation) { showToast('請選擇位置', 'warning'); return; }
+      body.location = curLocation;
+    }
     try {
       await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
       showToast('已更新', 'success'); ov.remove(); emit('records:changed');
@@ -274,6 +324,67 @@ function openEdit(record) {
   };
   ov.querySelector('[data-el="del"]').onclick = async () => {
     if (!(await showConfirm('確定刪除這筆記錄？'))) return;
+    try {
+      const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('刪除失敗');
+      showToast('已刪除', 'success'); ov.remove(); emit('records:changed');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+/** 內部轉移記錄的編輯：方向（from/to location）建立後不可改，只能改帳戶/金額/日期/備註 */
+function openEditTransfer(record) {
+  const id = rid(record);
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  const initialWalletId = record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id;
+  ov.innerHTML = `
+    <div class="sheet">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-weight:600;font-size:17px;color:var(--text)">編輯內部轉移</span>
+        <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:12px;padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
+        <i class="ti ti-lock"></i> 轉移方向建立後無法修改，如需更改請刪除後重新記錄
+      </div>
+      <label style="font-size:13px;color:var(--muted2)">方向</label>
+      <div style="margin:6px 0 14px;font-weight:600;font-size:15px;color:var(--text)">${transferLabel(record)}</div>
+      <label style="font-size:13px;color:var(--muted2)">帳戶</label>
+      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletOnlyChipsHtml(initialWalletId)}</div>
+      <label style="font-size:13px;color:var(--muted2)">金額</label>
+      <input data-el="amount" type="number" class="field mono" style="margin:6px 0 14px;font-size:18px" value="${record.amount}">
+      <label style="font-size:13px;color:var(--muted2)">日期</label>
+      <input data-el="date" type="date" class="field" style="margin:6px 0 14px" value="${record.date}">
+      <label style="font-size:13px;color:var(--muted2)">備註</label>
+      <input data-el="note" class="field" style="margin:6px 0 18px" value="${escapeHtml(record.description || '')}">
+      <div style="display:flex;gap:10px">
+        <button data-el="del" class="btn-primary" style="flex-shrink:0;background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-trash"></i></button>
+        <button data-el="save" class="btn-primary" style="flex:1">儲存</button>
+      </div>
+    </div>`;
+  let curWalletId = initialWalletId;
+  ov.querySelector('[data-el="walletArea"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wallet]'); if (!b) return;
+    curWalletId = b.dataset.wallet;
+    ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
+  });
+  ov.querySelector('[data-el="save"]').onclick = async () => {
+    const body = {
+      amount: parseFloat(ov.querySelector('[data-el="amount"]').value),
+      date: ov.querySelector('[data-el="date"]').value || todayStr(),
+      description: ov.querySelector('[data-el="note"]').value,
+      wallet_id: curWalletId,
+    };
+    if (!body.amount || body.amount <= 0) { showToast('金額須大於 0', 'warning'); return; }
+    try {
+      await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      showToast('已更新', 'success'); ov.remove(); emit('records:changed');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+  ov.querySelector('[data-el="del"]').onclick = async () => {
+    if (!(await showConfirm('確定刪除這筆轉移記錄？'))) return;
     try {
       const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('刪除失敗');

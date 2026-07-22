@@ -274,6 +274,7 @@ class TestDBExceptions:
                     "amount": 100,
                     "category": "測試",
                     "date": TODAY,
+                    "confirm_withdrawal": True,
                 },
                 headers=auth_headers,
             )

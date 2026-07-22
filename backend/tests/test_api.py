@@ -108,6 +108,7 @@ class TestRecordsAPI:
             "category": "food",
             "date": datetime.now().strftime("%Y-%m-%d"),
             "description": "Test expense",
+            "confirm_withdrawal": True,
         }
         response = client.post(
             "/admin/api/accounting/records",

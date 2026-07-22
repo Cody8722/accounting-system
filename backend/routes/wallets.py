@@ -10,6 +10,7 @@ POST   /admin/api/wallets                       新增錢包
 PUT    /admin/api/wallets/<id>                  更新錢包
 DELETE /admin/api/wallets/<id>                  封存錢包（不刪除歷史關聯記錄）
 GET    /admin/api/wallets/balances              各錢包即時餘額（含「未分類」）
+GET    /admin/api/wallets/location-summary      帳戶 × 位置（銀行/現金）雙維度餘額
 GET    /admin/api/wallets/<id>/balance-history  單一錢包近 N 月餘額變化
 """
 
@@ -266,6 +267,140 @@ def get_wallet_balances():
     except Exception as e:
         logger.error(f"取得錢包餘額失敗: {e}")
         return jsonify({"error": "取得錢包餘額失敗"}), 500
+
+
+@bp.route("/admin/api/wallets/location-summary", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_wallet_location_summary():
+    """帳戶 × 位置（銀行/現金）雙維度餘額：四組合、帳戶總計、位置總計一次回傳"""
+    if db.wallets_collection is None or db.accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    try:
+        user_oid = ObjectId(request.user_id)
+
+        wallets = list(
+            db.wallets_collection.find(
+                {"user_id": user_oid, "archived": {"$ne": True}}
+            ).sort("created_at", 1)
+        )
+
+        # buckets[(wallet_key, location)] = {income, expense, transfer_in, transfer_out}
+        # wallet_key 為字串或 None；location 為 "bank"/"cash"/None（None＝未分類位置，
+        # 通常是此功能上線前的舊資料，沿用「未分類」錢包桶同樣的相容處理方式）
+        buckets = {}
+
+        def bucket_for(wallet_key, location):
+            return buckets.setdefault(
+                (wallet_key, location),
+                {
+                    "income": 0.0,
+                    "expense": 0.0,
+                    "transfer_in": 0.0,
+                    "transfer_out": 0.0,
+                },
+            )
+
+        io_pipeline = [
+            {"$match": {"user_id": user_oid, "type": {"$in": ["income", "expense"]}}},
+            {
+                "$group": {
+                    "_id": {
+                        "wallet_id": "$wallet_id",
+                        "location": "$location",
+                        "type": "$type",
+                    },
+                    "total": {"$sum": "$amount"},
+                }
+            },
+        ]
+        for row in db.accounting_records_collection.aggregate(io_pipeline):
+            # 注意：舊資料可能完全沒有 wallet_id/location 欄位，MongoDB 的 $group _id
+            # 會直接省略該 key，一律用 .get() 讀取，不可用 [] 索引。
+            wid = row["_id"].get("wallet_id")
+            wallet_key = str(wid) if wid else None
+            loc = row["_id"].get("location")
+            rtype = row["_id"].get("type")
+            b = bucket_for(wallet_key, loc)
+            b[rtype] = b.get(rtype, 0.0) + row["total"]
+
+        transfer_out_pipeline = [
+            {"$match": {"user_id": user_oid, "type": "transfer"}},
+            {
+                "$group": {
+                    "_id": {"wallet_id": "$wallet_id", "location": "$from_location"},
+                    "total": {"$sum": "$amount"},
+                }
+            },
+        ]
+        for row in db.accounting_records_collection.aggregate(transfer_out_pipeline):
+            wid = row["_id"].get("wallet_id")
+            wallet_key = str(wid) if wid else None
+            loc = row["_id"].get("location")
+            bucket_for(wallet_key, loc)["transfer_out"] += row["total"]
+
+        transfer_in_pipeline = [
+            {"$match": {"user_id": user_oid, "type": "transfer"}},
+            {
+                "$group": {
+                    "_id": {"wallet_id": "$wallet_id", "location": "$to_location"},
+                    "total": {"$sum": "$amount"},
+                }
+            },
+        ]
+        for row in db.accounting_records_collection.aggregate(transfer_in_pipeline):
+            wid = row["_id"].get("wallet_id")
+            wallet_key = str(wid) if wid else None
+            loc = row["_id"].get("location")
+            bucket_for(wallet_key, loc)["transfer_in"] += row["total"]
+
+        def location_balance(wallet_key, location):
+            b = buckets.get((wallet_key, location))
+            if not b:
+                return 0.0
+            return b["income"] - b["expense"] + b["transfer_in"] - b["transfer_out"]
+
+        def wallet_entry(wallet_key, name, icon=None, color=None, is_default=False):
+            locations = {
+                loc: {"balance": location_balance(wallet_key, loc)}
+                for loc in ("bank", "cash")
+            }
+            unclassified_balance = location_balance(wallet_key, None)
+            total_balance = (
+                sum(v["balance"] for v in locations.values()) + unclassified_balance
+            )
+            return {
+                "wallet_id": wallet_key,
+                "name": name,
+                "icon": icon,
+                "color": color,
+                "is_default": is_default,
+                "locations": locations,
+                "unclassified_balance": unclassified_balance,
+                "total_balance": total_balance,
+            }
+
+        result = [
+            wallet_entry(
+                str(w["_id"]),
+                w.get("name", ""),
+                w.get("icon"),
+                w.get("color"),
+                bool(w.get("is_default", False)),
+            )
+            for w in wallets
+        ]
+        result.append(wallet_entry(None, "未分類"))
+
+        location_totals = {
+            loc: sum(location_balance(entry["wallet_id"], loc) for entry in result)
+            for loc in ("bank", "cash")
+        }
+
+        return jsonify({"wallets": result, "location_totals": location_totals}), 200
+    except Exception as e:
+        logger.error(f"取得帳戶位置餘額失敗: {e}")
+        return jsonify({"error": "取得帳戶位置餘額失敗"}), 500
 
 
 @bp.route("/admin/api/wallets/<wallet_id>/balance-history", methods=["GET"])

@@ -74,6 +74,12 @@ def _record_payload(
     }
     if wallet_id is not None:
         payload["wallet_id"] = wallet_id
+    # 這裡的測試都在驗證錢包/分類相關行為，不是位置雙維度功能本身，
+    # 一律帶最省事的值避開 income 必填 location、expense 現金不足 409 的干擾。
+    if record_type == "income":
+        payload["location"] = "cash"
+    elif record_type == "expense":
+        payload["confirm_withdrawal"] = True
     return payload
 
 
@@ -327,8 +333,10 @@ class TestArchiveWallet:
         )
         client.delete(f"/admin/api/wallets/{created_wallet_id}", headers=auth_headers)
 
+        # 篩選 type=expense：避免現金不足時系統自動產生的提領轉帳記錄
+        # （同樣掛在這個 wallet_id 下）干擾這裡要驗證的「wallet_id 關聯有無保留」
         records = client.get(
-            f"/admin/api/accounting/records?wallet_ids={created_wallet_id}",
+            f"/admin/api/accounting/records?wallet_ids={created_wallet_id}&type=expense",
             headers=auth_headers,
         ).get_json()
         assert records["total"] == 1
@@ -653,8 +661,10 @@ class TestRecordsWalletCategoryFilter:
             headers=auth_headers,
         )
 
+        # 篩選 type=expense：避免現金不足時系統自動產生的提領轉帳記錄
+        # （同樣掛在這個 wallet_id 下）干擾這裡要驗證的 wallet_id 篩選邏輯
         r = client.get(
-            f"/admin/api/accounting/records?wallet_ids={created_wallet_id}",
+            f"/admin/api/accounting/records?wallet_ids={created_wallet_id}&type=expense",
             headers=auth_headers,
         )
         data = r.get_json()

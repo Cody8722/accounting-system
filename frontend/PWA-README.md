@@ -41,7 +41,7 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 
 目前版本：`v1.3.6`
 
-### 步驟 3：部署到 Zeabur
+### 步驟 3：部署
 
 ```bash
 git add .
@@ -49,7 +49,7 @@ git commit -m "Update: ..."
 git push
 ```
 
-Zeabur 會自動部署靜態網站。
+推送後仍需手動部署，沒有自動觸發機制：SSH 進 NAS 執行 `docker compose up -d --build --force-recreate`，詳見 [`docs/DEPLOY_TWO_ENV.md`](../docs/DEPLOY_TWO_ENV.md)。
 
 ---
 
@@ -158,7 +158,7 @@ iOS Standalone 模式有一些特殊行為，系統已針對以下情況做處�
 **Q：為什麼沒有出現「安裝」提示？**
 
 確認：
-- 使用 HTTPS（Zeabur 自動提供）
+- 使用 HTTPS（NAS 部署由 nginx + Tailscale 憑證提供）
 - 有有效的 `manifest.json`
 - Service Worker 正常運作
 - 有 192×192 和 512×512 圖示

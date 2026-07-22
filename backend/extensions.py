@@ -55,7 +55,7 @@ ALLOWED_CATEGORIES = [
 def get_rate_limit_key():
     """
     優先用 JWT user_id 作為 rate limit key，讓每個用戶有獨立的 bucket。
-    Zeabur 等雲端平台的 reverse proxy 會讓所有請求共用同一個 REMOTE_ADDR，
+    nginx reverse proxy 之後的部署會讓所有請求共用同一個 REMOTE_ADDR，
     若用 IP 作 key 會導致所有用戶共享配額，容易觸發 429（iOS 上可能顯示為 402）。
     未登入的請求（登入、註冊）才 fallback 到 IP。
     """
@@ -172,10 +172,24 @@ def validate_expense_type(expense_type: Optional[str]) -> Tuple[bool, Optional[s
 
 def validate_record_type(record_type: str) -> Tuple[bool, str]:
     """驗證記錄類型"""
-    valid_types = ["income", "expense"]
+    valid_types = ["income", "expense", "transfer"]
     if record_type not in valid_types:
         return False, f"記錄類型必須為: {', '.join(valid_types)}"
     return True, record_type
+
+
+LOCATIONS = ["bank", "cash"]
+
+
+def validate_location(location: Any, required: bool = False) -> Tuple[bool, Any]:
+    """驗證位置（bank/cash）。空值時：required=True 視為錯誤，否則回傳 (True, None)。"""
+    if location in (None, ""):
+        if required:
+            return False, "請選擇位置（銀行或現金）"
+        return True, None
+    if location not in LOCATIONS:
+        return False, f"位置必須為: {', '.join(LOCATIONS)}"
+    return True, location
 
 
 def validate_category(category: str) -> Tuple[bool, str]:

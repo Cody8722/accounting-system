@@ -162,6 +162,11 @@ def _create_indexes():
         accounting_records_collection.create_index(
             [("user_id", ASCENDING), ("wallet_id", ASCENDING)], background=True
         )
+        # 帳戶 × 位置雙維度餘額聚合（wallets/location-summary、支出自動判斷位置）
+        accounting_records_collection.create_index(
+            [("user_id", ASCENDING), ("wallet_id", ASCENDING), ("location", ASCENDING)],
+            background=True,
+        )
 
         logger.info("✅ 資料庫索引已建立（背景執行）")
     except Exception as index_error:

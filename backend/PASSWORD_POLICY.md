@@ -246,9 +246,7 @@ GET /api/auth/password-config
 
 ## 🚀 部署建議
 
-### Zeabur
-
-在 Zeabur 環境變數中設定：
+在 NAS 部署用的 `backend/.env` 中設定：
 
 ```
 PASSWORD_MIN_LENGTH=12
