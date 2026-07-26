@@ -3,9 +3,11 @@ routes/records.py — 記帳記錄 CRUD API
 
 GET    /admin/api/accounting/records               取得記帳記錄（分頁、篩選）
 GET    /admin/api/accounting/records/<id>          取得單筆記錄
-POST   /admin/api/accounting/records               新增記錄
+POST   /admin/api/accounting/records               新增記錄（收入可選擇拆分出受限資金）
 PUT    /admin/api/accounting/records/<id>          更新記錄
 DELETE /admin/api/accounting/records/<id>          刪除記錄
+POST   /admin/api/accounting/records/transfer      新增內部轉移
+POST   /admin/api/accounting/records/<id>/unlock   解鎖受限資金
 """
 
 import json
@@ -238,6 +240,12 @@ def add_accounting_record():
                 400,
             )
 
+        if data.get("type") == "restricted":
+            return (
+                jsonify({"error": "受限資金無法直接建立，請在記收入時使用拆分功能"}),
+                400,
+            )
+
         required_fields = ["type", "amount", "category", "date"]
         for field in required_fields:
             if field not in data:
@@ -247,10 +255,38 @@ def add_accounting_record():
         if not valid:
             return jsonify({"error": msg}), 400
 
-        valid, result = validate_amount(data["amount"])
-        if not valid:
-            return jsonify({"error": result}), 400
-        amount = result
+        record_type = data["type"]
+
+        # 受限資金拆分（僅收入適用）：restricted_amount 若提供需自行通過金額驗證；
+        # 通過後，下面的一般收入金額才允許是 0（全額代收代付，只產生受限資金記錄）
+        restricted_amount = None
+        restricted_description = ""
+        if record_type == "income" and data.get("restricted_amount") not in (
+            None,
+            "",
+        ):
+            valid, result = validate_amount(data["restricted_amount"])
+            if not valid:
+                return jsonify({"error": result}), 400
+            restricted_amount = result
+            valid, restricted_description = validate_description(
+                data.get("restricted_description", "")
+            )
+            if not valid:
+                return jsonify({"error": restricted_description}), 400
+
+        try:
+            raw_amount_val = float(data["amount"])
+        except (TypeError, ValueError):
+            raw_amount_val = None
+
+        if restricted_amount is not None and raw_amount_val == 0:
+            amount = 0.0
+        else:
+            valid, result = validate_amount(data["amount"])
+            if not valid:
+                return jsonify({"error": result}), 400
+            amount = result
 
         valid, result = validate_date(data["date"])
         if not valid:
@@ -276,7 +312,6 @@ def add_accounting_record():
         if not valid:
             return jsonify({"error": wallet_id}), 400
 
-        record_type = data["type"]
         source_transfer_id = None
 
         if record_type == "income":
@@ -331,27 +366,59 @@ def add_accounting_record():
                 source_transfer_id = transfer_result.inserted_id
                 location = "cash"
 
-        record = {
-            "type": record_type,
-            "amount": amount,
-            "category": category,
-            "date": data["date"],
-            "description": description,
-            "expense_type": expense_type,
-            "wallet_id": wallet_id,
-            "location": location,
-            "source_transfer_id": source_transfer_id,
-            "created_at": datetime.now(),
-            "user_id": user_oid,
-        }
+        # record_type 到這裡只會是 "income" 或 "expense"（transfer/restricted 已在上面擋掉）。
+        # amount == 0 只會發生在「收入 + 全額受限」（見上方金額驗證），此時不產生一般收入記錄。
+        primary_id = None
+        if record_type != "income" or amount > 0:
+            record = {
+                "type": record_type,
+                "amount": amount,
+                "category": category,
+                "date": data["date"],
+                "description": description,
+                "expense_type": expense_type,
+                "wallet_id": wallet_id,
+                "location": location,
+                "source_transfer_id": source_transfer_id,
+                "created_at": datetime.now(),
+                "user_id": user_oid,
+            }
+            result = db.accounting_records_collection.insert_one(record)
+            primary_id = result.inserted_id
 
-        result = db.accounting_records_collection.insert_one(record)
+        restricted_id = None
+        if restricted_amount is not None:
+            restricted_record = {
+                "type": "restricted",
+                "amount": restricted_amount,
+                "category": None,
+                "date": data["date"],
+                "description": restricted_description,
+                "expense_type": None,
+                "wallet_id": wallet_id,
+                "location": location,
+                "linked_income_id": primary_id,
+                "unlocked_at": None,
+                "source_restricted_id": None,
+                "created_at": datetime.now(),
+                "user_id": user_oid,
+            }
+            restricted_result = db.accounting_records_collection.insert_one(
+                restricted_record
+            )
+            restricted_id = restricted_result.inserted_id
+
         _cache_invalidate_user(request.user_id)
-        logger.info(f"新增記帳記錄: {result.inserted_id} (user: {request.email})")
-        return (
-            jsonify({"message": "記帳記錄已新增", "id": str(result.inserted_id)}),
-            201,
+        logger.info(
+            f"新增記帳記錄: primary={primary_id} restricted={restricted_id} "
+            f"(user: {request.email})"
         )
+        response_body = {"message": "記帳記錄已新增"}
+        if primary_id is not None:
+            response_body["id"] = str(primary_id)
+        if restricted_id is not None:
+            response_body["restricted_id"] = str(restricted_id)
+        return jsonify(response_body), 201
     except Exception as e:
         logger.error(f"新增記帳記錄失敗: {e}")
         return jsonify({"error": "新增記錄失敗"}), 500
@@ -388,10 +455,15 @@ def update_accounting_record(record_id):
             valid, msg = validate_record_type(data["type"])
             if not valid:
                 return jsonify({"error": msg}), 400
-            if data["type"] == "transfer" or existing_record.get("type") == "transfer":
+            if data["type"] in ("transfer", "restricted") or existing_record.get(
+                "type"
+            ) in ("transfer", "restricted"):
                 return (
                     jsonify(
-                        {"error": "轉帳記錄的類型與帳戶內位置間移動無法透過此端點修改"}
+                        {
+                            "error": "轉帳／受限資金記錄的類型無法透過此端點修改，"
+                            "請使用對應的專用端點"
+                        }
                     ),
                     400,
                 )
@@ -402,8 +474,8 @@ def update_accounting_record(record_id):
 
         if "location" in data:
             final_type = update_data.get("type", existing_record.get("type"))
-            if final_type != "income":
-                return jsonify({"error": "只有收入記錄可以修改位置"}), 400
+            if final_type not in ("income", "restricted"):
+                return jsonify({"error": "只有收入或受限資金記錄可以修改位置"}), 400
             valid, location = validate_location(data["location"], required=True)
             if not valid:
                 return jsonify({"error": location}), 400
@@ -492,6 +564,15 @@ def delete_accounting_record(record_id):
         if source_transfer_id:
             db.accounting_records_collection.delete_one(
                 {"_id": source_transfer_id, "user_id": ObjectId(request.user_id)}
+            )
+
+        # 刪除連動：若這筆支出是解鎖受限資金時產生的，把來源記錄復原為受限狀態
+        # （等同撤銷這次解鎖），而不是連帶刪除——那筆錢確實收到過，這個事實不該消失
+        source_restricted_id = deleted.get("source_restricted_id")
+        if source_restricted_id:
+            db.accounting_records_collection.update_one(
+                {"_id": source_restricted_id, "user_id": ObjectId(request.user_id)},
+                {"$set": {"type": "restricted", "unlocked_at": None}},
             )
 
         _cache_invalidate_user(request.user_id)
@@ -586,3 +667,76 @@ def add_transfer_record():
     except Exception as e:
         logger.error(f"新增內部轉移失敗: {e}")
         return jsonify({"error": "新增轉移失敗"}), 500
+
+
+@bp.route("/admin/api/accounting/records/<record_id>/unlock", methods=["POST"])
+@limiter.limit("50 per minute")
+@require_auth
+def unlock_restricted_record(record_id):
+    """解鎖受限資金：整筆轉為一般收入（沿用原本收到的日期），並新增一筆對應支出
+    （日期由使用者指定，代表實際交出去的那天），代表這筆錢已經交出去了。
+    不支援部分解鎖——金額在記錄當下就已經拆分清楚，解鎖時整筆一次處理。"""
+    if db.accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+
+    if not validate_objectid(record_id):
+        return jsonify({"error": "無效的記錄 ID"}), 400
+
+    try:
+        data = request.get_json(silent=True)
+        if not data or "date" not in data:
+            return jsonify({"error": "缺少必要欄位: date"}), 400
+
+        valid, result = validate_date(data["date"])
+        if not valid:
+            return jsonify({"error": result}), 400
+        unlock_date = data["date"]
+
+        user_oid = ObjectId(request.user_id)
+        record = db.accounting_records_collection.find_one(
+            {"_id": ObjectId(record_id), "user_id": user_oid}
+        )
+        if not record:
+            return jsonify({"error": "找不到該記錄或無權限操作"}), 404
+
+        if record.get("type") != "restricted":
+            return jsonify({"error": "只有受限資金記錄可以解鎖"}), 400
+        if record.get("unlocked_at"):
+            return jsonify({"error": "這筆受限資金已經解鎖過了"}), 400
+
+        now = datetime.now()
+        db.accounting_records_collection.update_one(
+            {"_id": record["_id"]},
+            {"$set": {"type": "income", "unlocked_at": now}},
+        )
+
+        desc = record.get("description") or ""
+        expense_doc = {
+            "type": "expense",
+            "amount": record["amount"],
+            "category": None,
+            "date": unlock_date,
+            "description": f"解鎖：{desc}" if desc else "解鎖受限資金",
+            "expense_type": None,
+            "wallet_id": record.get("wallet_id"),
+            "location": record.get("location"),
+            "source_transfer_id": None,
+            "auto_generated": True,
+            "source_restricted_id": record["_id"],
+            "created_at": now,
+            "user_id": user_oid,
+        }
+        result = db.accounting_records_collection.insert_one(expense_doc)
+
+        _cache_invalidate_user(request.user_id)
+        logger.info(
+            f"解鎖受限資金 {record_id} → expense {result.inserted_id} "
+            f"(user: {request.email})"
+        )
+        return (
+            jsonify({"message": "已解鎖", "expense_id": str(result.inserted_id)}),
+            201,
+        )
+    except Exception as e:
+        logger.error(f"解鎖受限資金失敗: {e}")
+        return jsonify({"error": "解鎖失敗"}), 500

@@ -12,6 +12,7 @@ DELETE /admin/api/wallets/<id>                  封存錢包（不刪除歷史�
 GET    /admin/api/wallets/balances              各錢包即時餘額（含「未分類」）
 GET    /admin/api/wallets/location-summary      帳戶 × 位置（銀行/現金）雙維度餘額
 GET    /admin/api/wallets/<id>/balance-history  單一錢包近 N 月餘額變化
+GET    /admin/api/wallets/restricted-funds      目前還鎖著的受限資金列表（未解鎖）
 """
 
 import logging
@@ -492,3 +493,54 @@ def get_wallet_balance_history(wallet_id):
     except Exception as e:
         logger.error(f"取得錢包餘額歷史失敗: {e}")
         return jsonify({"error": "取得錢包餘額歷史失敗"}), 500
+
+
+@bp.route("/admin/api/wallets/restricted-funds", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_restricted_funds():
+    """列出目前所有還鎖著的受限資金（尚未解鎖），供錢包管理面板顯示總額與明細"""
+    if db.wallets_collection is None or db.accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    try:
+        user_oid = ObjectId(request.user_id)
+
+        # 含已封存錢包：即使錢包後來被封存，受限記錄仍要能顯示原本的錢包名稱
+        wallet_names = {
+            str(w["_id"]): w.get("name", "")
+            for w in db.wallets_collection.find({"user_id": user_oid})
+        }
+
+        items = list(
+            db.accounting_records_collection.find(
+                {"user_id": user_oid, "type": "restricted"}
+            ).sort("date", -1)
+        )
+
+        result_items = []
+        total = 0.0
+        for item in items:
+            wid = item.get("wallet_id")
+            wallet_key = str(wid) if wid else None
+            amount = item.get("amount", 0.0)
+            total += amount
+            linked_income_id = item.get("linked_income_id")
+            result_items.append(
+                {
+                    "id": str(item["_id"]),
+                    "amount": amount,
+                    "description": item.get("description", ""),
+                    "date": item.get("date"),
+                    "wallet_id": wallet_key,
+                    "wallet_name": wallet_names.get(wallet_key, "未分類"),
+                    "location": item.get("location"),
+                    "linked_income_id": (
+                        str(linked_income_id) if linked_income_id else None
+                    ),
+                }
+            )
+
+        return jsonify({"total": total, "items": result_items}), 200
+    except Exception as e:
+        logger.error(f"取得受限資金列表失敗: {e}")
+        return jsonify({"error": "取得受限資金失敗"}), 500
