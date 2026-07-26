@@ -115,6 +115,49 @@ function walletRowHtml(w, locEntry) {
   </div>`;
 }
 
+function restrictedRowHtml(item) {
+  const locMeta = LOCATION_META[item.location];
+  return `<div class="list-row" data-restricted-row="${item.id}">
+    <div class="cat-icon" style="width:34px;height:34px;background:var(--fill)"><i class="ti ti-lock" style="color:var(--muted2)"></i></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500;font-size:14px;color:var(--text)">${escapeHtml(item.description || '（無說明）')}</div>
+      <div style="font-size:11px;color:var(--faint)">${escapeHtml(item.wallet_name)}${locMeta ? ' · ' + locMeta.label : ''} · ${item.date}</div>
+    </div>
+    <span class="mono" style="font-weight:500;font-size:14px;color:var(--text);margin-right:4px">NT$ ${fmtMoney(item.amount)}</span>
+    <button class="icon-btn" data-unlock="${item.id}" title="解鎖"><i class="ti ti-lock-open" style="color:var(--accent)"></i></button>
+  </div>`;
+}
+
+/** 解鎖受限資金：整筆一次處理（不支援部分解鎖），日期為實際交出去的那天 */
+function openUnlockDialog(item, onUnlocked) {
+  const ov = document.createElement('div');
+  ov.className = 'overlay center';
+  ov.style.zIndex = '99998';
+  ov.innerHTML = `<div class="sheet dialog" style="padding:24px 20px">
+    <div style="font-weight:600;font-size:16px;color:var(--text);margin-bottom:6px">解鎖受限資金</div>
+    <div style="font-size:13px;color:var(--muted2);margin-bottom:16px">${escapeHtml(item.description || '（無說明）')}・NT$ ${fmtMoney(item.amount)}</div>
+    <label style="font-size:13px;color:var(--muted2)">實際交出去的日期</label>
+    <input data-el="date" type="date" class="field" style="margin:6px 0 18px" value="${todayStr()}">
+    <div style="display:flex;gap:12px">
+      <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer">取消</button>
+      <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認解鎖</button>
+    </div>
+  </div>`;
+  ov.querySelector('[data-act="cancel"]').onclick = () => ov.remove();
+  ov.querySelector('[data-act="ok"]').onclick = async () => {
+    const date = ov.querySelector('[data-el="date"]').value || todayStr();
+    try {
+      await apiJson(`/admin/api/accounting/records/${item.id}/unlock`, { method: 'POST', body: JSON.stringify({ date }) });
+      showToast('已解鎖', 'success');
+      ov.remove();
+      emit('records:changed');
+      if (onUnlocked) onUnlocked();
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
 function openWalletForm(existing, onSaved) {
   const isEdit = !!existing;
   const ov = document.createElement('div');
@@ -170,11 +213,12 @@ export async function openWalletManager() {
   let showArchived = false;
 
   async function refresh() {
-    let wallets, summary;
+    let wallets, summary, restricted;
     try {
-      [wallets, summary] = await Promise.all([
+      [wallets, summary, restricted] = await Promise.all([
         apiJson(`/admin/api/wallets${showArchived ? '?show_archived=true' : ''}`),
         apiJson('/admin/api/wallets/location-summary').catch(() => null),
+        apiJson('/admin/api/wallets/restricted-funds').catch(() => null),
       ]);
       cache = wallets.filter((w) => !w.archived); // 同步共用快取，供 add.js 等其他模組使用
     } catch (e) {
@@ -195,14 +239,32 @@ export async function openWalletManager() {
         </div>
       </div>` : '';
 
+    // 受限資金：只有存在還鎖著的項目才顯示這張卡片，平常不佔畫面
+    const restrictedSection = restricted && restricted.items.length ? `
+      <div class="card" style="padding:14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-weight:600;font-size:14px;color:var(--text)"><i class="ti ti-lock" style="color:var(--muted2);margin-right:6px"></i>受限資金</span>
+          <span class="mono" style="font-size:14px;color:var(--text)">NT$ ${fmtMoney(restricted.total)}</span>
+        </div>
+        ${restricted.items.map(restrictedRowHtml).join('')}
+      </div>` : '';
+
     body.innerHTML = `
       ${totalsBar}
+      ${restrictedSection}
       <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
         ${wallets.length ? wallets.map((w) => walletRowHtml(w, locMap[w.id])).join('') : '<div style="text-align:center;color:var(--muted2);padding:20px">尚無錢包，新增一個開始分類記帳資金來源</div>'}
       </div>
       <button class="btn-primary" data-add="1" style="width:100%;margin-bottom:10px">＋ 新增錢包</button>
       <button class="link" data-el="transfer" style="width:100%;text-align:center;padding:6px 0"><i class="ti ti-arrows-right-left"></i> 內部轉移（存錢／領錢）</button>
       <button class="link" data-toggle-archived="1" style="width:100%;text-align:center;padding:6px 0">${showArchived ? '只顯示使用中的錢包' : '顯示已封存的錢包'}</button>`;
+
+    if (restricted) {
+      body.querySelectorAll('[data-unlock]').forEach((b) => b.onclick = () => {
+        const item = restricted.items.find((x) => x.id === b.dataset.unlock);
+        if (item) openUnlockDialog(item, refresh);
+      });
+    }
 
     body.querySelectorAll('[data-edit-wallet]').forEach((b) => b.onclick = () => {
       const w = wallets.find((x) => x.id === b.dataset.editWallet);

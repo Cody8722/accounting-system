@@ -22,6 +22,9 @@ let type = 'expense';     // expense | income
 let category = '';        // 目前選取的葉分類
 let walletId = null;      // 目前選取的錢包（null = 未分類），與 category 各自獨立的欄位
 let location = null;      // 位置（bank/cash）——僅收入需要使用者手動選；支出由後端自動判斷
+let splitOpen = false;     // 收入拆分欄位是否展開（預設收起，只有收入類型才會顯示切換連結）
+let restrictedAmountStr = ''; // 受限資金金額（字串輸入值，僅收入拆分時使用）
+let restrictedNote = '';   // 受限資金用途
 let date = todayStr();
 let note = '';
 let recurring = false;
@@ -126,6 +129,24 @@ function highlightLocation() {
   host.querySelectorAll('[data-el="locationArea"] [data-location]').forEach((b) => b.classList.toggle('active', b.dataset.location === location));
 }
 
+/** 這筆收入是否要拆出受限資金（代收代付，如學費夾零用錢） */
+function toggleSplit() {
+  splitOpen = !splitOpen;
+  const fields = host.querySelector('[data-el="splitFields"]');
+  if (fields) fields.classList.toggle('hidden', !splitOpen);
+  const chevron = host.querySelector('[data-el="splitChevron"]');
+  if (chevron) chevron.style.transform = splitOpen ? 'rotate(90deg)' : '';
+}
+function resetSplit() {
+  splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
+  const fields = host && host.querySelector('[data-el="splitFields"]');
+  if (fields) fields.classList.add('hidden');
+  const chevron = host && host.querySelector('[data-el="splitChevron"]');
+  if (chevron) chevron.style.transform = '';
+  const ra = host && host.querySelector('[data-el="restrictedAmount"]'); if (ra) ra.value = '';
+  const rn = host && host.querySelector('[data-el="restrictedNote"]'); if (rn) rn.value = '';
+}
+
 function refresh() {
   if (!host) return;
   const amt = displayAmount();
@@ -148,6 +169,10 @@ function refresh() {
   // 位置（銀行/現金）只有收入需要使用者選；支出完全不顯示，由後端自動判斷
   const locationWrap = host.querySelector('[data-el="locationWrap"]');
   if (locationWrap) locationWrap.classList.toggle('hidden', type !== 'income');
+
+  // 拆分（受限資金）只有收入才有意義，且預設收合
+  const splitWrap = host.querySelector('[data-el="splitWrap"]');
+  if (splitWrap) splitWrap.classList.toggle('hidden', type !== 'income');
 
   highlightCat();
   highlightWallet();
@@ -216,7 +241,7 @@ function openRecurSheet() {
 }
 
 /** 存檔成功後的共用收尾：定期排程、提示、清空計算機與備註、電腦版關閉 */
-async function finishSave(amount) {
+async function finishSave(amount, hadSplit = false) {
   if (recurring) {
     const day = Number(date.slice(8, 10)) || 1;
     await apiJson('/admin/api/recurring', {
@@ -224,29 +249,37 @@ async function finishSave(amount) {
       body: JSON.stringify({ name: note || category, amount, type, category, day_of_month: day, description: `${recurSummary()}${note ? '・' + note : ''}` }),
     }).catch(() => {});
   }
-  showToast('已記一筆', 'success');
+  showToast(hadSplit ? '已記一筆（含受限資金）' : '已記一筆', 'success');
   emit('records:changed');
   // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
   clearCalc();
   note = '';
   const noteInput = host.querySelector('[data-el="note"]');
   if (noteInput) noteInput.value = '';
+  resetSplit();
   // 電腦版存完關閉（回到清單）；手機版留著連續記帳
   if (mode === 'desktop') close();
 }
 
 async function save() {
   const amount = evaluate();
-  if (!amount || amount <= 0) { showToast('請輸入金額', 'warning'); return; }
+  const restrictedAmount = parseFloat(restrictedAmountStr);
+  const hasSplit = type === 'income' && splitOpen && restrictedAmount > 0;
+
+  if (!hasSplit && (!amount || amount <= 0)) { showToast('請輸入金額', 'warning'); return; }
   if (!category) { showToast('請選擇分類', 'warning'); return; }
   if (type === 'income' && !location) { showToast('請選擇位置', 'warning'); return; }
 
-  const payload = { type, amount, category, date, description: note, expense_type: null, wallet_id: walletId };
+  const payload = { type, amount: amount || 0, category, date, description: note, expense_type: null, wallet_id: walletId };
   if (type === 'income') payload.location = location;
+  if (hasSplit) {
+    payload.restricted_amount = restrictedAmount;
+    payload.restricted_description = restrictedNote;
+  }
 
   try {
     await apiJson('/admin/api/accounting/records', { method: 'POST', body: JSON.stringify(payload) });
-    await finishSave(amount);
+    await finishSave(amount || 0, hasSplit);
   } catch (e) {
     // 支出現金不足：後端回 409 附帶提領試算，跳確認框，確認後帶 confirm_withdrawal 重送
     if (e.status === 409 && e.body && e.body.error === 'cash_insufficient') {
@@ -296,8 +329,9 @@ function onHostClick(e) {
   const t = e.target;
   if (t.closest('[data-el="cancel"]')) return close();
   if (t.closest('[data-el="invoice"]')) return openInvoiceScan(invoiceCallback);
-  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; location = null; renderCatArea(); refresh(); return; }
-  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; location = null; renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; location = null; resetSplit(); renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; location = null; resetSplit(); renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="splitToggle"]')) return toggleSplit();
   if (t.closest('[data-el="recBtn"]')) { recurring = !recurring; refresh(); if (recurring) openRecurSheet(); return; }
   if (t.closest('[data-el="recRow"]')) return openRecurSheet();
   if (t.closest('[data-el="calcToggle"]')) { host.querySelector('[data-el="keypadPanel"]').classList.toggle('hidden'); return; }
@@ -355,6 +389,17 @@ function buildMobile() {
         <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">位置</div>
         <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
+      <div data-el="splitWrap" class="hidden" style="padding:10px 18px 0">
+        <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:2px 0">
+          <i class="ti ti-chevron-right" data-el="splitChevron" style="transition:transform .15s"></i>這筆包含要轉交的錢？
+        </button>
+        <div data-el="splitFields" class="hidden" style="margin-top:10px;background:var(--fill);border-radius:12px;padding:12px">
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">受限金額（鎖住，不計入可用餘額）</div>
+          <input data-el="restrictedAmount" type="number" min="0" step="0.01" class="field mono" style="margin-bottom:10px" placeholder="0">
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">用途</div>
+          <input data-el="restrictedNote" class="field" placeholder="如：學費代收">
+        </div>
+      </div>
       <div style="margin:6px 18px 0;display:flex;align-items:center;gap:10px">
         <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:12px;padding:11px 13px">
           <i class="ti ti-pencil" style="color:var(--muted2)"></i>
@@ -373,6 +418,8 @@ function buildMobile() {
     </div>`;
   host.querySelector('[data-el="date"]').addEventListener('change', (e) => { date = e.target.value || todayStr(); });
   host.querySelector('[data-el="note"]').addEventListener('input', (e) => { note = e.target.value; });
+  host.querySelector('[data-el="restrictedAmount"]').addEventListener('input', (e) => { restrictedAmountStr = e.target.value; });
+  host.querySelector('[data-el="restrictedNote"]').addEventListener('input', (e) => { restrictedNote = e.target.value; });
   host.addEventListener('click', onHostClick);
   document.body.appendChild(host);
 }
@@ -407,6 +454,21 @@ function buildDesktop() {
             <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">位置</div>
             <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
           </div>
+          <div data-el="splitWrap" class="hidden" style="margin-top:8px">
+            <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:2px 0">
+              <i class="ti ti-chevron-right" data-el="splitChevron" style="transition:transform .15s"></i>這筆包含要轉交的錢？
+            </button>
+            <div data-el="splitFields" class="hidden" style="margin-top:8px;background:var(--fill);border-radius:12px;padding:12px;display:flex;gap:10px">
+              <div style="flex:1">
+                <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">受限金額（鎖住）</div>
+                <input data-el="restrictedAmount" type="number" min="0" step="0.01" class="field mono" placeholder="0">
+              </div>
+              <div style="flex:1">
+                <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">用途</div>
+                <input data-el="restrictedNote" class="field" placeholder="如：學費代收">
+              </div>
+            </div>
+          </div>
           <div style="font-size:13px;color:var(--muted2);margin:6px 0 8px">備註 / 日期</div>
           <div style="display:flex;gap:10px;margin-bottom:14px">
             <input data-el="note" class="field" placeholder="加個備註…" style="flex:1">
@@ -440,6 +502,8 @@ function buildDesktop() {
     </div>`;
   host.querySelector('[data-el="date"]').addEventListener('change', (e) => { date = e.target.value || todayStr(); });
   host.querySelector('[data-el="note"]').addEventListener('input', (e) => { note = e.target.value; });
+  host.querySelector('[data-el="restrictedAmount"]').addEventListener('input', (e) => { restrictedAmountStr = e.target.value; });
+  host.querySelector('[data-el="restrictedNote"]').addEventListener('input', (e) => { restrictedNote = e.target.value; });
   const amountInput = host.querySelector('[data-el="amountInput"]');
   amountInput.addEventListener('input', (e) => { buf = e.target.value; acc = null; op = null; });
   // 點遮罩外關閉
@@ -453,6 +517,7 @@ export function openAdd(initialType = 'expense') {
   if (host) return;
   mode = window.innerWidth >= 900 ? 'desktop' : 'mobile';
   type = initialType; category = ''; walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
+  splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
   acc = null; op = null; buf = '';
   if (mode === 'desktop') buildDesktop(); else buildMobile();
   renderCatArea();
