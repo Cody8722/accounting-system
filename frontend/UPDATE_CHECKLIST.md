@@ -1,5 +1,11 @@
 # 前端更新檢查清單
 
+> ⚠️ **v2（現行前端，`frontend/v2/`）升版兩步驟**：
+> 1. `frontend/v2/service-worker.js` 的 `CACHE_NAME`（如 `accounting-v2-1.5.2`）升版。
+> 2. `frontend/v2/js/version.js` 的 `APP_VERSION`（與上者同版號）+ `RELEASE_NOTE`（本次更新的一行簡短說明，會顯示在使用者更新後的「已更新」提示 Toast）。
+>
+> 以下區塊為**舊版前端（已移除）** 的歷史內容，路徑與命名（`frontend/service-worker.js`、`accounting-system-vX.Y.Z`、更新橫幅）皆不適用於 v2，僅保留供版本記錄參考。
+
 ## ⚠️ 每次更新前端時必須執行
 
 ### 1. 更新 Service Worker 版本號

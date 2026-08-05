@@ -185,3 +185,30 @@ test.describe('v2 核心流程', () => {
     await expect(page.locator('.overlay .sheet')).not.toContainText('E2E學費代收', { timeout: 10000 });
   });
 });
+
+/**
+ * 更新提示 Toast：偵測到新版本（載入到的版本 ≠ localStorage 記的上次版本）時，
+ * 跳出「已更新：<說明>」的自動消失 Toast。此區塊不需登入、不依賴後端資料，
+ * 只驗證 main.js 的版本比對邏輯，故獨立於「核心流程」describe（無 beforeEach 登入）。
+ * 斷言只比對穩定前綴「已更新」，不綁 RELEASE_NOTE 文字，升版改說明時測試不會壞。
+ */
+test.describe('v2 更新提示 Toast', () => {
+  test('偵測到新版本後跳出更新說明 Toast', async ({ page }) => {
+    // 先塞一個明顯較舊的版本，載入後應判定為「已更新」並跳 Toast
+    await page.addInitScript(() => {
+      try { localStorage.setItem('lastSeenVersion', '0.0.0-old'); } catch {}
+    });
+    await page.goto('/v2/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('已更新：')).toBeVisible({ timeout: 6000 });
+  });
+
+  test('首次載入（無上次版本記錄）不跳 Toast', async ({ page }) => {
+    await page.addInitScript(() => {
+      try { localStorage.removeItem('lastSeenVersion'); } catch {}
+    });
+    await page.goto('/v2/', { waitUntil: 'domcontentloaded' });
+    // 等 App 外殼（登入卡或已登入外殼）出現，代表 boot 已跑完版本比對
+    await page.waitForSelector('.auth-card, .sidebar, .tabbar', { timeout: 15000 });
+    await expect(page.getByText('已更新：')).toHaveCount(0);
+  });
+});

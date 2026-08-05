@@ -7,6 +7,8 @@ import { verifyToken, renderAuth } from './auth.js';
 import { removeAuthToken } from './api.js';
 import { initRouter } from './router.js';
 import { backendUrl, isDevelopment } from './config.js';
+import { showToast } from './utils.js';
+import { APP_VERSION, RELEASE_NOTE } from './version.js';
 
 const root = document.getElementById('app');
 
@@ -18,8 +20,28 @@ function showAuth() {
   renderAuth(root, () => startApp());
 }
 
+// 偵測到新版本並自動重整後，跳出「已更新」Toast 說明本次更新內容。
+// 用「這次載入到的版本（version.js 的 APP_VERSION）」與 localStorage 記的
+// 「上次看到的版本」比對，與 SW 自動重整機制解耦：不論自動或手動重整，同一
+// 新版只提示一次。seen === null（首次安裝／舊用戶第一次）只靜默記錄、不跳。
+function maybeShowUpdateToast() {
+  const KEY = 'lastSeenVersion';
+  let seen;
+  try {
+    seen = localStorage.getItem(KEY);
+  } catch {
+    return; // localStorage 不可用（無痕等）→ 不提示、不報錯
+  }
+  if (seen === APP_VERSION) return; // 同版本，不提示
+  try { localStorage.setItem(KEY, APP_VERSION); } catch { /* 寫入失敗略過 */ }
+  if (seen === null) return; // 首次安裝／舊用戶第一次：靜默記錄，不跳
+  if (!RELEASE_NOTE) return; // 沒有說明就不跳（理論上不會發生）
+  showToast(`已更新：${RELEASE_NOTE}`, 'success', 4500);
+}
+
 async function boot() {
   initTheme();
+  maybeShowUpdateToast();
   // token 失效時回到登入
   window.addEventListener('auth:token-invalid', () => { removeAuthToken(); showAuth(); });
 
