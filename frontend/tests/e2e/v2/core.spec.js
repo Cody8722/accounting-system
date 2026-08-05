@@ -152,4 +152,36 @@ test.describe('v2 核心流程', () => {
       .toBe('dark');
     expect(await page.evaluate(() => localStorage.getItem('v2-theme'))).toBe('dark');
   });
+
+  test('收入拆分受限資金：明細顯示、面板可見、可解鎖', async ({ page }) => {
+    await gotoLedger(page);
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.click('.overlay.center [data-el="incBtn"]');
+    await page.fill('.overlay.center [data-el="amountInput"]', '250');
+    await page.click('.overlay.center [data-leaf="薪資"]');
+    await page.click('.overlay.center [data-el="locationArea"] [data-location="bank"]');
+    await page.click('.overlay.center [data-el="splitToggle"]');
+    await page.waitForSelector('.overlay.center [data-el="restrictedAmount"]', { state: 'visible', timeout: 5000 });
+    await page.fill('.overlay.center [data-el="restrictedAmount"]', '3500');
+    await page.fill('.overlay.center [data-el="restrictedNote"]', 'E2E學費代收');
+    await page.click('.overlay.center [data-el="save"]');
+    await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
+
+    // 明細看得到受限資金這筆（鎖頭圖示的專屬列）
+    await expect(page.locator('.desktop-main')).toContainText('E2E學費代收', { timeout: 10000 });
+
+    // 錢包管理面板：受限資金卡片看得到這筆，且解鎖後從清單消失
+    await page.click('[data-nav="settings"]');
+    await page.waitForSelector('[data-act="wallet"]', { timeout: 10000 });
+    await page.click('[data-act="wallet"]');
+    await page.waitForSelector('.overlay .sheet', { timeout: 10000 });
+    await expect(page.locator('.overlay .sheet')).toContainText('E2E學費代收', { timeout: 10000 });
+
+    await page.click('[data-unlock]');
+    await page.waitForSelector('.overlay.center [data-act="ok"]', { timeout: 5000 });
+    await page.click('.overlay.center [data-act="ok"]');
+    await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
+    await expect(page.locator('.overlay .sheet')).not.toContainText('E2E學費代收', { timeout: 10000 });
+  });
 });
