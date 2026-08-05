@@ -48,6 +48,10 @@ function transferLabel(r) {
   return `${from} → ${to}`;
 }
 
+function restrictedIconHtml(size = 38) {
+  return `<div class="cat-icon" style="width:${size}px;height:${size}px;background:var(--fill)"><i class="ti ti-lock" style="color:var(--muted2);font-size:${size * 0.48}px"></i></div>`;
+}
+
 /* ============ 手機：帳本 ============ */
 export async function renderLedgerMobile(container) {
   container.innerHTML = `<div style="padding:6px 20px 0;flex-shrink:0" data-el="head"></div>
@@ -122,6 +126,14 @@ export async function renderLedgerMobile(container) {
             <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || transferLabel(r))}</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${transferLabel(r)}</span>
+        </div>` : r.type === 'restricted' ? `
+        <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
+          ${restrictedIconHtml()}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.description || '受限資金')}</div>
+            <div style="font-size:12px;color:var(--muted2)">已鎖住，不計入可用餘額</div>
+          </div>
+          <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${fmtMoney(r.amount)}</span>
         </div>` : `
         <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
           ${catIconHtml(r.category)}
@@ -213,6 +225,13 @@ export async function renderLedgerDesktop(container) {
             <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
             <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">轉帳</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
+          </div>` : r.type === 'restricted' ? `
+          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
+            <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
+            <div style="display:flex;align-items:center;gap:10px">${restrictedIconHtml(30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.description || '受限資金')}</span></div>
+            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">已鎖住，不計入可用餘額</div>
+            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">受限</span></div>
+            <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
           </div>` : `
           <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
@@ -244,6 +263,7 @@ export async function renderLedgerDesktop(container) {
 /* ============ 編輯 / 刪除 ============ */
 function openEdit(record) {
   if (record.type === 'transfer') return openEditTransfer(record);
+  if (record.type === 'restricted') return openEditRestricted(record);
   return openEditIncomeExpense(record);
 }
 
@@ -385,6 +405,74 @@ function openEditTransfer(record) {
   };
   ov.querySelector('[data-el="del"]').onclick = async () => {
     if (!(await showConfirm('確定刪除這筆轉移記錄？'))) return;
+    try {
+      const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('刪除失敗');
+      showToast('已刪除', 'success'); ov.remove(); emit('records:changed');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+/** 受限資金的編輯：金額/帳戶/位置/用途可改，解鎖動作不在這裡——請至「設定」的
+ * 錢包管理面板操作，那裡才看得到完整的受限資金清單與解鎖按鈕。 */
+function openEditRestricted(record) {
+  const id = rid(record);
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  const initialWalletId = record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id;
+  const initialLocation = record.location || null;
+  ov.innerHTML = `
+    <div class="sheet">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-lock" style="margin-right:6px;color:var(--muted2)"></i>受限資金</span>
+        <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:12px;padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
+        <i class="ti ti-info-circle"></i> 已鎖住，不計入可用餘額；解鎖請至「設定 → 錢包管理」操作
+      </div>
+      <label style="font-size:13px;color:var(--muted2)">金額</label>
+      <input data-el="amount" type="number" class="field mono" style="margin:6px 0 14px;font-size:18px" value="${record.amount}">
+      <label style="font-size:13px;color:var(--muted2)">帳戶</label>
+      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletChipsHtml(initialWalletId)}</div>
+      <label style="font-size:13px;color:var(--muted2)">位置</label>
+      <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${locationChipsHtml(initialLocation)}</div>
+      <label style="font-size:13px;color:var(--muted2)">用途</label>
+      <input data-el="note" class="field" style="margin:6px 0 18px" value="${escapeHtml(record.description || '')}">
+      <div style="display:flex;gap:10px">
+        <button data-el="del" class="btn-primary" style="flex-shrink:0;background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-trash"></i></button>
+        <button data-el="save" class="btn-primary" style="flex:1">儲存</button>
+      </div>
+    </div>`;
+  let curWalletId = initialWalletId;
+  let curLocation = initialLocation;
+  ov.querySelector('[data-el="walletArea"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wallet]'); if (!b) return;
+    curWalletId = b.dataset.wallet || null;
+    ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
+  });
+  ov.querySelector('[data-el="locationArea"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-location]'); if (!b) return;
+    curLocation = b.dataset.location;
+    ov.querySelectorAll('[data-el="locationArea"] [data-location]').forEach((x) => x.classList.toggle('active', x === b));
+  });
+  ov.querySelector('[data-el="save"]').onclick = async () => {
+    const body = {
+      amount: parseFloat(ov.querySelector('[data-el="amount"]').value),
+      description: ov.querySelector('[data-el="note"]').value,
+      wallet_id: curWalletId,
+      location: curLocation,
+    };
+    if (!body.amount || body.amount <= 0) { showToast('金額須大於 0', 'warning'); return; }
+    if (!body.location) { showToast('請選擇位置', 'warning'); return; }
+    try {
+      await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      showToast('已更新', 'success'); ov.remove(); emit('records:changed');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
+  ov.querySelector('[data-el="del"]').onclick = async () => {
+    if (!(await showConfirm('確定刪除這筆受限資金？'))) return;
     try {
       const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('刪除失敗');

@@ -172,7 +172,7 @@ def validate_expense_type(expense_type: Optional[str]) -> Tuple[bool, Optional[s
 
 def validate_record_type(record_type: str) -> Tuple[bool, str]:
     """驗證記錄類型"""
-    valid_types = ["income", "expense", "transfer"]
+    valid_types = ["income", "expense", "transfer", "restricted"]
     if record_type not in valid_types:
         return False, f"記錄類型必須為: {', '.join(valid_types)}"
     return True, record_type

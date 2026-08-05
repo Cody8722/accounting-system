@@ -108,9 +108,12 @@ def export_accounting_records():
         elif export_format == "xlsx":
             rows = []
             for record in raw_records:
-                type_zh = {"income": "收入", "expense": "支出", "transfer": "轉帳"}.get(
-                    record.get("type"), "支出"
-                )
+                type_zh = {
+                    "income": "收入",
+                    "expense": "支出",
+                    "transfer": "轉帳",
+                    "restricted": "受限資金",
+                }.get(record.get("type"), "支出")
                 expense_type_zh = {
                     "fixed": "固定支出",
                     "variable": "變動支出",
@@ -170,9 +173,12 @@ def export_accounting_records():
         else:
             rows = []
             for record in raw_records:
-                type_zh = {"income": "收入", "expense": "支出", "transfer": "轉帳"}.get(
-                    record.get("type"), "支出"
-                )
+                type_zh = {
+                    "income": "收入",
+                    "expense": "支出",
+                    "transfer": "轉帳",
+                    "restricted": "受限資金",
+                }.get(record.get("type"), "支出")
                 expense_type_zh = {
                     "fixed": "固定支出",
                     "variable": "變動支出",
