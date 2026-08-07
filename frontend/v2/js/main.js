@@ -9,6 +9,7 @@ import { initRouter } from './router.js';
 import { backendUrl, isDevelopment } from './config.js';
 import { showToast } from './utils.js';
 import { APP_VERSION, RELEASE_NOTE } from './version.js';
+import { isOnline } from './offline.js';
 
 const root = document.getElementById('app');
 
@@ -39,14 +40,51 @@ function maybeShowUpdateToast() {
   showToast(`已更新：${RELEASE_NOTE}`, 'success', 4500);
 }
 
+// 離線指示（功能簡版；視覺精緻化之後交給 Design）：離線時顯示一顆置頂膠囊，回線隱藏。
+function setOfflineBadge(offline) {
+  let el = document.getElementById('offline-badge');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'offline-badge';
+    el.innerHTML = '<i class="ti ti-wifi-off" style="font-size:14px"></i><span>離線模式</span>';
+    el.style.cssText = [
+      'position:fixed', 'left:50%', 'top:calc(10px + env(safe-area-inset-top))',
+      'transform:translateX(-50%)', 'z-index:99990',
+      'padding:6px 14px', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
+      'color:#fff', 'background:#6b7280', 'box-shadow:0 4px 14px rgba(0,0,0,.2)',
+      'display:none', 'align-items:center', 'gap:6px', 'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(el);
+  }
+  el.style.display = offline ? 'inline-flex' : 'none';
+}
+
+function setupOfflineIndicator() {
+  setOfflineBadge(!isOnline());
+  window.addEventListener('offline', () => {
+    setOfflineBadge(true);
+    showToast('已離線，顯示本地快取資料', 'info', 3000);
+  });
+  window.addEventListener('online', () => {
+    setOfflineBadge(false);
+    showToast('已恢復連線', 'success', 2500);
+  });
+}
+
 async function boot() {
   initTheme();
   maybeShowUpdateToast();
+  setupOfflineIndicator();
   // token 失效時回到登入
   window.addEventListener('auth:token-invalid', () => { removeAuthToken(); showAuth(); });
 
-  const ok = await verifyToken();
-  if (ok) startApp(); else showAuth();
+  const status = await verifyToken();
+  if (status === 'valid' || status === 'offline-trusted') {
+    if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
+    startApp();
+  } else {
+    showAuth();
+  }
 }
 
 // Service Worker（PWA）：偵測到新版本安裝完成並接管後自動重新整理，
