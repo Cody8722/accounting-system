@@ -10,6 +10,7 @@ import { getThemePref, setThemePref } from './theme.js';
 import { logout, changePassword } from './auth.js';
 import { monthRange, emit } from './store.js';
 import { openWalletManager } from './wallet.js';
+import { isOnline } from './offline.js';
 
 function sheet(title, bodyHtml) {
   const ov = document.createElement('div');
@@ -178,12 +179,31 @@ function themeSegment() {
   return `<div class="segment" data-el="theme">${THEME_LABEL.map(([v, l, ic]) => `<button data-theme-v="${v}" class="${pref === v ? 'active' : ''}" style="display:flex;align-items:center;justify-content:center;gap:5px"><i class="ti ${ic}"></i>${l}</button>`).join('')}</div>`;
 }
 
+let detachSyncStatus = null;
+
+// 讓「資料同步」那格即時反映線上/離線。router 的 view 沒有 unmount hook，
+// 用模組級 detach 守衛：每次重新 wire 前先移除上一組監聽，避免累積洩漏
+// （同時只會有一個設定頁存在，最多殘留一組指向已卸載元素的監聽，無害）。
+function wireSyncStatus(scope) {
+  if (detachSyncStatus) { detachSyncStatus(); detachSyncStatus = null; }
+  const el = scope.querySelector('[data-el="sync-status"]');
+  if (!el) return;
+  const update = () => { el.textContent = isOnline() ? '已同步' : '離線'; };
+  update();
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  detachSyncStatus = () => {
+    window.removeEventListener('online', update);
+    window.removeEventListener('offline', update);
+  };
+}
+
 function menuGroup(rows) {
   return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">${rows.map((r) => `
     <div class="list-row" data-act="${r.act}" style="cursor:pointer">
       <i class="ti ${r.icon}" style="font-size:20px;color:var(--muted)"></i>
       <span style="flex:1;color:var(--text);font-size:15px">${r.label}</span>
-      ${r.extra ? `<span style="font-size:13px;color:var(--muted2)">${r.extra}</span>` : ''}
+      ${r.extra ? `<span ${r.extraEl ? `data-el="${r.extraEl}"` : ''} style="font-size:13px;color:var(--muted2)">${r.extra}</span>` : ''}
       <i class="ti ti-chevron-right" style="color:var(--faint)"></i>
     </div>`).join('')}</div>`;
 }
@@ -207,7 +227,7 @@ async function render(container, mode) {
       { act: 'recurring', icon: 'ti-repeat', label: '定期項目', extra: recurCount },
     ])}
     ${menuGroup([
-      { act: 'sync', icon: 'ti-refresh', label: '資料同步', extra: '已同步' },
+      { act: 'sync', icon: 'ti-refresh', label: '資料同步', extra: isOnline() ? '已同步' : '離線', extraEl: 'sync-status' },
       { act: 'export', icon: 'ti-file-export', label: '匯出報表' },
       { act: 'reminder', icon: 'ti-bell', label: '記帳提醒' },
     ])}
@@ -227,12 +247,14 @@ async function render(container, mode) {
       else if (act === 'recurring') openRecurring();
       else if (act === 'export') openExport();
       else if (act === 'reminder') openReminder();
-      else if (act === 'sync') showToast('資料即時同步至雲端，免手動備份', 'info');
+      else if (act === 'sync') showToast(isOnline() ? '資料即時同步至雲端，免手動備份' : '目前離線，顯示本地快取；恢復連線後會即時同步', 'info');
       return;
     }
     const tb = e.target.closest('[data-theme-v]');
     if (tb) { setThemePref(tb.dataset.themeV); inner.querySelectorAll('[data-theme-v]').forEach((x) => x.classList.toggle('active', x === tb)); }
   });
+
+  wireSyncStatus(inner);
 
   if (mode === 'desktop') {
     const page = document.createElement('div'); page.className = 'page';

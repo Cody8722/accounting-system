@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.5.2';
-export const RELEASE_NOTE = '更新提示功能上線';
+export const APP_VERSION = '1.6.1';
+export const RELEASE_NOTE = '離線圖示修正、設定頁顯示離線狀態';

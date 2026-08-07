@@ -4,6 +4,7 @@
  */
 
 import { backendUrl, storagePrefix } from './config.js';
+import { getCache, putCache } from './offline.js';
 
 let is401Handling = false;
 
@@ -35,7 +36,17 @@ export async function apiCall(endpoint, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(url, { ...options, headers });
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch (e) {
+    // 網路層失敗（離線、連線中斷、DNS）：fetch 拋 TypeError，與 HTTP 狀態碼錯誤區分開，
+    // 讓上層可據此回退快取或提示離線，而不是誤判成登入失效（避免網路抖動就把人踢登出）。
+    const err = new Error('目前無法連線（離線或伺服器無回應）');
+    err.offline = true;
+    err.cause = e;
+    throw err;
+  }
 
   if (response.status === 401 && token) {
     removeAuthToken();
@@ -52,15 +63,27 @@ export async function apiCall(endpoint, options = {}) {
 /** 呼叫並解析 JSON；非 2xx 丟出 error 訊息（Error 物件附帶 .status 與 .body 完整回應，
  * 供需要讀取額外欄位的呼叫端使用，如支出現金不足時 409 回應裡的提領金額試算） */
 export async function apiJson(endpoint, options = {}) {
-  const res = await apiCall(endpoint, options);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(data.error || `請求失敗 (${res.status})`);
-    err.status = res.status;
-    err.body = data;
+  const isGet = (options.method || 'GET').toUpperCase() === 'GET';
+  try {
+    const res = await apiCall(endpoint, options);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || `請求失敗 (${res.status})`);
+      err.status = res.status;
+      err.body = data;
+      throw err;
+    }
+    // 成功的 GET 順手快取（fire-and-forget），供離線時回退。
+    if (isGet) putCache(endpoint, data);
+    return data;
+  } catch (err) {
+    // 離線的 GET → 回退到最後一次成功快取；無快取則維持丟錯（讓呼叫端顯示離線訊息）。
+    if (isGet && err.offline) {
+      const cached = await getCache(endpoint);
+      if (cached) return cached.data;
+    }
     throw err;
   }
-  return data;
 }
 
 export function resetAuthGuard() { is401Handling = false; }
