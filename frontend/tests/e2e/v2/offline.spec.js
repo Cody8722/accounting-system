@@ -35,6 +35,21 @@ test.describe('v2 離線（Phase 1：離線登入 + 讀取快取）', () => {
     await expect(page.locator('.desktop-main')).toContainText('淨資產', { timeout: 15000 });
     await expect(page.locator('.pindash .kpi').first()).toBeVisible({ timeout: 10000 });
 
+    // #1 icon 字型本地化：離線時本地 CSS + woff2 可由 SW 快取取得（不再依賴外部 CDN）
+    const iconAssetsOk = await page.evaluate(async () => {
+      const ok = (p) => fetch(p).then((r) => r.ok).catch(() => false);
+      const [css, font] = await Promise.all([
+        ok('./vendor/tabler-icons/tabler-icons.min.css'),
+        ok('./vendor/tabler-icons/tabler-icons.woff2'),
+      ]);
+      return css && font;
+    });
+    expect(iconAssetsOk).toBe(true);
+
+    // #2 設定頁「資料同步」離線時顯示「離線」
+    await page.click('[data-nav="settings"]');
+    await expect(page.locator('[data-el="sync-status"]')).toHaveText('離線', { timeout: 10000 });
+
     await context.setOffline(false);
   });
 });
