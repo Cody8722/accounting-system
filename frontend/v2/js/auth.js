@@ -10,17 +10,37 @@
 
 import { apiCall, apiJson, setAuthToken, setUserData, removeAuthToken, getAuthToken, getUserData, resetAuthGuard } from './api.js';
 import { showToast } from './utils.js';
+import { isOnline } from './offline.js';
+import { tokenLocallyValid } from './jwt.js';
 
 export { getUserData };
 
-/** 驗證目前 token 是否有效，順便刷新 userData */
+/**
+ * 驗證登入狀態，回傳三態：
+ *   'valid'           線上驗證通過（並刷新 userData）
+ *   'invalid'         無 token，或線上驗證確定失效（401）→ 應跳登入
+ *   'offline-trusted' 離線／連不上，但本地有未過期 token + userData → 信任進場（離線模式）
+ * 離線只放行「進不進得去 App」；任何寫回後端仍需後端驗證 token，不降低後端安全性。
+ */
 export async function verifyToken() {
-  if (!getAuthToken()) return false;
+  const token = getAuthToken();
+  if (!token) return 'invalid';
+
+  // 離線：不打 API，直接依本地憑證（未過期 + 有 userData）判斷
+  if (!isOnline()) {
+    return tokenLocallyValid(token) && getUserData() ? 'offline-trusted' : 'invalid';
+  }
+
   try {
     const res = await apiCall('/api/auth/verify', { cache: 'no-store' });
-    if (res.ok) { const data = await res.json(); setUserData(data.user); return true; }
-    return false;
-  } catch { return false; }
+    if (res.ok) { const data = await res.json(); setUserData(data.user); return 'valid'; }
+    return 'invalid'; // 線上但非 2xx（401 已由 apiCall 丟出並清憑證）
+  } catch (err) {
+    // apiCall 對 401 會丟「登入已過期」且清掉本地憑證 → 下方檢查會是 false → invalid。
+    // 對網路錯誤（err.offline）→ 本地未過期就信任進場。
+    if (err.offline && tokenLocallyValid(token) && getUserData()) return 'offline-trusted';
+    return 'invalid';
+  }
 }
 
 export async function logout() {
