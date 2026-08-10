@@ -10,6 +10,8 @@ import { backendUrl, isDevelopment } from './config.js';
 import { showToast } from './utils.js';
 import { APP_VERSION, RELEASE_NOTE } from './version.js';
 import { isOnline } from './offline.js';
+import { flushOutbox, pendingCount } from './sync.js';
+import { on } from './store.js';
 
 const root = document.getElementById('app');
 
@@ -59,8 +61,33 @@ function setOfflineBadge(offline) {
   el.style.display = offline ? 'inline-flex' : 'none';
 }
 
+// 待同步計數膠囊（離線寫入佇列尚未同步的筆數）；視覺之後可交 Design。
+async function updatePendingBadge() {
+  let el = document.getElementById('pending-badge');
+  const n = await pendingCount();
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pending-badge';
+    el.innerHTML = '<i class="ti ti-cloud-upload" style="font-size:14px"></i><span data-el="n"></span>';
+    el.style.cssText = [
+      'position:fixed', 'left:50%', 'top:calc(46px + env(safe-area-inset-top))',
+      'transform:translateX(-50%)', 'z-index:99989',
+      'padding:5px 13px', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
+      'color:#fff', 'background:var(--accent, #4f7fff)', 'box-shadow:0 4px 14px rgba(0,0,0,.2)',
+      'display:none', 'align-items:center', 'gap:6px', 'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(el);
+  }
+  el.querySelector('[data-el="n"]').textContent = `待同步 ${n}`;
+  el.style.display = n > 0 ? 'inline-flex' : 'none';
+}
+
 function setupOfflineIndicator() {
   setOfflineBadge(!isOnline());
+  updatePendingBadge();
+  on('outbox:changed', updatePendingBadge);
+  on('sync:done', updatePendingBadge);
+  on('records:changed', updatePendingBadge); // 離線入列/合併/移除都會 emit records:changed
   window.addEventListener('offline', () => {
     setOfflineBadge(true);
     showToast('已離線，顯示本地快取資料', 'info', 3000);
@@ -68,6 +95,7 @@ function setupOfflineIndicator() {
   window.addEventListener('online', () => {
     setOfflineBadge(false);
     showToast('已恢復連線', 'success', 2500);
+    flushOutbox();
   });
 }
 
@@ -82,6 +110,8 @@ async function boot() {
   if (status === 'valid' || status === 'offline-trusted') {
     if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
     startApp();
+    updatePendingBadge();
+    if (status === 'valid') flushOutbox(); // 進場即嘗試把離線佇列送出
   } else {
     showAuth();
   }

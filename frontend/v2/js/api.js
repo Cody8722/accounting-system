@@ -42,7 +42,7 @@ export async function apiCall(endpoint, options = {}) {
   } catch (e) {
     // 網路層失敗（離線、連線中斷、DNS）：fetch 拋 TypeError，與 HTTP 狀態碼錯誤區分開，
     // 讓上層可據此回退快取或提示離線，而不是誤判成登入失效（避免網路抖動就把人踢登出）。
-    const err = new Error('目前無法連線（離線或伺服器無回應）');
+    const err = new Error('無法連線伺服器，此操作需恢復連線後再試');
     err.offline = true;
     err.cause = e;
     throw err;
@@ -55,7 +55,9 @@ export async function apiCall(endpoint, options = {}) {
       window.dispatchEvent(new CustomEvent('auth:token-invalid'));
       setTimeout(() => { is401Handling = false; }, 5000);
     }
-    throw new Error('登入已過期，請重新登入');
+    const err = new Error('登入已過期，請重新登入');
+    err.authExpired = true;
+    throw err;
   }
   return response;
 }
