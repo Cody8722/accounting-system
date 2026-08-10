@@ -167,6 +167,15 @@ def _create_indexes():
             [("user_id", ASCENDING), ("wallet_id", ASCENDING), ("location", ASCENDING)],
             background=True,
         )
+        # 離線同步冪等去重：同一使用者同一 client_id 只允許一筆。partial 只約束「有 client_id」
+        # 的記錄，既有/線上不帶 client_id 的記錄完全不受影響。放最後：舊版 mongomock 若不支援
+        # partialFilterExpression 而拋錯，前面的索引都已建立，只有這條被外層 except 記為警告。
+        accounting_records_collection.create_index(
+            [("user_id", ASCENDING), ("client_id", ASCENDING)],
+            unique=True,
+            partialFilterExpression={"client_id": {"$exists": True}},
+            background=True,
+        )
 
         logger.info("✅ 資料庫索引已建立（背景執行）")
     except Exception as index_error:
