@@ -21,11 +21,15 @@ function openDb() {
       resolve(null);
       return;
     }
+    // 只 resolve 一次；任何路徑（成功/錯誤/被擋/逾時）都必須讓 promise 收斂，
+    // 否則 await openDb() 會永遠掛住，拖垮所有依賴它的畫面（如明細頁的待同步疊加）。
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
     let req;
     try {
       req = indexedDB.open(DB_NAME, DB_VERSION);
     } catch {
-      resolve(null);
+      done(null);
       return;
     }
     req.onupgradeneeded = () => {
@@ -36,8 +40,18 @@ function openDb() {
         os.createIndex('clientId', 'clientId', { unique: true });
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => resolve(null);
+    req.onsuccess = () => {
+      const db = req.result;
+      // 未來版本升級時（可能來自另一分頁或 SW 重整後的新頁面），主動關閉本連線，
+      // 避免擋住對方的升級（否則對方會 onblocked）。這正是本次「明細卡載入中」的根因。
+      db.onversionchange = () => { try { db.close(); } catch { /* 忽略 */ } };
+      done(db);
+    };
+    req.onerror = () => done(null);
+    // 升級被其他既有連線擋住 → 不無限等待，降級為「無快取/佇列」，確保畫面照常渲染。
+    req.onblocked = () => done(null);
+    // 保險絲：任何未預期的卡住，逾時後降級（絕不讓 IndexedDB 拖住 UI）。
+    setTimeout(() => done(null), 4000);
   });
   return dbPromise;
 }
