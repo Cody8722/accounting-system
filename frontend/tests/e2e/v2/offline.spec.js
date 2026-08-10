@@ -75,8 +75,14 @@ test.describe('v2 離線（Phase 1：離線登入 + 讀取快取）', () => {
     await expect(page.locator('.desktop-main')).toContainText('321', { timeout: 10000 });
     await expect(page.locator('.desktop-main')).toContainText('待同步', { timeout: 10000 });
 
-    // 回連 → 自動同步 → 待同步消失（樂觀記錄換成 server 記錄）
+    // 回連後重新開啟 App（PWA 常見情境）→ boot 觸發 flushOutbox 同步。
+    // 刻意不依賴 online 事件——Playwright/Firefox 的 setOffline(false) 未必派發該事件。
     await context.setOffline(false);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.sidebar, .tabbar', { timeout: 20000 });
+    await page.click('[data-nav="ledger"]');
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
+    // 待同步消失（樂觀記錄換成 server 記錄），且該筆仍在
     await expect(page.locator('.desktop-main')).not.toContainText('待同步', { timeout: 20000 });
     await expect(page.locator('.desktop-main')).toContainText('321', { timeout: 10000 });
   });
