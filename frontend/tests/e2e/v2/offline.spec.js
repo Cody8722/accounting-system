@@ -52,4 +52,32 @@ test.describe('v2 離線（Phase 1：離線登入 + 讀取快取）', () => {
 
     await context.setOffline(false);
   });
+
+  test('離線記一筆 → 顯示待同步 → 回連自動同步（Phase 2）', async ({ page, context }) => {
+    await loginV2(page, user);
+    await page.waitForFunction(
+      () => !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+      null,
+      { timeout: 20000 },
+    );
+    // 先線上進明細，讓當月 records 端點寫入快取
+    await page.click('[data-nav="ledger"]');
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
+
+    await context.setOffline(true);
+    // 離線記一筆支出
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.fill('.overlay.center [data-el="amountInput"]', '321');
+    await page.click('.overlay.center [data-leaf="早餐"]');
+    await page.click('.overlay.center [data-el="save"]');
+    // 明細出現這筆 + 待同步標記
+    await expect(page.locator('.desktop-main')).toContainText('321', { timeout: 10000 });
+    await expect(page.locator('.desktop-main')).toContainText('待同步', { timeout: 10000 });
+
+    // 回連 → 自動同步 → 待同步消失（樂觀記錄換成 server 記錄）
+    await context.setOffline(false);
+    await expect(page.locator('.desktop-main')).not.toContainText('待同步', { timeout: 20000 });
+    await expect(page.locator('.desktop-main')).toContainText('321', { timeout: 10000 });
+  });
 });

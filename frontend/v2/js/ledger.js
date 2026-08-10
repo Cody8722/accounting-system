@@ -10,14 +10,25 @@ import { state, monthRange, shiftMonth, emit, on } from './store.js';
 import { openAdd } from './add.js';
 import { walletBalanceStripHtml, walletChipsHtml, walletOnlyChipsHtml, locationChipsHtml, LOCATION_META, walletMeta } from './wallet.js';
 import { lockQueryParams, lockBadgeHtml, bindLockBadge, openLockPicker } from './lock.js';
+import { pendingRecords, isOnline, updateOutbox, removeOutbox } from './offline.js';
 
 let cache = [];              // 當月記錄
 let table = { type: 'all', category: '', query: '', sortBy: 'date', sortOrder: 'desc' };
 
 async function load() {
   const { start, end } = monthRange();
-  const data = await apiJson(`/admin/api/accounting/records?page=1&limit=200&start_date=${start}&end_date=${end}&sort_by=date&sort_order=desc${lockQueryParams()}`);
-  cache = Array.isArray(data) ? data : (data.records || []);
+  let server = [];
+  try {
+    const data = await apiJson(`/admin/api/accounting/records?page=1&limit=200&start_date=${start}&end_date=${end}&sort_by=date&sort_order=desc${lockQueryParams()}`);
+    server = Array.isArray(data) ? data : (data.records || []);
+  } catch (e) {
+    // 離線且無快取時 apiJson 會丟 err.offline；仍要能顯示待同步項，故吞掉續行。
+    // 其他錯誤照樣往上拋，讓呼叫端顯示錯誤訊息。
+    if (!e.offline) throw e;
+  }
+  // 疊加「待同步」（離線建立、尚未同步）記錄——僅取當月，置於最前。
+  const pend = (await pendingRecords()).filter((r) => r.date >= start && r.date <= end);
+  cache = [...pend, ...server];
   return cache;
 }
 
@@ -31,6 +42,14 @@ function totals(list) {
   return { income, expense, balance: income - expense };
 }
 const rid = (r) => (r._id && r._id.$oid) ? r._id.$oid : r._id;
+
+/** 待同步/需處理小標記（離線建立、尚未同步的記錄）。視覺之後可交 Design 精緻化。 */
+function pendingBadge(r) {
+  if (!r._pending) return '';
+  const isErr = r._status === 'error';
+  const color = isErr ? 'var(--expense)' : 'var(--muted2)';
+  return `<span style="font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid ${color};color:${color};margin-left:6px">${isErr ? '需處理' : '待同步'}</span>`;
+}
 
 function catIconHtml(leaf, size = 38) {
   const m = categoryMeta(leaf);
@@ -138,7 +157,7 @@ export async function renderLedgerMobile(container) {
         <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
           ${catIconHtml(r.category)}
           <div style="flex:1;min-width:0">
-            <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.category)}</div>
+            <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</div>
             <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || categoryMeta(r.category).group)}</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:${r.type === 'income' ? 'var(--income)' : 'var(--text)'}">${r.type === 'income' ? '+' : '−'}${fmtMoney(r.amount)}</span>
@@ -235,7 +254,7 @@ export async function renderLedgerDesktop(container) {
           </div>` : `
           <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.category)}</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</span></div>
             <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
             <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:${r.type === 'income' ? 'var(--income-soft)' : 'var(--expense-soft)'};color:${r.type === 'income' ? 'var(--income)' : 'var(--expense)'}">${r.type === 'income' ? '收入' : '支出'}</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:${r.type === 'income' ? 'var(--income)' : 'var(--text)'}">${r.type === 'income' ? '+' : '−'}${fmtMoney(r.amount)}</div>
@@ -337,6 +356,17 @@ function openEditIncomeExpense(record) {
       if (!curLocation) { showToast('請選擇位置', 'warning'); return; }
       body.location = curLocation;
     }
+    // 待同步（離線建立、尚未同步）記錄 → outbox 就地合併，不送後端
+    if (record._pending) {
+      const queued = { ...body, client_id: record._clientId };
+      if (body.type === 'expense') queued.confirm_withdrawal = true;
+      const storedRecord = { _id: record._clientId, ...body, created_at: record.created_at || new Date().toISOString() };
+      // 一併重設為 pending（若原本是「需處理」，等於修正後重排隊重試）
+      await updateOutbox(record._clientId, { payload: queued, record: storedRecord, status: 'pending', error: null });
+      showToast('已更新（待同步）', 'success'); ov.remove(); emit('records:changed'); return;
+    }
+    // 已同步的 server 記錄：離線不可編輯
+    if (!isOnline()) { showToast('編輯已同步記錄需連線', 'warning'); return; }
     try {
       await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
       showToast('已更新', 'success'); ov.remove(); emit('records:changed');
@@ -344,6 +374,8 @@ function openEditIncomeExpense(record) {
   };
   ov.querySelector('[data-el="del"]').onclick = async () => {
     if (!(await showConfirm('確定刪除這筆記錄？'))) return;
+    if (record._pending) { await removeOutbox(record._clientId); showToast('已刪除待同步項', 'success'); ov.remove(); emit('records:changed'); return; }
+    if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
       const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('刪除失敗');
@@ -398,6 +430,7 @@ function openEditTransfer(record) {
       wallet_id: curWalletId,
     };
     if (!body.amount || body.amount <= 0) { showToast('金額須大於 0', 'warning'); return; }
+    if (!isOnline()) { showToast('編輯已同步記錄需連線', 'warning'); return; }
     try {
       await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
       showToast('已更新', 'success'); ov.remove(); emit('records:changed');
@@ -405,6 +438,7 @@ function openEditTransfer(record) {
   };
   ov.querySelector('[data-el="del"]').onclick = async () => {
     if (!(await showConfirm('確定刪除這筆轉移記錄？'))) return;
+    if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
       const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('刪除失敗');
@@ -466,6 +500,7 @@ function openEditRestricted(record) {
     };
     if (!body.amount || body.amount <= 0) { showToast('金額須大於 0', 'warning'); return; }
     if (!body.location) { showToast('請選擇位置', 'warning'); return; }
+    if (!isOnline()) { showToast('編輯已同步記錄需連線', 'warning'); return; }
     try {
       await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
       showToast('已更新', 'success'); ov.remove(); emit('records:changed');
@@ -473,6 +508,7 @@ function openEditRestricted(record) {
   };
   ov.querySelector('[data-el="del"]').onclick = async () => {
     if (!(await showConfirm('確定刪除這筆受限資金？'))) return;
+    if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
       const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('刪除失敗');
