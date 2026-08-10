@@ -19,6 +19,7 @@ from datetime import datetime
 from bson import ObjectId, json_util
 from flask import Blueprint, jsonify, request
 from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import DuplicateKeyError
 
 import db
 from extensions import (
@@ -232,6 +233,17 @@ def add_accounting_record():
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
+        # 離線同步冪等：前端可帶 client_id（uuid）供去重；線上請求不帶則行為完全不變。
+        client_id = data.get("client_id")
+        if client_id is not None:
+            if (
+                not isinstance(client_id, str)
+                or not client_id.strip()
+                or len(client_id) > 64
+            ):
+                return jsonify({"error": "無效的 client_id"}), 400
+            client_id = client_id.strip()
+
         if data.get("type") == "transfer":
             return (
                 jsonify(
@@ -308,6 +320,25 @@ def add_accounting_record():
                 return jsonify({"error": msg}), 400
 
         user_oid = ObjectId(request.user_id)
+
+        # 冪等去重：離線同步可能因回應遺失而重送同一筆（帶相同 client_id）。命中就回既有記錄、
+        # 不重複建立——尤其要在下方「現金不足自動提領」邏輯之前，避免重送時又多產生一筆提領轉帳。
+        if client_id is not None:
+            existing = db.accounting_records_collection.find_one(
+                {"user_id": user_oid, "client_id": client_id}
+            )
+            if existing is not None:
+                return (
+                    jsonify(
+                        {
+                            "message": "記帳記錄已存在",
+                            "id": str(existing["_id"]),
+                            "deduped": True,
+                        }
+                    ),
+                    200,
+                )
+
         valid, wallet_id = _resolve_wallet_id(data.get("wallet_id"), user_oid)
         if not valid:
             return jsonify({"error": wallet_id}), 400
@@ -383,8 +414,29 @@ def add_accounting_record():
                 "created_at": datetime.now(),
                 "user_id": user_oid,
             }
-            result = db.accounting_records_collection.insert_one(record)
-            primary_id = result.inserted_id
+            # 只在有 client_id 時才寫入該欄位；不帶的記錄不含此欄，才不會被 partial unique index 約束。
+            if client_id is not None:
+                record["client_id"] = client_id
+            try:
+                result = db.accounting_records_collection.insert_one(record)
+                primary_id = result.inserted_id
+            except DuplicateKeyError:
+                # 競態：另一個帶相同 client_id 的請求已先寫入 → 回既有（冪等安全網）。
+                existing = db.accounting_records_collection.find_one(
+                    {"user_id": user_oid, "client_id": client_id}
+                )
+                if existing is not None:
+                    return (
+                        jsonify(
+                            {
+                                "message": "記帳記錄已存在",
+                                "id": str(existing["_id"]),
+                                "deduped": True,
+                            }
+                        ),
+                        200,
+                    )
+                raise
 
         restricted_id = None
         if restricted_amount is not None:
