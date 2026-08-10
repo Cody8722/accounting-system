@@ -27,7 +27,13 @@ async function load() {
     if (!e.offline) throw e;
   }
   // 疊加「待同步」（離線建立、尚未同步）記錄——僅取當月，置於最前。
-  const pend = (await pendingRecords()).filter((r) => r.date >= start && r.date <= end);
+  // 包一層防護：待同步疊加是加值功能，不該因 IndexedDB 任何問題而拖垮明細渲染。
+  let pend = [];
+  try {
+    pend = (await pendingRecords()).filter((r) => r.date >= start && r.date <= end);
+  } catch {
+    pend = [];
+  }
   cache = [...pend, ...server];
   return cache;
 }
