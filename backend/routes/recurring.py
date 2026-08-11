@@ -110,6 +110,7 @@ def create_recurring():
             "day_of_month": fields["day_of_month"],
             "description": fields["description"],
             "created_at": datetime.now(),
+            "updated_at": datetime.now(),
         }
         result = db.recurring_collection.insert_one(doc)
         logger.info(
@@ -174,6 +175,7 @@ def update_recurring(item_id):
                     "category": fields["category"],
                     "day_of_month": fields["day_of_month"],
                     "description": fields["description"],
+                    "updated_at": datetime.now(),
                 }
             },
         )
@@ -218,6 +220,7 @@ def apply_recurring(item_id):
             "description": item.get("description") or item["name"],
             "date": record_date,
             "created_at": datetime.now(),
+            "updated_at": datetime.now(),
         }
         result = db.accounting_records_collection.insert_one(record)
         logger.info(
