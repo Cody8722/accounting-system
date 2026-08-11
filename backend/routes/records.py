@@ -8,8 +8,10 @@ PUT    /admin/api/accounting/records/<id>          更新記錄
 DELETE /admin/api/accounting/records/<id>          刪除記錄
 POST   /admin/api/accounting/records/transfer      新增內部轉移
 POST   /admin/api/accounting/records/<id>/unlock   解鎖受限資金
+GET    /admin/api/accounting/data-version          資料版本簽章（供前端判斷是否需重抓）
 """
 
+import hashlib
 import json
 import logging
 import math
@@ -390,6 +392,7 @@ def add_accounting_record():
                     "description": "支出現金不足，自動提領",
                     "auto_generated": True,
                     "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
                 }
                 transfer_result = db.accounting_records_collection.insert_one(
                     transfer_doc
@@ -412,6 +415,7 @@ def add_accounting_record():
                 "location": location,
                 "source_transfer_id": source_transfer_id,
                 "created_at": datetime.now(),
+                "updated_at": datetime.now(),
                 "user_id": user_oid,
             }
             # 只在有 client_id 時才寫入該欄位；不帶的記錄不含此欄，才不會被 partial unique index 約束。
@@ -453,6 +457,7 @@ def add_accounting_record():
                 "unlocked_at": None,
                 "source_restricted_id": None,
                 "created_at": datetime.now(),
+                "updated_at": datetime.now(),
                 "user_id": user_oid,
             }
             restricted_result = db.accounting_records_collection.insert_one(
@@ -624,7 +629,13 @@ def delete_accounting_record(record_id):
         if source_restricted_id:
             db.accounting_records_collection.update_one(
                 {"_id": source_restricted_id, "user_id": ObjectId(request.user_id)},
-                {"$set": {"type": "restricted", "unlocked_at": None}},
+                {
+                    "$set": {
+                        "type": "restricted",
+                        "unlocked_at": None,
+                        "updated_at": datetime.now(),
+                    }
+                },
             )
 
         _cache_invalidate_user(request.user_id)
@@ -707,6 +718,7 @@ def add_transfer_record():
             "description": description,
             "auto_generated": False,
             "created_at": datetime.now(),
+            "updated_at": datetime.now(),
         }
 
         result = db.accounting_records_collection.insert_one(record)
@@ -759,7 +771,7 @@ def unlock_restricted_record(record_id):
         now = datetime.now()
         db.accounting_records_collection.update_one(
             {"_id": record["_id"]},
-            {"$set": {"type": "income", "unlocked_at": now}},
+            {"$set": {"type": "income", "unlocked_at": now, "updated_at": now}},
         )
 
         desc = record.get("description") or ""
@@ -776,6 +788,7 @@ def unlock_restricted_record(record_id):
             "auto_generated": True,
             "source_restricted_id": record["_id"],
             "created_at": now,
+            "updated_at": now,
             "user_id": user_oid,
         }
         result = db.accounting_records_collection.insert_one(expense_doc)
@@ -792,3 +805,63 @@ def unlock_restricted_record(record_id):
     except Exception as e:
         logger.error(f"解鎖受限資金失敗: {e}")
         return jsonify({"error": "解鎖失敗"}), 500
+
+
+def _collection_signature(collection, user_oid):
+    """回傳 (count, max_updated_at)，供資料版本簽章使用。"""
+    pipeline = [
+        {"$match": {"user_id": user_oid}},
+        {
+            "$group": {
+                "_id": None,
+                "count": {"$sum": 1},
+                "max_updated": {"$max": "$updated_at"},
+            }
+        },
+    ]
+    agg = list(collection.aggregate(pipeline))
+    if not agg:
+        return 0, None
+    return agg[0]["count"], agg[0].get("max_updated")
+
+
+def _compute_data_version(user_id):
+    """對 records/budget/recurring/wallets 各取 count + max(updated_at)，串接後算
+    MD5 作為使用者的資料版本簽章。由實際資料算出、自我修正：任一集合的新增（count
+    變）、修改（max_updated 變）、刪除（count 變）都會改變此值。全域單一簽章，不細分
+    月份/查詢條件，避免前端某些查詢條件遺漏更新（見離線同步 Phase 相關規劃）。
+
+    已知邊界：BSON datetime 只有毫秒精度（非微秒），若同一份文件在同一毫秒內被
+    連續寫入兩次，第二次可能不會反映在 max(updated_at) 上。實務上需伺服器端
+    in-process 極速連續寫入才會撞到（正常 HTTP 往返不會），故接受此極窄風險，
+    不為此引入需要在每個寫入點手動維護的計數器（見架構規劃的取捨）。"""
+    user_oid = ObjectId(user_id)
+    parts = []
+    for name, collection in (
+        ("records", db.accounting_records_collection),
+        ("budget", db.accounting_budget_collection),
+        ("recurring", db.recurring_collection),
+        ("wallets", db.wallets_collection),
+    ):
+        count, max_updated = _collection_signature(collection, user_oid)
+        ts = max_updated.isoformat() if max_updated else "none"
+        parts.append(f"{name}:{count}:{ts}")
+    signature = "|".join(parts)
+    return hashlib.md5(signature.encode("utf-8")).hexdigest()
+
+
+@bp.route("/admin/api/accounting/data-version", methods=["GET"])
+@limiter.limit("200 per minute")
+@require_auth
+def get_data_version():
+    """輕量更新檢查：回傳資料版本簽章（不透明字串）。前端比對本地快取記的上次版本，
+    相同就沿用快取、不重抓完整資料；不同才真的去抓新資料。MD5 僅用來把複合值壓成
+    短字串，非安全用途。"""
+    if db.accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    try:
+        version = _compute_data_version(request.user_id)
+        return jsonify({"version": version}), 200
+    except Exception as e:
+        logger.error(f"計算資料版本失敗: {e}")
+        return jsonify({"error": "計算資料版本失敗"}), 500
