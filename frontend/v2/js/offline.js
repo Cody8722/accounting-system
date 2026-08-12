@@ -60,13 +60,14 @@ function store(db, mode) {
   return db.transaction(STORE_CACHE, mode).objectStore(STORE_CACHE);
 }
 
-/** 寫入 GET 回應快取（key=endpoint）。失敗靜默，不影響呼叫端。 */
-export async function putCache(key, data) {
+/** 寫入 GET 回應快取（key=endpoint）。version 為寫入當下的伺服器資料版本簽章
+ * （輕量更新檢查用），供下次比對是否可沿用快取；未知則傳 null。失敗靜默，不影響呼叫端。 */
+export async function putCache(key, data, version = null) {
   const db = await openDb();
   if (!db) return;
   try {
     await new Promise((resolve, reject) => {
-      const r = store(db, 'readwrite').put({ data, ts: Date.now() }, key);
+      const r = store(db, 'readwrite').put({ data, ts: Date.now(), version }, key);
       r.onsuccess = resolve;
       r.onerror = () => reject(r.error);
     });
@@ -75,7 +76,7 @@ export async function putCache(key, data) {
   }
 }
 
-/** 讀取快取；回 { data, ts } 或 null。 */
+/** 讀取快取；回 { data, ts, version } 或 null。 */
 export async function getCache(key) {
   const db = await openDb();
   if (!db) return null;
