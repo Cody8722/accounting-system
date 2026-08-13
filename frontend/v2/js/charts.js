@@ -3,6 +3,7 @@
  * donut：分類佔比（hover 高亮該段、圓心即時更新）
  * bars：月度收支比較（hover 淡出其他 + tooltip）
  * line：支出趨勢折線（crosshair + tooltip）
+ * flowTree：單一錢包資金流向樹（銀行/現金/受限資金 + 三種明確關聯邊，靜態顯示）
  */
 
 import { fmtMoney } from './utils.js';
@@ -143,5 +144,97 @@ export function line(container, points, { height = 190, color = 'var(--accent)' 
   });
   hit.addEventListener('mouseleave', () => { cross.style.display = 'none'; dot.style.display = 'none'; t.classList.add('hidden'); });
   svg.appendChild(hit);
+  container.appendChild(svg);
+}
+
+/**
+ * 資金流向樹（單一錢包）。data 為 GET /admin/api/wallets/<id>/flow-tree 的回應：
+ * { locations:{bank:{balance},cash:{balance}}, restricted_locked_total,
+ *   edges:{auto_withdrawal,restricted_split,restricted_unlock} }（每個 edge 為 {count,amount}）
+ * 只呈現「已經記錄的明確關聯」的靜態加總，不做配對追蹤、不下鑽——次數為 0 的邊畫成
+ * 灰色虛線代表「這個情境從未發生過」，避免跟「有發生但金額剛好是 0」混淆。
+ */
+export function flowTree(container, data) {
+  container.innerHTML = '';
+  container.style.position = 'relative';
+  const W = container.clientWidth || 320;
+  const H = 280;
+  const svg = svgEl('svg', { width: '100%', height: H, viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' });
+
+  const defs = svgEl('defs');
+  [['flow-arrow', 'var(--accent)'], ['flow-arrow-muted', 'var(--border-strong)']].forEach(([id, fill]) => {
+    const m = svgEl('marker', { id, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
+    m.appendChild(svgEl('path', { d: 'M0 0 L10 5 L0 10 Z', fill }));
+    defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  const nodeW = 116, nodeH = 52;
+  // 銀行/現金並排，中間縫隙在窄螢幕（手機）可能容不下自動提領的完整文字標籤，
+  // 所以那條邊的標籤獨立放在整排上方（見下方 edgeLine 的 labelY 參數），
+  // 不跟著線的中點走——節點方塊是後畫的、有底色，蓋在下面的文字會被裁切。
+  const topLabelY = 14, topY = 38;
+  const bankX = 12, cashX = W - 12 - nodeW;
+  const restrictedX = (W - nodeW) / 2, restrictedY = 168;
+  const midX = W / 2;
+
+  function balanceColor(v) { return v >= 0 ? 'var(--text)' : 'var(--expense)'; }
+  function balanceText(v) { return `${v >= 0 ? '' : '−'}${fmtMoney(Math.abs(v))}`; }
+
+  function node(x, y, label, amountText, amountColor) {
+    const g = svgEl('g');
+    g.appendChild(svgEl('rect', { x, y, width: nodeW, height: nodeH, rx: 12, fill: 'var(--surface)', stroke: 'var(--border-strong)', 'stroke-width': 1.5 }));
+    const t1 = svgEl('text', { x: x + nodeW / 2, y: y + 20, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--muted2)' });
+    t1.textContent = label;
+    const t2 = svgEl('text', { x: x + nodeW / 2, y: y + 39, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 600, 'font-family': 'IBM Plex Mono', fill: amountColor });
+    t2.textContent = amountText;
+    g.append(t1, t2);
+    return g;
+  }
+
+  function endpointLabel(y, label) {
+    const g = svgEl('g');
+    g.appendChild(svgEl('circle', { cx: midX, cy: y, r: 3, fill: 'var(--faint)' }));
+    const t = svgEl('text', { x: midX, y: y - 8, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--faint)' });
+    t.textContent = label;
+    g.appendChild(t);
+    return g;
+  }
+
+  function edgeLine(x1, y1, x2, y2, label, e, { labelY } = {}) {
+    const active = e.count > 0;
+    const g = svgEl('g');
+    g.appendChild(svgEl('path', {
+      d: `M${x1} ${y1} L${x2} ${y2}`, fill: 'none',
+      stroke: active ? 'var(--accent)' : 'var(--border)',
+      'stroke-width': active ? 2 : 1.5,
+      'stroke-dasharray': active ? '' : '4 4',
+      'marker-end': `url(#${active ? 'flow-arrow' : 'flow-arrow-muted'})`,
+    }));
+    const t = svgEl('text', { x: (x1 + x2) / 2, y: labelY ?? (y1 + y2) / 2 - 6, 'text-anchor': 'middle', 'font-size': 11, fill: active ? 'var(--muted2)' : 'var(--faint)' });
+    t.textContent = active ? `${label} · ${fmtMoney(e.amount)}（${e.count} 筆）` : `${label} · 尚未發生`;
+    g.appendChild(t);
+    return g;
+  }
+
+  const bankBal = data.locations.bank.balance;
+  const cashBal = data.locations.cash.balance;
+
+  // 銀行 → 現金：自動提領（線在兩節點中心高度，標籤獨立放上方，見上方註解）
+  svg.appendChild(edgeLine(
+    bankX + nodeW, topY + nodeH / 2, cashX, topY + nodeH / 2,
+    '自動提領', data.edges.auto_withdrawal, { labelY: topLabelY },
+  ));
+  // 收入 → 受限資金：拆分
+  svg.appendChild(edgeLine(midX, 116, midX, restrictedY, '拆分', data.edges.restricted_split));
+  // 受限資金 → 支出：解鎖
+  svg.appendChild(edgeLine(midX, restrictedY + nodeH, midX, 254, '解鎖', data.edges.restricted_unlock));
+
+  svg.appendChild(endpointLabel(110, '收入'));
+  svg.appendChild(node(bankX, topY, '銀行', balanceText(bankBal), balanceColor(bankBal)));
+  svg.appendChild(node(cashX, topY, '現金', balanceText(cashBal), balanceColor(cashBal)));
+  svg.appendChild(node(restrictedX, restrictedY, '受限資金', balanceText(data.restricted_locked_total), 'var(--text)'));
+  svg.appendChild(endpointLabel(260, '支出'));
+
   container.appendChild(svg);
 }

@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.8.0';
-export const RELEASE_NOTE = '切換頁面更快：只在資料真的更新時才重新載入';
+export const APP_VERSION = '1.9.0';
+export const RELEASE_NOTE = '錢包管理新增「資金流向」：一眼看懂自動提領／受限資金拆分與解鎖';

@@ -11,6 +11,7 @@
 import { apiJson, apiCall } from './api.js';
 import { escapeHtml, showToast, showConfirm, fmtMoney, todayStr } from './utils.js';
 import { emit } from './store.js';
+import { flowTree } from './charts.js';
 
 let cache = null; // 錢包清單快取（不含已封存）；null = 尚未載入過
 
@@ -110,6 +111,7 @@ function walletRowHtml(w, locEntry) {
         <span style="font-size:11px;color:var(--faint)"><i class="ti ${LOCATION_META.cash.icon}"></i> ${fmtMoney(cashBal)}</span>
       </div>
     </div>
+    <button class="icon-btn" data-flow-tree="${w.id}" title="資金流向"><i class="ti ti-sitemap" style="color:var(--muted2)"></i></button>
     <button class="icon-btn" data-edit-wallet="${w.id}"><i class="ti ti-pencil"></i></button>
     <button class="icon-btn" data-archive-wallet="${w.id}"><i class="ti ti-archive" style="color:var(--expense)"></i></button>
   </div>`;
@@ -156,6 +158,30 @@ function openUnlockDialog(item, onUnlocked) {
   };
   ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
+}
+
+/** 資金流向樹：單一錢包的銀行/現金/受限資金 + 三種明確關聯（自動提領／拆分／解鎖）
+ * 的靜態加總，不做一般收支的配對追蹤（圓餅圖已處理）、不下鑽明細。 */
+function openFlowTree(wallet) {
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `<div class="sheet">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-sitemap" style="margin-right:6px;color:var(--muted2)"></i>${escapeHtml(wallet.name)}・資金流向</span>
+      <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
+    </div>
+    <div data-el="body"><div style="text-align:center;color:var(--muted2);padding:20px">載入中…</div></div>
+  </div>`;
+  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
+  document.body.appendChild(ov);
+
+  const body = ov.querySelector('[data-el="body"]');
+  apiJson(`/admin/api/wallets/${wallet.id}/flow-tree`)
+    .then((data) => {
+      body.innerHTML = '<div data-el="chart"></div>';
+      flowTree(body.querySelector('[data-el="chart"]'), data);
+    })
+    .catch((e) => { body.innerHTML = `<div style="color:var(--expense)">${escapeHtml(e.message)}</div>`; });
 }
 
 function openWalletForm(existing, onSaved) {
@@ -266,6 +292,10 @@ export async function openWalletManager() {
       });
     }
 
+    body.querySelectorAll('[data-flow-tree]').forEach((b) => b.onclick = () => {
+      const w = wallets.find((x) => x.id === b.dataset.flowTree);
+      if (w) openFlowTree(w);
+    });
     body.querySelectorAll('[data-edit-wallet]').forEach((b) => b.onclick = () => {
       const w = wallets.find((x) => x.id === b.dataset.editWallet);
       if (w) openWalletForm(w, refresh);
