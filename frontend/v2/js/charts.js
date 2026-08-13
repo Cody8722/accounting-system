@@ -28,6 +28,37 @@ function arcPath(cx, cy, rOut, rIn, a0, a1) {
 }
 
 /**
+ * Catmull-Rom／Cardinal 雲線轉 SVG cubic-bezier path（Cody Design System 品牌識別：
+ * 圖表連接線一律用有機曲線，不用直線/直角）。tension 對齊 d3 curveCardinal 的定義，
+ * 0 為標準 Catmull-Rom、越接近 1 越貼近直線；points 至少 2 個點。
+ * 端點以複製邊界點取代真正的鏡射外插，簡單、穩定，不會有 overshoot。
+ */
+function catmullRomPath(points, tension = 0) {
+  if (points.length < 2) return '';
+  const scale = (1 - tension) / 6;
+  const at = (i) => points[Math.max(0, Math.min(points.length - 1, i))];
+  let d = `M${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const c1x = p1.x + (p2.x - p0.x) * scale, c1y = p1.y + (p2.y - p0.y) * scale;
+    const c2x = p2.x - (p3.x - p1.x) * scale, c2y = p2.y - (p3.y - p1.y) * scale;
+    d += ` C${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+/** 兩點間插入一個垂直於連線方向、偏移 bow px 的中繼點，讓 catmullRomPath 畫出來
+ * 不是退化的直線，而是一段自然的弧——弧度刻意收斂（bow 預設 14px），維持
+ * 品牌「極淺、克制」的調性，不做誇張的 S 彎。 */
+function bowedPoints(x1, y1, x2, y2, bow) {
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  return [{ x: x1, y: y1 }, { x: mx + nx * bow, y: my + ny * bow }, { x: x2, y: y2 }];
+}
+
+/**
  * 甜甜圈圖。data:[{label,value,color}]
  * onSelect(item|null) 回報目前 hover/選取項（供外部更新圓心）。
  */
@@ -158,7 +189,7 @@ export function flowTree(container, data) {
   container.innerHTML = '';
   container.style.position = 'relative';
   const W = container.clientWidth || 320;
-  const H = 280;
+  const H = 284;
   const svg = svgEl('svg', { width: '100%', height: H, viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' });
 
   const defs = svgEl('defs');
@@ -167,15 +198,19 @@ export function flowTree(container, data) {
     m.appendChild(svgEl('path', { d: 'M0 0 L10 5 L0 10 Z', fill }));
     defs.appendChild(m);
   });
+  // 卡片極淺陰影（Cody Design System：白底/16px 圓角/髮絲邊框/極淺陰影，絕不用重陰影）
+  const shadow = svgEl('filter', { id: 'flow-card-shadow', x: '-30%', y: '-30%', width: '160%', height: '160%' });
+  shadow.appendChild(svgEl('feDropShadow', { dx: 0, dy: 1, stdDeviation: 2, 'flood-opacity': 0.12 }));
+  defs.appendChild(shadow);
   svg.appendChild(defs);
 
   const nodeW = 116, nodeH = 52;
   // 銀行/現金並排，中間縫隙在窄螢幕（手機）可能容不下自動提領的完整文字標籤，
   // 所以那條邊的標籤獨立放在整排上方（見下方 edgeLine 的 labelY 參數），
   // 不跟著線的中點走——節點方塊是後畫的、有底色，蓋在下面的文字會被裁切。
-  const topLabelY = 14, topY = 38;
+  const topLabelY = 16, topY = 40;
   const bankX = 12, cashX = W - 12 - nodeW;
-  const restrictedX = (W - nodeW) / 2, restrictedY = 168;
+  const restrictedX = (W - nodeW) / 2, restrictedY = 172;
   const midX = W / 2;
 
   function balanceColor(v) { return v >= 0 ? 'var(--text)' : 'var(--expense)'; }
@@ -183,7 +218,7 @@ export function flowTree(container, data) {
 
   function node(x, y, label, amountText, amountColor) {
     const g = svgEl('g');
-    g.appendChild(svgEl('rect', { x, y, width: nodeW, height: nodeH, rx: 12, fill: 'var(--surface)', stroke: 'var(--border-strong)', 'stroke-width': 1.5 }));
+    g.appendChild(svgEl('rect', { x, y, width: nodeW, height: nodeH, rx: 16, fill: 'var(--surface)', stroke: 'var(--border)', 'stroke-width': 1, filter: 'url(#flow-card-shadow)' }));
     const t1 = svgEl('text', { x: x + nodeW / 2, y: y + 20, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--muted2)' });
     t1.textContent = label;
     const t2 = svgEl('text', { x: x + nodeW / 2, y: y + 39, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 600, 'font-family': 'IBM Plex Mono', fill: amountColor });
@@ -201,17 +236,19 @@ export function flowTree(container, data) {
     return g;
   }
 
-  function edgeLine(x1, y1, x2, y2, label, e, { labelY } = {}) {
+  // 連接線一律走 Catmull-Rom 有機曲線（tension 0.42），不用直線/直角——
+  // 品牌識別動機，即使兩端點對齊成一直線也刻意加一點弧度（見 bowedPoints）。
+  function edgeLine(x1, y1, x2, y2, label, e, { labelY, bow = 14 } = {}) {
     const active = e.count > 0;
     const g = svgEl('g');
     g.appendChild(svgEl('path', {
-      d: `M${x1} ${y1} L${x2} ${y2}`, fill: 'none',
+      d: catmullRomPath(bowedPoints(x1, y1, x2, y2, bow), 0.42), fill: 'none',
       stroke: active ? 'var(--accent)' : 'var(--border)',
       'stroke-width': active ? 2 : 1.5,
       'stroke-dasharray': active ? '' : '4 4',
       'marker-end': `url(#${active ? 'flow-arrow' : 'flow-arrow-muted'})`,
     }));
-    const t = svgEl('text', { x: (x1 + x2) / 2, y: labelY ?? (y1 + y2) / 2 - 6, 'text-anchor': 'middle', 'font-size': 11, fill: active ? 'var(--muted2)' : 'var(--faint)' });
+    const t = svgEl('text', { x: (x1 + x2) / 2, y: labelY ?? (y1 + y2) / 2 - 6, 'text-anchor': 'middle', 'font-size': 11, fill: active ? 'var(--muted2)' : 'var(--faint)', 'data-chip': '1' });
     t.textContent = active ? `${label} · ${fmtMoney(e.amount)}（${e.count} 筆）` : `${label} · 尚未發生`;
     g.appendChild(t);
     return g;
@@ -223,18 +260,35 @@ export function flowTree(container, data) {
   // 銀行 → 現金：自動提領（線在兩節點中心高度，標籤獨立放上方，見上方註解）
   svg.appendChild(edgeLine(
     bankX + nodeW, topY + nodeH / 2, cashX, topY + nodeH / 2,
-    '自動提領', data.edges.auto_withdrawal, { labelY: topLabelY },
+    '自動提領', data.edges.auto_withdrawal, { labelY: topLabelY, bow: 16 },
   ));
   // 收入 → 受限資金：拆分
-  svg.appendChild(edgeLine(midX, 116, midX, restrictedY, '拆分', data.edges.restricted_split));
-  // 受限資金 → 支出：解鎖
-  svg.appendChild(edgeLine(midX, restrictedY + nodeH, midX, 254, '解鎖', data.edges.restricted_unlock));
+  svg.appendChild(edgeLine(midX, 118, midX, restrictedY, '拆分', data.edges.restricted_split));
+  // 受限資金 → 支出：解鎖（跟拆分反向弧度，兩段合起來有輕微 S 型流動感）
+  svg.appendChild(edgeLine(midX, restrictedY + nodeH, midX, 258, '解鎖', data.edges.restricted_unlock, { bow: -14 }));
 
-  svg.appendChild(endpointLabel(110, '收入'));
+  svg.appendChild(endpointLabel(112, '收入'));
   svg.appendChild(node(bankX, topY, '銀行', balanceText(bankBal), balanceColor(bankBal)));
   svg.appendChild(node(cashX, topY, '現金', balanceText(cashBal), balanceColor(cashBal)));
   svg.appendChild(node(restrictedX, restrictedY, '受限資金', balanceText(data.restricted_locked_total), 'var(--text)'));
-  svg.appendChild(endpointLabel(260, '支出'));
+  svg.appendChild(endpointLabel(264, '支出'));
 
+  // 進場動畫：140-320ms、--ease-organic，靜態圖表也維持統一的動畫語彙
+  svg.style.opacity = '0';
   container.appendChild(svg);
+
+  // 邊的標籤（拆分/解鎖/自動提領）疊在有機曲線上時，短邊的弧線會穿過文字——
+  // 補一塊跟卡片同色的底色墊在文字後面，蓋掉線段，而不是靠縮小弧度硬躲開
+  // （縮小弧度會違背「一律用有機曲線」的品牌規則，等於換句話說回到直線）。
+  svg.querySelectorAll('text[data-chip]').forEach((t) => {
+    const bbox = t.getBBox();
+    const pad = 3;
+    const rect = svgEl('rect', { x: bbox.x - pad, y: bbox.y - pad, width: bbox.width + pad * 2, height: bbox.height + pad * 2, rx: 4, fill: 'var(--surface)' });
+    t.parentNode.insertBefore(rect, t);
+  });
+
+  requestAnimationFrame(() => {
+    svg.style.transition = 'opacity 280ms var(--ease-organic)';
+    svg.style.opacity = '1';
+  });
 }
