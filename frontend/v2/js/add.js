@@ -15,6 +15,7 @@ import { showToast, showConfirm, todayStr, escapeHtml } from './utils.js';
 import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
 import { fetchWallets, walletChipsHtml, locationChipsHtml } from './wallet.js';
+import { isOnline, enqueueOutbox, genClientId } from './offline.js';
 
 let host = null;          // 掛載容器（覆蓋層）
 let mode = 'mobile';      // mobile | desktop
@@ -240,6 +241,36 @@ function openRecurSheet() {
   document.body.appendChild(ov);
 }
 
+/** 離線樂觀寫入：一般收入/支出離線時不送後端，先入 outbox 並在 UI 立即呈現，回連後同步。 */
+async function offlineSave(payload, amount) {
+  const clientId = genClientId();
+  const queued = { ...payload, client_id: clientId };
+  // 離線支出可能現金不足；使用者既已決定要記這筆，帶 confirm_withdrawal 讓同步時自動提領補齊
+  if (payload.type === 'expense') queued.confirm_withdrawal = true;
+  const optimistic = { _id: clientId, ...payload, amount, created_at: new Date().toISOString() };
+  const ok = await enqueueOutbox({
+    clientId,
+    kind: 'create-record',
+    endpoint: '/admin/api/accounting/records',
+    method: 'POST',
+    payload: queued,
+    record: optimistic,
+    status: 'pending',
+    error: null,
+    createdAt: Date.now(),
+  });
+  if (!ok) { showToast('離線儲存失敗（瀏覽器儲存不可用）', 'error'); return; }
+  showToast('已離線記錄，連線後自動同步', 'success');
+  emit('records:changed');
+  // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
+  clearCalc();
+  note = '';
+  const noteInput = host.querySelector('[data-el="note"]');
+  if (noteInput) noteInput.value = '';
+  resetSplit();
+  if (mode === 'desktop') close();
+}
+
 /** 存檔成功後的共用收尾：定期排程、提示、清空計算機與備註、電腦版關閉 */
 async function finishSave(amount, hadSplit = false) {
   if (recurring) {
@@ -275,6 +306,15 @@ async function save() {
   if (hasSplit) {
     payload.restricted_amount = restrictedAmount;
     payload.restricted_description = restrictedNote;
+  }
+
+  // 離線：只支援一般收入/支出；拆分（受限資金）與定期需連線
+  if (!isOnline()) {
+    if (hasSplit || recurring) {
+      showToast('拆分與定期記帳需連線，請恢復連線後再記', 'warning');
+      return;
+    }
+    return offlineSave(payload, amount || 0);
   }
 
   try {

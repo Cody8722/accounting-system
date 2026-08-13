@@ -52,4 +52,60 @@ test.describe('v2 離線（Phase 1：離線登入 + 讀取快取）', () => {
 
     await context.setOffline(false);
   });
+
+  test('離線記一筆 → 顯示待同步 → 回連自動同步（Phase 2）', async ({ page, context }) => {
+    await loginV2(page, user);
+    await page.waitForFunction(
+      () => !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+      null,
+      { timeout: 20000 },
+    );
+    // 先線上進明細，讓當月 records 端點寫入快取
+    await page.click('[data-nav="ledger"]');
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
+
+    await context.setOffline(true);
+    // 離線記一筆支出
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.fill('.overlay.center [data-el="amountInput"]', '321');
+    await page.click('.overlay.center [data-leaf="早餐"]');
+    await page.click('.overlay.center [data-el="save"]');
+    // 明細出現這筆 + 待同步標記
+    await expect(page.locator('.desktop-main')).toContainText('321', { timeout: 10000 });
+    await expect(page.locator('.desktop-main')).toContainText('待同步', { timeout: 10000 });
+
+    // 回連後重新開啟 App（PWA 常見情境）→ boot 觸發 flushOutbox 同步。
+    // 刻意不依賴 online 事件——Playwright/Firefox 的 setOffline(false) 未必派發該事件。
+    await context.setOffline(false);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.sidebar, .tabbar', { timeout: 20000 });
+    await page.click('[data-nav="ledger"]');
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
+    // 待同步消失（樂觀記錄換成 server 記錄），且該筆仍在
+    await expect(page.locator('.desktop-main')).not.toContainText('待同步', { timeout: 20000 });
+    await expect(page.locator('.desktop-main')).toContainText('321', { timeout: 10000 });
+  });
+
+  // 回歸：既有 v1 IndexedDB 連線擋住 v2 升級時，openDb 不可無限掛住而拖垮明細渲染。
+  // 這正是 1.7.0 實機「明細卡載入中」的情境（CI 因無既有 DB 而漏測）。
+  test('既有 v1 IndexedDB 升級被擋時，明細仍正常渲染（不卡載入中）', async ({ page }) => {
+    // 頁面載入前先開啟舊版(v1)DB 並「保持連線不關」，重現升級 blocked
+    await page.addInitScript(() => {
+      try {
+        const req = indexedDB.open('accounting-offline', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache');
+        };
+        // 故意保留連線、且不掛 onversionchange → 擋住之後的 v2 升級
+        req.onsuccess = () => { window.__v1db = req.result; };
+      } catch { /* 忽略 */ }
+    });
+    await loginV2(page, user);
+    await page.click('[data-nav="ledger"]');
+    // 明細應在合理時間內渲染（篩選列出現），而非卡在「載入中」
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 15000 });
+    await expect(page.locator('.desktop-main')).toContainText('明細', { timeout: 10000 });
+  });
 });

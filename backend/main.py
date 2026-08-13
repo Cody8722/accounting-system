@@ -46,6 +46,11 @@ CORS(
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    # flask-cors 預設 always_send=True：Origin header 缺席時仍會把 FRONTEND_URLS
+    # 全部塞進 Access-Control-Allow-Origin（見 flask_cors/core.py get_cors_origins），
+    # 等於把清單裡任一舊網址當成 fallback 送出。關閉後，沒有 Origin 或 Origin
+    # 不在清單內時單純不加 CORS 標頭，不再有「意外 fallback 到某個舊網址」的情況。
+    always_send=False,
 )
 
 # 綁定 limiter 至 app（Application Factory 模式）

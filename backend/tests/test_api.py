@@ -280,6 +280,21 @@ class TestCORS:
         # CORS headers should be present even if auth fails
         assert response.status_code in [200, 401]
 
+    def test_cors_no_origin_header_has_no_fallback(self, client):
+        """未帶 Origin header（非跨域請求）時不應該 fallback 到任何允許清單裡的網址，
+        避免 flask-cors 預設的 always_send 行為讓瀏覽器收到不屬於自己的
+        Access-Control-Allow-Origin 值（曾在正式環境造成行動裝置被誤判為跨域失敗）"""
+        response = client.get("/status")
+        assert "Access-Control-Allow-Origin" not in response.headers
+
+    def test_cors_matching_origin_still_echoed(self, client):
+        """帶上清單內的 Origin 時仍要正確回傳該 Origin（確認關閉 always_send 不影響正常 CORS）"""
+        response = client.get("/status", headers={"Origin": "http://localhost:8080"})
+        assert (
+            response.headers.get("Access-Control-Allow-Origin")
+            == "http://localhost:8080"
+        )
+
 
 class TestErrorHandling:
     """错误处理测试"""

@@ -97,12 +97,14 @@ def create_wallet():
             "is_default": is_default,
             "archived": False,
             "created_at": datetime.now(),
+            "updated_at": datetime.now(),
         }
 
         if is_default:
             # 同一使用者僅能有一個預設錢包
             db.wallets_collection.update_many(
-                {"user_id": user_oid}, {"$set": {"is_default": False}}
+                {"user_id": user_oid},
+                {"$set": {"is_default": False, "updated_at": datetime.now()}},
             )
 
         result = db.wallets_collection.insert_one(doc)
@@ -160,12 +162,13 @@ def update_wallet(wallet_id):
             if is_default:
                 db.wallets_collection.update_many(
                     {"user_id": user_oid, "_id": {"$ne": wallet_oid}},
-                    {"$set": {"is_default": False}},
+                    {"$set": {"is_default": False, "updated_at": datetime.now()}},
                 )
 
         if not update_fields:
             return jsonify({"error": "沒有可更新的欄位"}), 400
 
+        update_fields["updated_at"] = datetime.now()
         db.wallets_collection.update_one({"_id": wallet_oid}, {"$set": update_fields})
         logger.info(f"更新錢包 {wallet_id} (user: {request.email})")
         return jsonify({"message": "錢包已更新"}), 200
@@ -186,7 +189,13 @@ def archive_wallet(wallet_id):
     try:
         result = db.wallets_collection.update_one(
             {"_id": ObjectId(wallet_id), "user_id": ObjectId(request.user_id)},
-            {"$set": {"archived": True, "is_default": False}},
+            {
+                "$set": {
+                    "archived": True,
+                    "is_default": False,
+                    "updated_at": datetime.now(),
+                }
+            },
         )
         if result.matched_count == 0:
             return jsonify({"error": "找不到該錢包或無權限操作"}), 404

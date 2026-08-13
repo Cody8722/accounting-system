@@ -167,6 +167,31 @@ def _create_indexes():
             [("user_id", ASCENDING), ("wallet_id", ASCENDING), ("location", ASCENDING)],
             background=True,
         )
+        # 離線同步冪等去重：同一使用者同一 client_id 只允許一筆。partial 只約束「有 client_id」
+        # 的記錄，既有/線上不帶 client_id 的記錄完全不受影響。放最後：舊版 mongomock 若不支援
+        # partialFilterExpression 而拋錯，前面的索引都已建立，只有這條被外層 except 記為警告。
+        accounting_records_collection.create_index(
+            [("user_id", ASCENDING), ("client_id", ASCENDING)],
+            unique=True,
+            partialFilterExpression={"client_id": {"$exists": True}},
+            background=True,
+        )
+
+        # 輕量更新檢查（data-version）：對 records/budget/recurring/wallets 各取
+        # count + max(updated_at) 算出資料版本簽章，供前端判斷是否需要重抓完整資料。
+        # 四個集合都建 (user_id, updated_at) 索引，讓 $group max 走索引不需掃全表。
+        accounting_records_collection.create_index(
+            [("user_id", ASCENDING), ("updated_at", ASCENDING)], background=True
+        )
+        accounting_budget_collection.create_index(
+            [("user_id", ASCENDING), ("updated_at", ASCENDING)], background=True
+        )
+        recurring_collection.create_index(
+            [("user_id", ASCENDING), ("updated_at", ASCENDING)], background=True
+        )
+        wallets_collection.create_index(
+            [("user_id", ASCENDING), ("updated_at", ASCENDING)], background=True
+        )
 
         logger.info("✅ 資料庫索引已建立（背景執行）")
     except Exception as index_error:
