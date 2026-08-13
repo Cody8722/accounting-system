@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.9.1';
-export const RELEASE_NOTE = '資金流向圖改用有機曲線連接，對齊 Cody Design System';
+export const APP_VERSION = '1.9.2';
+export const RELEASE_NOTE = '資金流向圖加強對比與節點區別，曲線更明顯';

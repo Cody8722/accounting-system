@@ -216,12 +216,12 @@ export function flowTree(container, data) {
   function balanceColor(v) { return v >= 0 ? 'var(--text)' : 'var(--expense)'; }
   function balanceText(v) { return `${v >= 0 ? '' : '−'}${fmtMoney(Math.abs(v))}`; }
 
-  function node(x, y, label, amountText, amountColor) {
+  function node(x, y, label, amountText, amountColor, { fill = 'var(--surface)', stroke = 'var(--border)' } = {}) {
     const g = svgEl('g');
-    g.appendChild(svgEl('rect', { x, y, width: nodeW, height: nodeH, rx: 16, fill: 'var(--surface)', stroke: 'var(--border)', 'stroke-width': 1, filter: 'url(#flow-card-shadow)' }));
-    const t1 = svgEl('text', { x: x + nodeW / 2, y: y + 20, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--muted2)' });
+    g.appendChild(svgEl('rect', { x, y, width: nodeW, height: nodeH, rx: 16, fill, stroke, 'stroke-width': 1, filter: 'url(#flow-card-shadow)' }));
+    const t1 = svgEl('text', { x: x + nodeW / 2, y: y + 21, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--muted)' });
     t1.textContent = label;
-    const t2 = svgEl('text', { x: x + nodeW / 2, y: y + 39, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 600, 'font-family': 'IBM Plex Mono', fill: amountColor });
+    const t2 = svgEl('text', { x: x + nodeW / 2, y: y + 40, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 600, 'font-family': 'IBM Plex Mono', fill: amountColor });
     t2.textContent = amountText;
     g.append(t1, t2);
     return g;
@@ -229,8 +229,8 @@ export function flowTree(container, data) {
 
   function endpointLabel(y, label) {
     const g = svgEl('g');
-    g.appendChild(svgEl('circle', { cx: midX, cy: y, r: 3, fill: 'var(--faint)' }));
-    const t = svgEl('text', { x: midX, y: y - 8, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--faint)' });
+    g.appendChild(svgEl('circle', { cx: midX, cy: y, r: 4, fill: 'var(--muted2)' }));
+    const t = svgEl('text', { x: midX, y: y - 9, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 500, fill: 'var(--muted)' });
     t.textContent = label;
     g.appendChild(t);
     return g;
@@ -238,17 +238,20 @@ export function flowTree(container, data) {
 
   // 連接線一律走 Catmull-Rom 有機曲線（tension 0.42），不用直線/直角——
   // 品牌識別動機，即使兩端點對齊成一直線也刻意加一點弧度（見 bowedPoints）。
-  function edgeLine(x1, y1, x2, y2, label, e, { labelY, bow = 14 } = {}) {
+  // bow 給得夠大才看得出來是「刻意的曲線」而不是誤差；弧線穿過標籤文字的問題
+  // 交給下面的 chip 背景處理，不必為了閃開文字而把弧度縮到幾乎看不出來。
+  function edgeLine(x1, y1, x2, y2, label, e, { labelY, bow = 22 } = {}) {
     const active = e.count > 0;
     const g = svgEl('g');
     g.appendChild(svgEl('path', {
       d: catmullRomPath(bowedPoints(x1, y1, x2, y2, bow), 0.42), fill: 'none',
       stroke: active ? 'var(--accent)' : 'var(--border)',
-      'stroke-width': active ? 2 : 1.5,
+      'stroke-width': active ? 2.25 : 1.5,
       'stroke-dasharray': active ? '' : '4 4',
+      'stroke-linecap': 'round',
       'marker-end': `url(#${active ? 'flow-arrow' : 'flow-arrow-muted'})`,
     }));
-    const t = svgEl('text', { x: (x1 + x2) / 2, y: labelY ?? (y1 + y2) / 2 - 6, 'text-anchor': 'middle', 'font-size': 11, fill: active ? 'var(--muted2)' : 'var(--faint)', 'data-chip': '1' });
+    const t = svgEl('text', { x: (x1 + x2) / 2, y: labelY ?? (y1 + y2) / 2 - 6, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 500, fill: active ? 'var(--text3)' : 'var(--muted2)', 'data-chip': '1' });
     t.textContent = active ? `${label} · ${fmtMoney(e.amount)}（${e.count} 筆）` : `${label} · 尚未發生`;
     g.appendChild(t);
     return g;
@@ -260,17 +263,20 @@ export function flowTree(container, data) {
   // 銀行 → 現金：自動提領（線在兩節點中心高度，標籤獨立放上方，見上方註解）
   svg.appendChild(edgeLine(
     bankX + nodeW, topY + nodeH / 2, cashX, topY + nodeH / 2,
-    '自動提領', data.edges.auto_withdrawal, { labelY: topLabelY, bow: 16 },
+    '自動提領', data.edges.auto_withdrawal, { labelY: topLabelY, bow: 28 },
   ));
   // 收入 → 受限資金：拆分
-  svg.appendChild(edgeLine(midX, 118, midX, restrictedY, '拆分', data.edges.restricted_split));
+  svg.appendChild(edgeLine(midX, 118, midX, restrictedY, '拆分', data.edges.restricted_split, { bow: 20 }));
   // 受限資金 → 支出：解鎖（跟拆分反向弧度，兩段合起來有輕微 S 型流動感）
-  svg.appendChild(edgeLine(midX, restrictedY + nodeH, midX, 258, '解鎖', data.edges.restricted_unlock, { bow: -14 }));
+  svg.appendChild(edgeLine(midX, restrictedY + nodeH, midX, 258, '解鎖', data.edges.restricted_unlock, { bow: -20 }));
 
   svg.appendChild(endpointLabel(112, '收入'));
   svg.appendChild(node(bankX, topY, '銀行', balanceText(bankBal), balanceColor(bankBal)));
   svg.appendChild(node(cashX, topY, '現金', balanceText(cashBal), balanceColor(cashBal)));
-  svg.appendChild(node(restrictedX, restrictedY, '受限資金', balanceText(data.restricted_locked_total), 'var(--text)'));
+  // 受限資金是「狀態」不是「位置」，跟銀行/現金給同樣的純白卡片會分不出差別，
+  // 用品牌 accent 的淺色調（--accent-soft）標出它是不同性質的節點——
+  // 不是彩色左邊框（品牌規則明講絕不用），是整張卡片淺色調，克制但看得出來。
+  svg.appendChild(node(restrictedX, restrictedY, '受限資金', balanceText(data.restricted_locked_total), 'var(--accent-soft-text)', { fill: 'var(--accent-soft)', stroke: 'var(--accent-soft-border)' }));
   svg.appendChild(endpointLabel(264, '支出'));
 
   // 進場動畫：140-320ms、--ease-organic，靜態圖表也維持統一的動畫語彙
