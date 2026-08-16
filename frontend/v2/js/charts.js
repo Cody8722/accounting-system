@@ -47,17 +47,6 @@ function catmullRomPath(points, tension = 0) {
   return d;
 }
 
-/** 兩點間插入一個垂直於連線方向、偏移 bow px 的中繼點，讓 catmullRomPath 畫出來
- * 不是退化的直線，而是一段自然的弧——弧度刻意收斂（bow 預設 14px），維持
- * 品牌「極淺、克制」的調性，不做誇張的 S 彎。 */
-function bowedPoints(x1, y1, x2, y2, bow) {
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  const dx = x2 - x1, dy = y2 - y1;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len, ny = dx / len;
-  return [{ x: x1, y: y1 }, { x: mx + nx * bow, y: my + ny * bow }, { x: x2, y: y2 }];
-}
-
 /**
  * 甜甜圈圖。data:[{label,value,color}]
  * onSelect(item|null) 回報目前 hover/選取項（供外部更新圓心）。
@@ -180,119 +169,135 @@ export function line(container, points, { height = 190, color = 'var(--accent)' 
 
 /**
  * 資金流向樹（單一錢包）。data 為 GET /admin/api/wallets/<id>/flow-tree 的回應：
- * { locations:{bank:{balance},cash:{balance}}, restricted_locked_total,
+ * { wallet_name, locations:{bank:{balance},cash:{balance}}, restricted_locked_total,
  *   edges:{auto_withdrawal,restricted_split,restricted_unlock} }（每個 edge 為 {count,amount}）
- * 只呈現「已經記錄的明確關聯」的靜態加總，不做配對追蹤、不下鑽——次數為 0 的邊畫成
- * 灰色虛線代表「這個情境從未發生過」，避免跟「有發生但金額剛好是 0」混淆。
+ *
+ * 版面是貨真價實的「根 → 三個子節點」樹，不是三個節點互連的流程圖：
+ *   根節點＝錢包總覽（名稱 + 銀行/現金加總），三個子節點＝銀行／現金／受限資金。
+ *   三條分支線完全同款（同色、同粗細、同一套曲線公式）——分支代表「錢包底下
+ *   有這三個桶」的從屬關係，本身沒有「發生/沒發生」的狀態，不需要用不同線
+ *   風格區分；哪些事件真的發生過，改成寫進對應節點卡片內的一行子文字
+ *   （自動提領→現金卡片；拆分/解鎖→受限資金卡片），事件次數為 0 就直接不
+ *   顯示那行，不再用「尚未發生」的弱對比文字硬撐畫面。
+ *   每個節點卡片是實線／虛線，只看這個節點自己的金額是不是 0——受限資金不
+ *   會因為「類別特殊」就固定給搶眼配色，銀行/現金也不會因為「位置」就永遠
+ *   最顯眼；純粹依金額決定視覺權重，跟哪一種節點無關。
  */
 export function flowTree(container, data) {
   container.innerHTML = '';
   container.style.position = 'relative';
   const W = container.clientWidth || 320;
-  const H = 284;
-  const svg = svgEl('svg', { width: '100%', height: H, viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' });
 
   const defs = svgEl('defs');
-  [['flow-arrow', 'var(--accent)'], ['flow-arrow-muted', 'var(--border-strong)']].forEach(([id, fill]) => {
-    const m = svgEl('marker', { id, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
-    m.appendChild(svgEl('path', { d: 'M0 0 L10 5 L0 10 Z', fill }));
-    defs.appendChild(m);
-  });
-  // 卡片極淺陰影（Cody Design System：白底/16px 圓角/髮絲邊框/極淺陰影，絕不用重陰影）
+  const arrow = svgEl('marker', { id: 'flow-arrow', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
+  arrow.appendChild(svgEl('path', { d: 'M0 0 L10 5 L0 10 Z', fill: 'var(--accent)' }));
+  defs.appendChild(arrow);
+  // 卡片極淺陰影（Cody Design System：白底/16px 圓角/髮絲邊框/極淺陰影，絕不用重陰影）；
+  // 只有「有錢」的實線卡片才上陰影，虛線的空卡片刻意不上陰影，陰影本身也是視覺權重的一部分
   const shadow = svgEl('filter', { id: 'flow-card-shadow', x: '-30%', y: '-30%', width: '160%', height: '160%' });
   shadow.appendChild(svgEl('feDropShadow', { dx: 0, dy: 1, stdDeviation: 2, 'flood-opacity': 0.12 }));
   defs.appendChild(shadow);
+
+  const rootW = 168, rootH = 50, rootY = 12;
+  const rootX = (W - rootW) / 2;
+  const gapAfterRoot = 34;
+  const childY = rootY + rootH + gapAfterRoot;
+  const childH = 96;
+  const sidePad = 12, childGap = 10;
+  const childW = Math.max(84, (W - sidePad * 2 - childGap * 2) / 3);
+  const bankX = sidePad;
+  const cashX = sidePad + childW + childGap;
+  const restrictedX = sidePad + (childW + childGap) * 2;
+  const H = childY + childH + 16;
+
+  const svg = svgEl('svg', { width: '100%', height: H, viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' });
   svg.appendChild(defs);
 
-  const nodeW = 116, nodeH = 52;
-  // 銀行/現金並排，中間縫隙在窄螢幕（手機）可能容不下自動提領的完整文字標籤，
-  // 所以那條邊的標籤獨立放在整排上方（見下方 edgeLine 的 labelY 參數），
-  // 不跟著線的中點走——節點方塊是後畫的、有底色，蓋在下面的文字會被裁切。
-  const topLabelY = 16, topY = 40;
-  const bankX = 12, cashX = W - 12 - nodeW;
-  const restrictedX = (W - nodeW) / 2, restrictedY = 172;
-  const midX = W / 2;
-
-  function balanceColor(v) { return v >= 0 ? 'var(--text)' : 'var(--expense)'; }
   function balanceText(v) { return `${v >= 0 ? '' : '−'}${fmtMoney(Math.abs(v))}`; }
 
-  function node(x, y, label, amountText, amountColor, { fill = 'var(--surface)', stroke = 'var(--border)' } = {}) {
-    const g = svgEl('g');
-    g.appendChild(svgEl('rect', { x, y, width: nodeW, height: nodeH, rx: 16, fill, stroke, 'stroke-width': 1, filter: 'url(#flow-card-shadow)' }));
-    const t1 = svgEl('text', { x: x + nodeW / 2, y: y + 21, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--muted)' });
-    t1.textContent = label;
-    const t2 = svgEl('text', { x: x + nodeW / 2, y: y + 40, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 600, 'font-family': 'IBM Plex Mono', fill: amountColor });
-    t2.textContent = amountText;
-    g.append(t1, t2);
-    return g;
+  /** 分支線：從根部先垂直探出一段，再彎向子節點——模擬樹枝「先往下長，再分岔」
+   * 的自然生長感，弧度因此有邏輯意義（子節點離中軸越遠，彎的幅度自然越大），
+   * 不是「兩端點對齊、卻硬要畫成弧線」那種說不出理由的彎。 */
+  function branchPath(x1, y1, x2, y2) {
+    const midY = y1 + (y2 - y1) * 0.55;
+    return catmullRomPath([{ x: x1, y: y1 }, { x: x1, y: midY }, { x: x2, y: y2 }], 0.42);
   }
 
-  function endpointLabel(y, label) {
+  function card(x, y, w, h, lines, filled) {
     const g = svgEl('g');
-    g.appendChild(svgEl('circle', { cx: midX, cy: y, r: 4, fill: 'var(--muted2)' }));
-    const t = svgEl('text', { x: midX, y: y - 9, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 500, fill: 'var(--muted)' });
-    t.textContent = label;
-    g.appendChild(t);
-    return g;
-  }
-
-  // 連接線一律走 Catmull-Rom 有機曲線（tension 0.42），不用直線/直角——
-  // 品牌識別動機，即使兩端點對齊成一直線也刻意加一點弧度（見 bowedPoints）。
-  // bow 給得夠大才看得出來是「刻意的曲線」而不是誤差；弧線穿過標籤文字的問題
-  // 交給下面的 chip 背景處理，不必為了閃開文字而把弧度縮到幾乎看不出來。
-  function edgeLine(x1, y1, x2, y2, label, e, { labelY, bow = 22 } = {}) {
-    const active = e.count > 0;
-    const g = svgEl('g');
-    g.appendChild(svgEl('path', {
-      d: catmullRomPath(bowedPoints(x1, y1, x2, y2, bow), 0.42), fill: 'none',
-      stroke: active ? 'var(--accent)' : 'var(--border)',
-      'stroke-width': active ? 2.25 : 1.5,
-      'stroke-dasharray': active ? '' : '4 4',
-      'stroke-linecap': 'round',
-      'marker-end': `url(#${active ? 'flow-arrow' : 'flow-arrow-muted'})`,
+    g.appendChild(svgEl('rect', {
+      x, y, width: w, height: h, rx: 16, fill: 'var(--surface)',
+      stroke: filled ? 'var(--border-strong)' : 'var(--border)',
+      'stroke-width': 1, 'stroke-dasharray': filled ? '' : '4 4',
+      filter: filled ? 'url(#flow-card-shadow)' : '',
     }));
-    const t = svgEl('text', { x: (x1 + x2) / 2, y: labelY ?? (y1 + y2) / 2 - 6, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 500, fill: active ? 'var(--text3)' : 'var(--muted2)', 'data-chip': '1' });
-    t.textContent = active ? `${label} · ${fmtMoney(e.amount)}（${e.count} 筆）` : `${label} · 尚未發生`;
-    g.appendChild(t);
+    // 依內容行數（2~4 行）在固定卡高內垂直置中，卡片高度統一、內容多寡不影響對齊
+    const LH = { label: 17, amount: 22, sub: 16 };
+    const blockH = lines.reduce((s, l) => s + LH[l.kind], 0);
+    let cy = y + (h - blockH) / 2;
+    for (const l of lines) {
+      cy += LH[l.kind];
+      const attrs = {
+        x: x + w / 2, y: cy - LH[l.kind] * 0.32, 'text-anchor': 'middle',
+        'font-size': l.kind === 'amount' ? 16 : l.kind === 'label' ? 12 : 11,
+        'font-weight': l.kind === 'amount' ? 600 : l.kind === 'sub' ? 500 : 400,
+        fill: l.color,
+      };
+      if (l.kind === 'amount') attrs['font-family'] = 'IBM Plex Mono';
+      const t = svgEl('text', attrs);
+      t.textContent = l.text;
+      g.appendChild(t);
+    }
     return g;
+  }
+
+  function nodeLines(label, amount, filled, subs) {
+    const lines = [
+      { kind: 'label', text: label, color: filled ? 'var(--muted)' : 'var(--faint)' },
+      { kind: 'amount', text: balanceText(amount), color: filled ? (amount >= 0 ? 'var(--text)' : 'var(--expense)') : 'var(--muted)' },
+    ];
+    for (const s of subs) lines.push({ kind: 'sub', text: s, color: 'var(--text3)' });
+    return lines;
   }
 
   const bankBal = data.locations.bank.balance;
   const cashBal = data.locations.cash.balance;
+  const lockedTotal = data.restricted_locked_total;
+  const rootTotal = bankBal + cashBal;
 
-  // 銀行 → 現金：自動提領（線在兩節點中心高度，標籤獨立放上方，見上方註解）
-  svg.appendChild(edgeLine(
-    bankX + nodeW, topY + nodeH / 2, cashX, topY + nodeH / 2,
-    '自動提領', data.edges.auto_withdrawal, { labelY: topLabelY, bow: 28 },
-  ));
-  // 收入 → 受限資金：拆分
-  svg.appendChild(edgeLine(midX, 118, midX, restrictedY, '拆分', data.edges.restricted_split, { bow: 20 }));
-  // 受限資金 → 支出：解鎖（跟拆分反向弧度，兩段合起來有輕微 S 型流動感）
-  svg.appendChild(edgeLine(midX, restrictedY + nodeH, midX, 258, '解鎖', data.edges.restricted_unlock, { bow: -20 }));
+  const bankFilled = bankBal !== 0;
+  const cashFilled = cashBal !== 0;
+  const lockedFilled = lockedTotal !== 0;
 
-  svg.appendChild(endpointLabel(112, '收入'));
-  svg.appendChild(node(bankX, topY, '銀行', balanceText(bankBal), balanceColor(bankBal)));
-  svg.appendChild(node(cashX, topY, '現金', balanceText(cashBal), balanceColor(cashBal)));
-  // 受限資金是「狀態」不是「位置」，跟銀行/現金給同樣的純白卡片會分不出差別，
-  // 用品牌 accent 的淺色調（--accent-soft）標出它是不同性質的節點——
-  // 不是彩色左邊框（品牌規則明講絕不用），是整張卡片淺色調，克制但看得出來。
-  svg.appendChild(node(restrictedX, restrictedY, '受限資金', balanceText(data.restricted_locked_total), 'var(--accent-soft-text)', { fill: 'var(--accent-soft)', stroke: 'var(--accent-soft-border)' }));
-  svg.appendChild(endpointLabel(264, '支出'));
+  // 事件子文字：自動提領只看有沒有發生過（跟現金目前餘額無關）；拆分/解鎖則
+  // 綁在「目前是否還有鎖定中金額」——已經全部解鎖時卡片整個降權，連同這兩行
+  // 一起收起來，不留半殘的歷史紀錄佔位置。
+  const cashSubs = data.edges.auto_withdrawal.count > 0
+    ? [`自動提領 ${fmtMoney(data.edges.auto_withdrawal.amount)}`] : [];
+  const restrictedSubs = lockedFilled
+    ? [`拆分 ${fmtMoney(data.edges.restricted_split.amount)}`, `解鎖 ${fmtMoney(data.edges.restricted_unlock.amount)}`] : [];
+
+  const rootBottomX = W / 2, rootBottomY = rootY + rootH;
+  [bankX, cashX, restrictedX].forEach((cx) => {
+    svg.appendChild(svgEl('path', {
+      d: branchPath(rootBottomX, rootBottomY, cx + childW / 2, childY),
+      fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linecap': 'round',
+      'marker-end': 'url(#flow-arrow)',
+    }));
+  });
+
+  svg.appendChild(card(rootX, rootY, rootW, rootH, [
+    { kind: 'label', text: data.wallet_name, color: 'var(--muted)' },
+    { kind: 'amount', text: balanceText(rootTotal), color: rootTotal >= 0 ? 'var(--text)' : 'var(--expense)' },
+  ], rootTotal !== 0));
+
+  svg.appendChild(card(bankX, childY, childW, childH, nodeLines('銀行', bankBal, bankFilled, []), bankFilled));
+  svg.appendChild(card(cashX, childY, childW, childH, nodeLines('現金', cashBal, cashFilled, cashSubs), cashFilled));
+  svg.appendChild(card(restrictedX, childY, childW, childH, nodeLines('受限資金', lockedTotal, lockedFilled, restrictedSubs), lockedFilled));
 
   // 進場動畫：140-320ms、--ease-organic，靜態圖表也維持統一的動畫語彙
   svg.style.opacity = '0';
   container.appendChild(svg);
-
-  // 邊的標籤（拆分/解鎖/自動提領）疊在有機曲線上時，短邊的弧線會穿過文字——
-  // 補一塊跟卡片同色的底色墊在文字後面，蓋掉線段，而不是靠縮小弧度硬躲開
-  // （縮小弧度會違背「一律用有機曲線」的品牌規則，等於換句話說回到直線）。
-  svg.querySelectorAll('text[data-chip]').forEach((t) => {
-    const bbox = t.getBBox();
-    const pad = 3;
-    const rect = svgEl('rect', { x: bbox.x - pad, y: bbox.y - pad, width: bbox.width + pad * 2, height: bbox.height + pad * 2, rx: 4, fill: 'var(--surface)' });
-    t.parentNode.insertBefore(rect, t);
-  });
-
   requestAnimationFrame(() => {
     svg.style.transition = 'opacity 280ms var(--ease-organic)';
     svg.style.opacity = '1';
