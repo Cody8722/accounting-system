@@ -46,6 +46,10 @@ CORS(
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    # 讓前端 JS 讀得到匯出檔名（routes/io.py 的 CSV/Excel/JSON 匯出用 Content-Disposition
+    # 帶檔名）；統一在全域設定，routes/io.py 不再各自手寫 CORS 標頭（那樣繞過了下面
+    # always_send=False 的 origin 驗證，等於每個匯出端點各自對任意 Origin 開放）。
+    expose_headers=["Content-Disposition"],
     # flask-cors 預設 always_send=True：Origin header 缺席時仍會把 FRONTEND_URLS
     # 全部塞進 Access-Control-Allow-Origin（見 flask_cors/core.py get_cors_origins），
     # 等於把清單裡任一舊網址當成 fallback 送出。關閉後，沒有 Origin 或 Origin

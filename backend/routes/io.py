@@ -100,9 +100,6 @@ def export_accounting_records():
                 mimetype="application/json",
                 headers={
                     "Content-Disposition": f"attachment; filename=\"backup.json\"; filename*=UTF-8''{quote(filename)}",
-                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Expose-Headers": "Content-Disposition",
                 },
             )
         elif export_format == "xlsx":
@@ -165,9 +162,6 @@ def export_accounting_records():
                 mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 headers={
                     "Content-Disposition": f"attachment; filename=\"records.xlsx\"; filename*=UTF-8''{quote(filename)}",
-                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Expose-Headers": "Content-Disposition",
                 },
             )
         else:
@@ -211,9 +205,6 @@ def export_accounting_records():
                 headers={
                     "Content-Disposition": f"attachment; filename=\"records.csv\"; filename*=UTF-8''{quote(filename)}",
                     "Content-Type": "text/csv; charset=utf-8-sig",
-                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Expose-Headers": "Content-Disposition",
                 },
             )
 
