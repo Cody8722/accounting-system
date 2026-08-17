@@ -13,6 +13,7 @@ GET    /admin/api/wallets/balances              各錢包即時餘額（含「�
 GET    /admin/api/wallets/location-summary      帳戶 × 位置（銀行/現金）雙維度餘額
 GET    /admin/api/wallets/<id>/balance-history  單一錢包近 N 月餘額變化
 GET    /admin/api/wallets/restricted-funds      目前還鎖著的受限資金列表（未解鎖）
+GET    /admin/api/wallets/<id>/flow-tree        單一錢包資金流向樹（銀行/現金/受限資金 + 三種明確關聯的加總）
 """
 
 import logging
@@ -553,3 +554,153 @@ def get_restricted_funds():
     except Exception as e:
         logger.error(f"取得受限資金列表失敗: {e}")
         return jsonify({"error": "取得受限資金失敗"}), 500
+
+
+def _location_balances_for_wallet(user_oid, wallet_oid):
+    """單一錢包的銀行/現金淨額（收入-支出+轉入-轉出），邏輯與 location-summary 相同、
+    只是把彙總範圍收斂到單一 wallet_id，不需要撈出所有錢包再篩選。"""
+    balances = {"bank": 0.0, "cash": 0.0}
+
+    io_pipeline = [
+        {
+            "$match": {
+                "user_id": user_oid,
+                "wallet_id": wallet_oid,
+                "type": {"$in": ["income", "expense"]},
+            }
+        },
+        {
+            "$group": {
+                "_id": {"location": "$location", "type": "$type"},
+                "total": {"$sum": "$amount"},
+            }
+        },
+    ]
+    for row in db.accounting_records_collection.aggregate(io_pipeline):
+        loc = row["_id"].get("location")
+        if loc not in balances:
+            continue
+        sign = 1 if row["_id"].get("type") == "income" else -1
+        balances[loc] += sign * row["total"]
+
+    transfer_pipeline = [
+        {"$match": {"user_id": user_oid, "wallet_id": wallet_oid, "type": "transfer"}},
+        {
+            "$group": {
+                "_id": None,
+                "by_from": {"$push": {"loc": "$from_location", "amt": "$amount"}},
+                "by_to": {"$push": {"loc": "$to_location", "amt": "$amount"}},
+            }
+        },
+    ]
+    agg = list(db.accounting_records_collection.aggregate(transfer_pipeline))
+    if agg:
+        for entry in agg[0]["by_from"]:
+            if entry["loc"] in balances:
+                balances[entry["loc"]] -= entry["amt"]
+        for entry in agg[0]["by_to"]:
+            if entry["loc"] in balances:
+                balances[entry["loc"]] += entry["amt"]
+
+    return balances
+
+
+def _count_sum(match):
+    """對 accounting_records_collection 做 {count, amount} 聚合的共用小工具"""
+    pipeline = [
+        {"$match": match},
+        {"$group": {"_id": None, "count": {"$sum": 1}, "amount": {"$sum": "$amount"}}},
+    ]
+    agg = list(db.accounting_records_collection.aggregate(pipeline))
+    if not agg:
+        return {"count": 0, "amount": 0.0}
+    return {"count": agg[0]["count"], "amount": agg[0]["amount"]}
+
+
+@bp.route("/admin/api/wallets/<wallet_id>/flow-tree", methods=["GET"])
+@limiter.limit("100 per minute")
+@require_auth
+def get_wallet_flow_tree(wallet_id):
+    """單一錢包的資金流向樹：銀行/現金淨額 + 受限資金目前鎖定總額，
+    加上三種「已經記錄的明確關聯」邊的加總（次數 + 金額），全時間累計：
+      銀行 → 現金：自動提領（現金不足時系統自動產生的轉帳，auto_generated=true）
+      收入 → 受限資金：收入拆分（不分目前是否已解鎖，累計曾經拆出去的總額）
+      受限資金 → 原位置：解鎖（source_restricted_id 不為空的支出；落在跟原受限
+        記錄相同的 location，不是自動判斷現金/銀行——解鎖直接沿用 record.location）
+    不做一般收入/支出的配對追蹤，只加總這三種欄位本身已經記錄的關聯。
+    """
+    if db.wallets_collection is None or db.accounting_records_collection is None:
+        return jsonify({"error": "資料庫未初始化"}), 500
+    if not validate_objectid(wallet_id):
+        return jsonify({"error": "無效的 ID"}), 400
+    try:
+        user_oid = ObjectId(request.user_id)
+        wallet_oid = ObjectId(wallet_id)
+
+        wallet = db.wallets_collection.find_one(
+            {"_id": wallet_oid, "user_id": user_oid}
+        )
+        if not wallet:
+            return jsonify({"error": "找不到該錢包或無權限存取"}), 404
+
+        locations = _location_balances_for_wallet(user_oid, wallet_oid)
+
+        auto_withdrawal = _count_sum(
+            {
+                "user_id": user_oid,
+                "wallet_id": wallet_oid,
+                "type": "transfer",
+                "auto_generated": True,
+            }
+        )
+        # 解鎖時原記錄的 type 會從 "restricted" 原地翻成 "income"（records.py 的
+        # unlock_restricted_record），所以不能用 type=="restricted" 篩選——那樣
+        # 解鎖後這筆就會從加總消失。restricted 文件建立當下一定會有 unlocked_at
+        # 這個 key（鎖定中是 None、解鎖後是時間戳），一般收入不會有這個欄位，
+        # 用 $exists 才能同時涵蓋「目前鎖定中」與「已解鎖」兩種狀態的歷史總額。
+        restricted_split = _count_sum(
+            {
+                "user_id": user_oid,
+                "wallet_id": wallet_oid,
+                "unlocked_at": {"$exists": True},
+            }
+        )
+        restricted_unlock = _count_sum(
+            {
+                "user_id": user_oid,
+                "wallet_id": wallet_oid,
+                "type": "expense",
+                "source_restricted_id": {"$ne": None},
+            }
+        )
+        restricted_locked = _count_sum(
+            {
+                "user_id": user_oid,
+                "wallet_id": wallet_oid,
+                "type": "restricted",
+                "unlocked_at": None,
+            }
+        )
+
+        return (
+            jsonify(
+                {
+                    "wallet_id": wallet_id,
+                    "wallet_name": wallet.get("name", ""),
+                    "locations": {
+                        "bank": {"balance": locations["bank"]},
+                        "cash": {"balance": locations["cash"]},
+                    },
+                    "restricted_locked_total": restricted_locked["amount"],
+                    "edges": {
+                        "auto_withdrawal": auto_withdrawal,
+                        "restricted_split": restricted_split,
+                        "restricted_unlock": restricted_unlock,
+                    },
+                }
+            ),
+            200,
+        )
+    except Exception as e:
+        logger.error(f"取得資金流向樹失敗: {e}")
+        return jsonify({"error": "取得資金流向樹失敗"}), 500

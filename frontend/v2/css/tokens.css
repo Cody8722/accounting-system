@@ -32,6 +32,8 @@
   --accent:#1f6feb; --income:#3f8f66; --expense:#b15c58;
   --font:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,monospace;
+  /* Cody Design System：有機感 ease-out 曲線，動畫統一用這個（140-320ms） */
+  --ease-organic:cubic-bezier(0.22,1,0.36,1);
 }
 
 * { box-sizing:border-box; margin:0; padding:0; }
