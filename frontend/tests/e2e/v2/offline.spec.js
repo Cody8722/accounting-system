@@ -131,11 +131,14 @@ test.describe('v2 離線（Phase 1：離線登入 + 讀取快取）', () => {
     await page.click('.overlay.center [data-el="save"]');
     await expect(page.locator('.desktop-main')).toContainText('待同步', { timeout: 10000 });
 
-    // A 在離線、尚未同步的狀態下登出
-    await page.click('[data-nav="settings"]');
-    await page.click('[data-act="account"]');
-    await page.click('[data-el="logout"]');
-    await page.click('[data-act="ok"]');
+    // A 在離線、尚未同步的狀態下登出。不透過「帳戶管理」UI 點登出按鈕——
+    // 那個 sheet 打開時會先打 /api/user/profile 才畫出登出按鈕，離線時這通
+    // 請求會失敗、整個 sheet 顯示錯誤訊息，登出按鈕根本不會出現。改直接呼叫
+    // logout()，模擬「使用者在離線狀態下就是想登出」這個目標情境本身。
+    await page.evaluate(async () => {
+      const mod = await import('./js/auth.js');
+      mod.logout(); // 不 await：logout() 結尾 location.reload()，await 這個 promise 會因頁面重載而中斷
+    }).catch(() => {});
     await page.waitForSelector('.auth-card', { timeout: 10000 });
 
     await context.setOffline(false);
