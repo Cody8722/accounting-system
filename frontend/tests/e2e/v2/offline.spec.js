@@ -108,4 +108,46 @@ test.describe('v2 離線（Phase 1：離線登入 + 讀取快取）', () => {
     await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 15000 });
     await expect(page.locator('.desktop-main')).toContainText('明細', { timeout: 10000 });
   });
+
+  // 回歸：outbox/cache 是全域 IndexedDB store、不依 user 分區。登出若沒清掉，
+  // 同一台裝置換帳號登入時，A 還沒同步的離線寫入會被下一位登入者（B）的
+  // boot() 自動 flushOutbox() 用 B 的 token 送出去，寫進 B 的帳戶。
+  test('登出清除離線佇列，A 未同步的離線記錄不會流入下一位登入者 B 的帳戶', async ({ page, context }) => {
+    const userA = genUser();
+    const userB = genUser();
+    await apiRegister(userA);
+    await apiRegister(userB);
+
+    await loginV2(page, userA);
+    await page.click('[data-nav="ledger"]');
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
+
+    await context.setOffline(true);
+    // A 離線記一筆（進 outbox，尚未同步）
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.fill('.overlay.center [data-el="amountInput"]', '4321');
+    await page.click('.overlay.center [data-leaf="早餐"]');
+    await page.click('.overlay.center [data-el="save"]');
+    await expect(page.locator('.desktop-main')).toContainText('待同步', { timeout: 10000 });
+
+    // A 在離線、尚未同步的狀態下登出。不透過「帳戶管理」UI 點登出按鈕——
+    // 那個 sheet 打開時會先打 /api/user/profile 才畫出登出按鈕，離線時這通
+    // 請求會失敗、整個 sheet 顯示錯誤訊息，登出按鈕根本不會出現。改直接呼叫
+    // logout()，模擬「使用者在離線狀態下就是想登出」這個目標情境本身。
+    await page.evaluate(async () => {
+      const mod = await import('./js/auth.js');
+      mod.logout(); // 不 await：logout() 結尾 location.reload()，await 這個 promise 會因頁面重載而中斷
+    }).catch(() => {});
+    await page.waitForSelector('.auth-card', { timeout: 10000 });
+
+    await context.setOffline(false);
+
+    // B 登入：不該看到 A 那筆待同步記錄被自動送進 B 的帳戶
+    await loginV2(page, userB);
+    await page.click('[data-nav="ledger"]');
+    await page.waitForSelector('.desktop-main [data-type="all"]', { timeout: 10000 });
+    await expect(page.locator('.desktop-main')).not.toContainText('4321');
+    await expect(page.locator('.desktop-main')).not.toContainText('待同步');
+  });
 });

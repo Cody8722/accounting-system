@@ -1596,6 +1596,32 @@ class TestExportFormats:
         )
         assert r.status_code == 200
 
+    def test_export_no_origin_header_has_no_cors_headers(self, client, auth_headers):
+        """匯出端點過去手動寫 Access-Control-Allow-Origin: request.headers.get("Origin", "*")，
+        繞過全域 CORS 設定的 origin 驗證；改用全域設定後，未帶 Origin 就不該有 CORS 標頭，
+        跟其他一般端點一致（見 TestCORS.test_cors_no_origin_header_has_no_fallback）"""
+        r = client.get("/admin/api/accounting/export?format=csv", headers=auth_headers)
+        assert "Access-Control-Allow-Origin" not in r.headers
+
+    def test_export_untrusted_origin_not_reflected(self, client, auth_headers):
+        """核心迴歸：修正前會把任意 Origin 原樣反射回去（+ Allow-Credentials: true），
+        不在 FRONTEND_URLS 允許清單內的 Origin 現在不該出現在回應標頭裡"""
+        headers = {**auth_headers, "Origin": "https://evil.example.com"}
+        r = client.get("/admin/api/accounting/export?format=csv", headers=headers)
+        assert (
+            r.headers.get("Access-Control-Allow-Origin") != "https://evil.example.com"
+        )
+
+    def test_export_trusted_origin_gets_correct_cors_header(self, client, auth_headers):
+        """FRONTEND_URLS 允許清單內的 Origin 仍要正確回傳（確認改用全域設定沒有連帶壞掉
+        合法前端的匯出下載），且能讀到 Content-Disposition（前端讀取下載檔名用）"""
+        headers = {**auth_headers, "Origin": "http://localhost:8080"}
+        r = client.get("/admin/api/accounting/export?format=csv", headers=headers)
+        assert r.headers.get("Access-Control-Allow-Origin") == "http://localhost:8080"
+        assert "Content-Disposition" in r.headers.get(
+            "Access-Control-Expose-Headers", ""
+        )
+
     def test_export_invalid_format_defaults_csv(self, client, auth_headers):
         """非法 format 參數應 fallback 至 CSV"""
         r = client.get(
