@@ -10,7 +10,7 @@
 
 import { apiCall, apiJson, setAuthToken, setUserData, removeAuthToken, getAuthToken, getUserData, resetAuthGuard } from './api.js';
 import { showToast } from './utils.js';
-import { isOnline } from './offline.js';
+import { isOnline, clearOfflineData } from './offline.js';
 import { tokenLocallyValid } from './jwt.js';
 
 export { getUserData };
@@ -46,6 +46,10 @@ export async function verifyToken() {
 export async function logout() {
   try { await apiCall('/api/auth/logout', { method: 'POST' }); } catch { /* 忽略 */ }
   removeAuthToken();
+  // outbox/cache 是全域 IndexedDB store、不依 user 分區——同一台裝置換帳號登入時，
+  // 沒清掉的 outbox 會被下一位使用者登入後的 flushOutbox() 自動用他的 token 送出去，
+  // cache 也可能被下一位使用者剛好相同的 data-version 簽章沿用，見 clearOfflineData()。
+  await clearOfflineData();
   location.reload();
 }
 

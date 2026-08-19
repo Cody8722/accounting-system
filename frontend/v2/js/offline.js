@@ -195,3 +195,32 @@ export async function pendingRecords() {
     _error: e.error || null,
   }));
 }
+
+/**
+ * 登出時呼叫：整個清空 cache 與 outbox 兩個 store。
+ *
+ * 兩個 store 都是全域的（不依 user 分區，key 只是 API endpoint 字串／自動遞增
+ * seq），同一台裝置換帳號登入時：
+ *   - outbox 若還留著上一個使用者的離線寫入，下一位使用者登入、App 一載入
+ *     就會被 main.js 的 flushOutbox() 自動送出去（不需要任何人手動觸發），
+ *     等於把 A 的資料用 B 的 token 寫進 B 的帳戶
+ *   - cache 若剛好命中下一位使用者當下的 data-version 簽章（例如兩個帳號都
+ *     是全新空帳戶，簽章必然相同），會沿用舊使用者的快取內容
+ * 因此登出必須整批清空，不是保留給下一位使用者沿用。失敗靜默，不影響登出流程
+ * 本身（跟 putCache/getCache 一致的降級原則）。
+ */
+export async function clearOfflineData() {
+  const db = await openDb();
+  if (!db) return;
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction([STORE_CACHE, STORE_OUTBOX], 'readwrite');
+      tx.objectStore(STORE_CACHE).clear();
+      tx.objectStore(STORE_OUTBOX).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    /* 忽略：清除失敗不該擋住登出 */
+  }
+}

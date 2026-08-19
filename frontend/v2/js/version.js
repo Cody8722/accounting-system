@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.10.0';
-export const RELEASE_NOTE = '資金流向圖改版：真正的樹狀結構（錢包→銀行/現金/受限資金）';
+export const APP_VERSION = '1.10.1';
+export const RELEASE_NOTE = '修正：登出現在會清除本機離線佇列與快取，避免同裝置換帳號時資料外洩';
