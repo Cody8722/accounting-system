@@ -219,6 +219,7 @@ def apply_recurring(item_id):
             "category": item["category"],
             "description": item.get("description") or item["name"],
             "date": record_date,
+            "photos": [],
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
         }
