@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.10.1';
-export const RELEASE_NOTE = '修正：登出現在會清除本機離線佇列與快取，避免同裝置換帳號時資料外洩';
+export const APP_VERSION = '1.11.0';
+export const RELEASE_NOTE = '新增：記一筆可附加照片（支援多張，存於伺服器）';
