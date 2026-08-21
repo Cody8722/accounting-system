@@ -647,4 +647,15 @@ function openEditRestricted(record) {
   document.body.appendChild(ov);
 }
 
+/** 依 id 抓單筆記錄並開編輯視窗；供照片瀏覽介面「點縮圖跳轉」等外部呼叫端使用
+ * （不像列表點擊已經有現成的 record 物件，這裡只有 id，需先查一次）。 */
+export async function openEditById(recordId) {
+  try {
+    const record = await apiJson(`/admin/api/accounting/records/${recordId}`);
+    openEdit(record);
+  } catch (e) {
+    showToast('找不到該記錄，可能已被刪除', 'error');
+  }
+}
+
 export { openAdd };
