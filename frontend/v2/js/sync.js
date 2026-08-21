@@ -7,6 +7,12 @@
  *  - 4xx（如 409/422 業務規則）→ 標記 status:error「需處理」、不丟棄，續處理下一筆
  *  - 5xx / 網路中斷 → 保留 pending、停批，稍後（下次 online）再重試
  * 同步成功會 emit records:changed 讓清單重抓，樂觀記錄無縫換成 server 記錄。
+ *
+ * kind === 'upload-photo'（離線相片佇列）用 FormData 送出，跟一般 JSON 寫入
+ * （create-record 等）走不同 body 組裝方式，但成功/失敗分類與移出佇列的邏輯
+ * 完全共用——只有「怎麼組這次請求」不同，其餘一視同仁。只支援「附加到已存在
+ * 記錄」的照片（record_id 為真正 server id，不支援連同離線建立的記錄一起排隊，
+ * 那需要額外的 client_id → record_id 對帳，目前範圍不含）。
  */
 
 import { apiCall } from './api.js';
@@ -58,7 +64,16 @@ export async function flushOutbox() {
       let res = null;
       let err = null;
       try {
-        res = await apiCall(e.endpoint, { method: e.method, body: JSON.stringify(e.payload) });
+        if (e.kind === 'upload-photo') {
+          const form = new FormData();
+          form.append('photos', e.file, e.fileName || 'photo.jpg');
+          res = await apiCall(`/admin/api/accounting/records/${e.recordId}/photos`, {
+            method: 'POST',
+            body: form,
+          });
+        } else {
+          res = await apiCall(e.endpoint, { method: e.method, body: JSON.stringify(e.payload) });
+        }
       } catch (ex) {
         err = ex;
       }

@@ -17,11 +17,17 @@ function renameToJpg(name) {
   return `${base}.jpg`;
 }
 
-/** Canvas 壓縮單張圖片；非圖片檔或壓縮過程失敗則原樣回傳，不擋上傳。 */
+/** Canvas 壓縮單張圖片；非圖片檔或壓縮過程失敗則原樣回傳（但已落地成新 File），不擋上傳。
+ * 一進函式就先把原始 bytes 讀進記憶體（ArrayBuffer），後續不管走壓縮或原檔回退，都是
+ * 從這份已落地的資料建構，不再依賴呼叫端傳進來的 file 物件本身——避免離線佇列這種「稍後
+ * 才真正讀取/存進 IndexedDB」的用法，中間多繞了幾個 await 之後，原始 File 的底層資料
+ * 讀不到（不同瀏覽器/自動化注入的 file input 對此的行為不一致，保守起見一律提早落地）。 */
 export async function compressImage(file) {
-  if (!file.type || !file.type.startsWith('image/')) return file;
+  const buf = await file.arrayBuffer();
+  const original = new File([buf], file.name, { type: file.type });
+  if (!file.type || !file.type.startsWith('image/')) return original;
   try {
-    const bitmap = await createImageBitmap(file);
+    const bitmap = await createImageBitmap(new Blob([buf], { type: file.type }));
     const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
     const w = Math.max(1, Math.round(bitmap.width * scale));
     const h = Math.max(1, Math.round(bitmap.height * scale));
@@ -30,12 +36,13 @@ export async function compressImage(file) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, w, h);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
-    if (!blob) return file;
     // 壓縮後檔案反而更大（極簡圖片、已高度壓縮過的原圖等）就用原檔
-    if (blob.size >= file.size) return file;
-    return new File([blob], renameToJpg(file.name), { type: 'image/jpeg' });
+    if (blob && blob.size < original.size) {
+      return new File([blob], renameToJpg(file.name), { type: 'image/jpeg' });
+    }
+    return original;
   } catch {
-    return file;
+    return original;
   }
 }
 

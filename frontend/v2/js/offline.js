@@ -102,6 +102,21 @@ function outboxStore(db, mode) {
   return db.transaction(STORE_OUTBOX, mode).objectStore(STORE_OUTBOX);
 }
 
+// 離線相片佇列上限：張數與總位元組數雙重把關，避免 IndexedDB 被大量原圖塞爆
+// （壓縮後單張約數百 KB～1MB，30 張、50MB 對一般使用情境綽綽有餘）。
+export const MAX_QUEUED_PHOTOS = 30;
+export const MAX_QUEUED_PHOTO_BYTES = 50 * 1024 * 1024;
+
+/** 目前離線佇列中「待上傳照片」的張數與總位元組數（kind === 'upload-photo'）。 */
+export async function queuedPhotoStats() {
+  const entries = await listOutbox();
+  const photoEntries = entries.filter((e) => e.kind === 'upload-photo');
+  return {
+    count: photoEntries.length,
+    bytes: photoEntries.reduce((sum, e) => sum + (e.file ? e.file.size : 0), 0),
+  };
+}
+
 /** 產生唯一 clientId（uuid）；供離線記錄與後端冪等去重對帳用。 */
 export function genClientId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();

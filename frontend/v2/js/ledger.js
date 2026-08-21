@@ -10,7 +10,10 @@ import { state, monthRange, shiftMonth, emit, on } from './store.js';
 import { openAdd } from './add.js';
 import { walletBalanceStripHtml, walletChipsHtml, walletOnlyChipsHtml, locationChipsHtml, LOCATION_META, walletMeta } from './wallet.js';
 import { lockQueryParams, lockBadgeHtml, bindLockBadge, openLockPicker } from './lock.js';
-import { pendingRecords, isOnline, updateOutbox, removeOutbox } from './offline.js';
+import {
+  pendingRecords, isOnline, updateOutbox, removeOutbox,
+  enqueueOutbox, genClientId, queuedPhotoStats, MAX_QUEUED_PHOTOS, MAX_QUEUED_PHOTO_BYTES,
+} from './offline.js';
 import { compressImage, uploadPhotos, deletePhoto, fetchPhotoUrl } from './photos.js';
 
 let cache = [];              // 當月記錄
@@ -330,24 +333,39 @@ function openEditIncomeExpense(record) {
         <button data-el="save" class="btn-primary" style="flex:1">儲存</button>
       </div>
     </div>`;
-  // 照片：待同步（離線建立、尚未有真正 record id）的記錄無法附加照片，
-  // 只能等同步完成、之後再從明細補上。url 延遲載入（需認證的 blob URL，
-  // 開啟編輯視窗時才逐張抓，而不是清單頁就先抓，避免無謂流量）。
+  // 照片：待同步（離線建立、尚未有真正 record id）的記錄無法附加照片，只能等
+  // 同步完成、之後再從明細補上——這需要額外的 client_id → record_id 對帳，
+  // 不在此範圍。已有真正 record id 的記錄則離線也能「新增」（排入離線佇列，
+  // 回連後 sync.js 自動以 FormData 送出），但「刪除」仍需連線（避免刪除請求
+  // 也要排隊對帳，徒增複雜度換不到什麼使用情境）。
+  // url 延遲載入（需認證的 blob URL，開啟編輯視窗時才逐張抓，不是清單頁就先
+  // 抓，避免無謂流量）；_pending 標記的是「本地排隊中、尚未真正上傳」的項目，
+  // 其 id 是本地 clientId（不是伺服器 photo id），url 是本地 blob，不必也不能
+  // fetchPhotoUrl。
   let photos = record._pending ? [] : (record.photos || []).map((p) => ({ ...p, url: null }));
   function cleanupPhotoUrls() { photos.forEach((p) => { if (p.url) URL.revokeObjectURL(p.url); }); }
   function photoAreaHtml() {
     if (record._pending) return '<div style="font-size:12px;color:var(--faint)">待同步後才能管理照片</div>';
-    const thumbs = photos.map((p) => `
+    const thumbs = photos.map((p) => {
+      const canRemove = p._pending || isOnline();
+      const removeBtn = canRemove
+        ? `<button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:12px"></i></button>`
+        : '';
+      const badge = p._pending
+        ? `<span style="position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:9px;line-height:14px;background:rgba(0,0,0,.55);color:#fff">待同步</span>`
+        : '';
+      return `
       <div style="position:relative;width:56px;height:56px;flex-shrink:0;background:var(--fill);border-radius:10px;overflow:hidden;border:1px solid var(--border)">
         ${p.url ? `<img src="${p.url}" style="width:100%;height:100%;object-fit:cover">` : ''}
-        <button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:12px"></i></button>
-      </div>`).join('');
-    const addBtn = isOnline()
-      ? `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
+        ${removeBtn}
+        ${badge}
+      </div>`;
+    }).join('');
+    // 新增一律開放（離線會排隊，不是被擋下）；只有刪除受限於是否連線。
+    const addBtn = `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
           <i class="ti ti-camera-plus" style="font-size:20px"></i>
           <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
-        </label>`
-      : `<div style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:10px;color:var(--faint)" title="照片需連線上傳"><i class="ti ti-camera-off" style="font-size:18px"></i></div>`;
+        </label>`;
     return thumbs + addBtn;
   }
   function renderPhotoArea() {
@@ -355,15 +373,37 @@ function openEditIncomeExpense(record) {
     if (!area) return;
     area.innerHTML = photoAreaHtml();
     const input = area.querySelector('[data-el="photoFile"]');
-    if (input) input.addEventListener('change', (e) => { handleAddPhotos(e.target.files); e.target.value = ''; });
+    // 先等 handleAddPhotos 把檔案內容讀完（compressImage 內部會整個讀進記憶體）
+    // 再清空 input.value，避免兩者交錯時清空動作影響到還沒被完整讀取的 File。
+    if (input) input.addEventListener('change', async (e) => { const fl = e.target.files; await handleAddPhotos(fl); e.target.value = ''; });
   }
   async function loadPhotoThumbs() {
-    const missing = photos.filter((p) => !p.url);
+    const missing = photos.filter((p) => !p.url && !p._pending);
     if (!missing.length) return;
     await Promise.all(missing.map(async (p) => {
       try { p.url = await fetchPhotoUrl(id, p.id); } catch { /* 抓不到就留空白縮圖，不擋其他張 */ }
     }));
     renderPhotoArea();
+  }
+  async function queuePhotoOffline(compressed) {
+    const stats = await queuedPhotoStats();
+    if (stats.count >= MAX_QUEUED_PHOTOS || stats.bytes + compressed.size > MAX_QUEUED_PHOTO_BYTES) {
+      showToast('離線待傳照片已達上限，請連線同步後再新增', 'warning');
+      return;
+    }
+    const clientId = genClientId();
+    const ok = await enqueueOutbox({
+      clientId,
+      kind: 'upload-photo',
+      recordId: id,
+      file: compressed,
+      fileName: compressed.name,
+      status: 'pending',
+      error: null,
+      createdAt: Date.now(),
+    });
+    if (!ok) { showToast('離線儲存失敗（瀏覽器儲存不可用）', 'error'); return; }
+    photos.push({ id: clientId, url: URL.createObjectURL(compressed), _pending: true });
   }
   async function handleAddPhotos(fileList) {
     const files = Array.from(fileList || []);
@@ -371,6 +411,7 @@ function openEditIncomeExpense(record) {
     for (const file of files) {
       try {
         const compressed = await compressImage(file);
+        if (!isOnline()) { await queuePhotoOffline(compressed); continue; }
         const uploaded = await uploadPhotos(id, [compressed]);
         photos.push({ ...uploaded[0], url: null });
       } catch (e) {
@@ -382,6 +423,16 @@ function openEditIncomeExpense(record) {
     emit('records:changed');
   }
   async function handleRemovePhoto(photoId) {
+    const target = photos.find((p) => p.id === photoId);
+    if (target && target._pending) {
+      if (!(await showConfirm('取消這張待上傳的照片？'))) return;
+      await removeOutbox(photoId);
+      if (target.url) URL.revokeObjectURL(target.url);
+      photos = photos.filter((p) => p.id !== photoId);
+      renderPhotoArea();
+      return;
+    }
+    if (!isOnline()) { showToast('刪除照片需連線', 'warning'); return; }
     if (!(await showConfirm('刪除這張照片？'))) return;
     try {
       await deletePhoto(id, photoId);

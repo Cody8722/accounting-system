@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.12.0';
-export const RELEASE_NOTE = '新增：明細編輯可事後補拍/刪除照片';
+export const APP_VERSION = '1.12.1';
+export const RELEASE_NOTE = '新增：離線時也能為照片排隊，恢復連線後自動上傳';
