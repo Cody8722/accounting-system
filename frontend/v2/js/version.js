@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.11.0';
-export const RELEASE_NOTE = '新增：記一筆可附加照片（支援多張，存於伺服器）';
+export const APP_VERSION = '1.12.0';
+export const RELEASE_NOTE = '新增：明細編輯可事後補拍/刪除照片';

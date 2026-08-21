@@ -11,6 +11,7 @@ import { openAdd } from './add.js';
 import { walletBalanceStripHtml, walletChipsHtml, walletOnlyChipsHtml, locationChipsHtml, LOCATION_META, walletMeta } from './wallet.js';
 import { lockQueryParams, lockBadgeHtml, bindLockBadge, openLockPicker } from './lock.js';
 import { pendingRecords, isOnline, updateOutbox, removeOutbox } from './offline.js';
+import { compressImage, uploadPhotos, deletePhoto, fetchPhotoUrl } from './photos.js';
 
 let cache = [];              // 當月記錄
 let table = { type: 'all', category: '', query: '', sortBy: 'date', sortOrder: 'desc' };
@@ -322,11 +323,78 @@ function openEditIncomeExpense(record) {
       <input data-el="date" type="date" class="field" style="margin:6px 0 14px" value="${record.date}">
       <label style="font-size:13px;color:var(--muted2)">備註</label>
       <input data-el="note" class="field" style="margin:6px 0 18px" value="${escapeHtml(record.description || '')}">
+      <label style="font-size:13px;color:var(--muted2)">照片</label>
+      <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px"></div>
       <div style="display:flex;gap:10px">
         <button data-el="del" class="btn-primary" style="flex-shrink:0;background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-trash"></i></button>
         <button data-el="save" class="btn-primary" style="flex:1">儲存</button>
       </div>
     </div>`;
+  // 照片：待同步（離線建立、尚未有真正 record id）的記錄無法附加照片，
+  // 只能等同步完成、之後再從明細補上。url 延遲載入（需認證的 blob URL，
+  // 開啟編輯視窗時才逐張抓，而不是清單頁就先抓，避免無謂流量）。
+  let photos = record._pending ? [] : (record.photos || []).map((p) => ({ ...p, url: null }));
+  function cleanupPhotoUrls() { photos.forEach((p) => { if (p.url) URL.revokeObjectURL(p.url); }); }
+  function photoAreaHtml() {
+    if (record._pending) return '<div style="font-size:12px;color:var(--faint)">待同步後才能管理照片</div>';
+    const thumbs = photos.map((p) => `
+      <div style="position:relative;width:56px;height:56px;flex-shrink:0;background:var(--fill);border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+        ${p.url ? `<img src="${p.url}" style="width:100%;height:100%;object-fit:cover">` : ''}
+        <button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:12px"></i></button>
+      </div>`).join('');
+    const addBtn = isOnline()
+      ? `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
+          <i class="ti ti-camera-plus" style="font-size:20px"></i>
+          <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
+        </label>`
+      : `<div style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:10px;color:var(--faint)" title="照片需連線上傳"><i class="ti ti-camera-off" style="font-size:18px"></i></div>`;
+    return thumbs + addBtn;
+  }
+  function renderPhotoArea() {
+    const area = ov.querySelector('[data-el="photoArea"]');
+    if (!area) return;
+    area.innerHTML = photoAreaHtml();
+    const input = area.querySelector('[data-el="photoFile"]');
+    if (input) input.addEventListener('change', (e) => { handleAddPhotos(e.target.files); e.target.value = ''; });
+  }
+  async function loadPhotoThumbs() {
+    const missing = photos.filter((p) => !p.url);
+    if (!missing.length) return;
+    await Promise.all(missing.map(async (p) => {
+      try { p.url = await fetchPhotoUrl(id, p.id); } catch { /* 抓不到就留空白縮圖，不擋其他張 */ }
+    }));
+    renderPhotoArea();
+  }
+  async function handleAddPhotos(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    for (const file of files) {
+      try {
+        const compressed = await compressImage(file);
+        const uploaded = await uploadPhotos(id, [compressed]);
+        photos.push({ ...uploaded[0], url: null });
+      } catch (e) {
+        showToast('上傳照片失敗：' + e.message, 'error');
+      }
+    }
+    renderPhotoArea();
+    await loadPhotoThumbs();
+    emit('records:changed');
+  }
+  async function handleRemovePhoto(photoId) {
+    if (!(await showConfirm('刪除這張照片？'))) return;
+    try {
+      await deletePhoto(id, photoId);
+      const idx = photos.findIndex((p) => p.id === photoId);
+      if (idx >= 0) { if (photos[idx].url) URL.revokeObjectURL(photos[idx].url); photos.splice(idx, 1); }
+      renderPhotoArea();
+      emit('records:changed');
+    } catch (e) {
+      showToast('刪除照片失敗：' + e.message, 'error');
+    }
+  }
+  renderPhotoArea();
+  loadPhotoThumbs();
   let curType = record.type;
   let curWalletId = record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : (record.wallet_id || null);
   let curLocation = initialLocation;
@@ -369,26 +437,29 @@ function openEditIncomeExpense(record) {
       const storedRecord = { _id: record._clientId, ...body, created_at: record.created_at || new Date().toISOString() };
       // 一併重設為 pending（若原本是「需處理」，等於修正後重排隊重試）
       await updateOutbox(record._clientId, { payload: queued, record: storedRecord, status: 'pending', error: null });
-      showToast('已更新（待同步）', 'success'); ov.remove(); emit('records:changed'); return;
+      showToast('已更新（待同步）', 'success'); cleanupPhotoUrls(); ov.remove(); emit('records:changed'); return;
     }
     // 已同步的 server 記錄：離線不可編輯
     if (!isOnline()) { showToast('編輯已同步記錄需連線', 'warning'); return; }
     try {
       await apiJson(`/admin/api/accounting/records/${id}`, { method: 'PUT', body: JSON.stringify(body) });
-      showToast('已更新', 'success'); ov.remove(); emit('records:changed');
+      showToast('已更新', 'success'); cleanupPhotoUrls(); ov.remove(); emit('records:changed');
     } catch (e) { showToast(e.message, 'error'); }
   };
   ov.querySelector('[data-el="del"]').onclick = async () => {
     if (!(await showConfirm('確定刪除這筆記錄？'))) return;
-    if (record._pending) { await removeOutbox(record._clientId); showToast('已刪除待同步項', 'success'); ov.remove(); emit('records:changed'); return; }
+    if (record._pending) { await removeOutbox(record._clientId); showToast('已刪除待同步項', 'success'); cleanupPhotoUrls(); ov.remove(); emit('records:changed'); return; }
     if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
       const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('刪除失敗');
-      showToast('已刪除', 'success'); ov.remove(); emit('records:changed');
+      showToast('已刪除', 'success'); cleanupPhotoUrls(); ov.remove(); emit('records:changed');
     } catch (e) { showToast(e.message, 'error'); }
   };
-  ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('[data-close]')) { cleanupPhotoUrls(); ov.remove(); return; }
+    const pr = e.target.closest('[data-photo-remove]'); if (pr) return handleRemovePhoto(pr.dataset.photoRemove);
+  });
   document.body.appendChild(ov);
 }
 
