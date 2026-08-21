@@ -19,9 +19,11 @@ services:
       - MONGO_URI=${MONGO_URI:?請在根目錄 .env 設定 MONGO_URI（正式庫 accounting_db）}
       - PORT=8080
       - TESTING=false
+      - PHOTO_STORAGE_PATH=/data/photos
       # JWT_SECRET / SMTP / 密碼政策等，由掛載的 backend/.env 提供（load_dotenv 讀取）
     volumes:
       - ./backend:/app
+      - /tank/docker-data/accounting-photos/prod:/data/photos
     networks:
       - accounting-network    # 與 frontend 互通
       - shared-db             # 連到現有 mongodb 容器

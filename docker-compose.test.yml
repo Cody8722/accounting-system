@@ -18,8 +18,10 @@ services:
       - MONGO_URI=${MONGO_URI:?請在根目錄 .env 設定 MONGO_URI（測試庫 accounting_db_test）}
       - PORT=8080
       - TESTING=false
+      - PHOTO_STORAGE_PATH=/data/photos
     volumes:
       - ./backend:/app
+      - /tank/docker-data/accounting-photos/test:/data/photos
     networks:
       - test-network
       - shared-db
