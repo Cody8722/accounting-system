@@ -45,34 +45,36 @@
 
 ### 目錄結構
 
+現行前端只有 `frontend/v2/`（舊版 `frontend/js-refactored/` 已整個移除），E2E 測試對應放在 `frontend/tests/e2e/v2/`：
+
 ```
 frontend/
 ├── tests/
-│   ├── e2e/                      # E2E 測試文件
-│   │   ├── auth.spec.js          # 認證流程 (7 個測試)
-│   │   ├── records.spec.js       # 記帳 CRUD (6 個測試)
-│   │   ├── budget-stats.spec.js  # 預算統計 (8 個測試)
-│   │   └── settings.spec.js      # 設定頁面 (5 個測試)
-│   ├── helpers/                  # 測試輔助函數
-│   │   ├── auth.helpers.js       # 認證相關 (7 個函數)
-│   │   ├── record.helpers.js     # 記帳相關 (5 個函數)
-│   │   └── wait.helpers.js       # 等待相關 (6 個函數)
-│   └── fixtures/                 # 測試資料
-│       └── test-data.js          # 測試資料定義
-├── playwright.config.js          # Playwright 配置
-├── package.json                  # NPM 配置
-└── README.md                     # 測試說明文檔
+│   ├── e2e/
+│   │   └── v2/                   # E2E 測試文件（現行 v2 前端）
+│   │       ├── auth.spec.js      # 認證流程 (2 個測試)
+│   │       ├── core.spec.js      # 核心流程：記帳/預算/發票/統計/主題/受限資金/更新提示 (13 個測試)
+│   │       ├── dataVersion.spec.js  # 輕量更新檢查（資料版本閘門） (1 個測試)
+│   │       ├── offline.spec.js   # 離線瀏覽/離線寫入同步/登出清快取 (4 個測試)
+│   │       └── helpers.js        # 共用輔助函數（genUser/apiRegister/loginV2）
+│   ├── unit/                     # 前端單元測試（node --test，非本文件範圍，見下方連結）
+│   │   └── *.test.js
+│   └── package.json              # NPM 配置
+├── playwright.config.js          # Playwright 配置（位於 frontend/tests/ 下）
+└── ...
 ```
+
+> 前端單元測試（`frontend/tests/unit/`，Node 內建 `node --test`）不在本文件範圍，詳見 [`docs/FRONTEND_TESTING.md`](FRONTEND_TESTING.md)。
 
 ### 測試統計
 
 | 測試套件 | 測試數量 | 涵蓋功能 |
 |---------|---------|---------|
-| auth.spec.js | 7 | 註冊、登入、登出、驗證 |
-| records.spec.js | 6 | 新增、編輯、刪除、篩選 |
-| budget-stats.spec.js | 8 | 預算設定、統計、圖表、匯出 |
-| settings.spec.js | 5 | 個人資料、密碼修改 |
-| **總計** | **26** | **所有核心功能** |
+| auth.spec.js | 2 | 註冊並登入、錯誤憑證提示 |
+| core.spec.js | 13 | 記一筆、編輯/刪除記錄、預算、發票輸入、統計/設定渲染、電腦版概覽與釘選、主題切換、受限資金拆分與解鎖、更新提示 Toast |
+| dataVersion.spec.js | 1 | 資料版本閘門（未變不重抓、變更後立即重抓） |
+| offline.spec.js | 4 | 離線快取渲染、離線記一筆回連同步、IndexedDB 舊版升級不卡住、登出清離線佇列 |
+| **總計** | **20** | **v2 前端核心與離線流程** |
 
 ---
 
@@ -140,7 +142,7 @@ npm run test:debug
 npx playwright test --debug
 
 # 執行特定測試文件
-npx playwright test tests/e2e/auth.spec.js
+npx playwright test e2e/v2/auth.spec.js --config frontend/tests/playwright.config.js
 
 # 執行特定測試（使用名稱過濾）
 npx playwright test --grep "使用者可以成功註冊"
@@ -169,59 +171,39 @@ npx playwright show-report
 
 ### 1. 認證流程測試 (auth.spec.js)
 
-✅ **測試 1**: 使用者可以成功註冊並登入
-```javascript
-// 流程: 註冊 → 驗證成功訊息 → 跳轉登入 → 登入 → 驗證儀表板
-```
+✅ 可透過 v2 UI 註冊並登入
+✅ 錯誤憑證顯示錯誤訊息
 
-✅ **測試 2**: 弱密碼應該被拒絕
-```javascript
-// 測試密碼: '123456', 'password', 'abc123' 等
-```
+### 2. 核心流程測試 (core.spec.js)
 
-✅ **測試 3**: 無效的 Email 應該被拒絕
-```javascript
-// 測試 Email: 'invalid', 'invalid@', '@example.com' 等
-```
+桌面外殼（viewport 1280×720），每個 spec 只註冊一次帳號（避開註冊速率限制），各測試各自登入、用不同金額避免互相干擾：
 
-✅ **測試 4**: 使用者可以登出
-```javascript
-// 流程: 登入 → 設定頁 → 登出 → 驗證跳轉 → 驗證 token 清除
-```
+✅ 用計算機鍵盤記一筆，明細出現該筆
+✅ 編輯記錄：改金額後明細更新
+✅ 刪除記錄：確認後從明細消失
+✅ 預算：設定分類預算後顯示
+✅ 發票手動輸入：金額帶入記帳表單
+✅ 統計 / 預算 / 設定 皆可渲染
+✅ 電腦版預設落地在概覽，KPI 卡與四張卡渲染
+✅ 概覽：釘選卡片放大，再點取消
+✅ 概覽：釘選後從「查看完整頁」導向明細
+✅ 主題切換並持久化到 localStorage
+✅ 收入拆分受限資金：明細顯示、面板可見、可解鎖
+✅ 偵測到新版本後跳出更新說明 Toast
+✅ 首次載入（無上次版本記錄）不跳 Toast
 
-✅ **測試 5**: 錯誤的憑證無法登入
+### 3. 輕量更新檢查測試 (dataVersion.spec.js)
 
-✅ **測試 6**: 未登入時訪問受保護頁面應跳轉到登入頁
+✅ 資料未變時切頁不重抓；寫入後版本改變、立即重抓並看到新資料
 
-✅ **測試 7**: 記住我功能應正常運作
+對應後端 `GET /admin/api/accounting/data-version` 簽章端點（見 `backend/routes/records.py` 的 `_compute_data_version()`），前端輪詢比對簽章決定是否重抓資料，避免多裝置間顯示過期資料。
 
-### 2. 記帳記錄測試 (records.spec.js)
+### 4. 離線功能測試 (offline.spec.js)
 
-✅ **測試 1**: 使用者可以新增支出記錄
-✅ **測試 2**: 使用者可以新增收入記錄
-✅ **測試 3**: 使用者可以編輯記錄
-✅ **測試 4**: 使用者可以刪除記錄
-✅ **測試 5**: 使用者可以篩選記錄
-✅ **測試 6**: 無效的金額應該被拒絕
-
-### 3. 預算與統計測試 (budget-stats.spec.js)
-
-✅ **測試 1**: 使用者可以設定預算
-✅ **測試 2**: 統計頁面應顯示正確的收支統計
-✅ **測試 3**: 支出圓餅圖應正確顯示
-✅ **測試 4**: 趨勢折線圖應正確顯示
-✅ **測試 5**: 預算警告應正確顯示
-✅ **測試 6**: 儀表板應顯示即時統計資料
-✅ **測試 7**: 新增記錄後統計應自動更新
-✅ **測試 8**: 匯出 CSV 功能應正常運作
-
-### 4. 設定頁面測試 (settings.spec.js)
-
-✅ **測試 1**: 使用者可以修改個人資料名稱
-✅ **測試 2**: 使用者可以修改密碼
-✅ **測試 3**: 弱密碼應被拒絕
-✅ **測試 4**: 密碼不一致應被拒絕
-✅ **測試 5**: 設定頁面應顯示用戶資訊
+✅ 離線 reload 仍能進入 App 並以快取渲染概覽
+✅ 離線記一筆 → 顯示待同步 → 回連自動同步（Phase 2）
+✅ 既有 v1 IndexedDB 升級被擋時，明細仍正常渲染（不卡載入中）
+✅ 登出清除離線佇列，A 未同步的離線記錄不會流入下一位登入者 B 的帳戶
 
 ---
 
@@ -231,7 +213,6 @@ npx playwright show-report
 
 ```javascript
 import { test, expect } from '@playwright/test';
-import { helperFunction } from '../helpers/helper.js';
 
 test.describe('功能模組測試', () => {
 
@@ -253,19 +234,22 @@ test.describe('功能模組測試', () => {
 
 ### 使用輔助函數
 
+現行共用輔助函數集中在單一檔案 `frontend/tests/e2e/v2/helpers.js`（不是舊版的 `helpers/` 目錄拆多檔）：
+
 ```javascript
-import { registerUser, loginUser } from '../helpers/auth.helpers.js';
-import { addRecord } from '../helpers/record.helpers.js';
+import { test, expect } from '@playwright/test';
+import { genUser, apiRegister, loginV2 } from './helpers.js';
 
-test('完整流程測試', async ({ page }) => {
-  // 使用輔助函數簡化測試
-  const user = generateTestUser();
-  await registerUser(page, user);
-  await loginUser(page, user);
-  await addRecord(page, sampleRecords.expense.lunch);
+test.describe('功能模組測試', () => {
+  const user = genUser();
 
-  // 驗證結果
-  await expect(page.locator('.record-item')).toContainText('午餐');
+  // 整個 spec 只註冊一次（避開註冊速率限制），每個測試各自登入
+  test.beforeAll(async () => { await apiRegister(user); });
+  test.beforeEach(async ({ page }) => { await loginV2(page, user); });
+
+  test('應該執行某個操作', async ({ page }) => {
+    // ...實際操作與驗證
+  });
 });
 ```
 
@@ -315,9 +299,11 @@ await page.click('#btn-123'); // ❌
 
 #### 觸發條件
 
-- ✅ Push 到 `main`, `develop`, `claude/**` 分支
+- ✅ Push 到 `develop`, `release` 分支
 - ✅ Pull Request 到 `main`, `develop` 分支
 - ✅ 手動觸發 (workflow_dispatch)
+
+Chromium 一律執行；Firefox 只在 Pull Request 或推送到 `release` 分支時額外執行（`e2e-tests-firefox` job）。
 
 #### 測試環境
 
@@ -325,7 +311,7 @@ await page.click('#btn-123'); // ❌
 - **Node.js**: 20.x
 - **Python**: 3.11
 - **MongoDB**: 7.0 (Docker Service)
-- **瀏覽器**: Chromium (預設), Firefox (PR/main)
+- **瀏覽器**: Chromium (一律執行), Firefox (PR / push to release)
 
 #### 工作流程步驟
 
@@ -453,7 +439,7 @@ await page.click('[data-testid="login-button"]');
 npm run test:debug
 
 # 或指定測試文件
-npx playwright test --debug tests/e2e/auth.spec.js
+npx playwright test --debug e2e/v2/auth.spec.js --config frontend/tests/playwright.config.js
 ```
 
 功能：
@@ -484,28 +470,32 @@ npx playwright show-trace trace.zip
 
 ### A. 完整測試清單
 
-| 編號 | 測試名稱 | 測試文件 | 優先級 |
-|-----|---------|---------|--------|
-| 1 | 使用者可以成功註冊並登入 | auth.spec.js | P0 |
-| 2 | 弱密碼應該被拒絕 | auth.spec.js | P0 |
-| 3 | 使用者可以登出 | auth.spec.js | P0 |
-| 4 | 錯誤的憑證無法登入 | auth.spec.js | P0 |
-| 5 | 未登入時訪問受保護頁面應跳轉 | auth.spec.js | P0 |
-| 6 | 使用者可以新增支出記錄 | records.spec.js | P0 |
-| 7 | 使用者可以新增收入記錄 | records.spec.js | P0 |
-| 8 | 使用者可以編輯記錄 | records.spec.js | P0 |
-| 9 | 使用者可以刪除記錄 | records.spec.js | P0 |
-| 10 | 使用者可以設定預算 | budget-stats.spec.js | P0 |
-| 11 | 統計頁面應顯示正確的收支統計 | budget-stats.spec.js | P0 |
-| 12 | 支出圓餅圖應正確顯示 | budget-stats.spec.js | P1 |
-| 13 | 趨勢折線圖應正確顯示 | budget-stats.spec.js | P1 |
-| 14 | 使用者可以修改個人資料 | settings.spec.js | P1 |
-| 15 | 使用者可以修改密碼 | settings.spec.js | P0 |
-| 16-26 | ... | ... | ... |
+| 編號 | 測試名稱 | 測試文件 |
+|-----|---------|---------|
+| 1 | 可透過 v2 UI 註冊並登入 | auth.spec.js |
+| 2 | 錯誤憑證顯示錯誤訊息 | auth.spec.js |
+| 3 | 用計算機鍵盤記一筆，明細出現該筆 | core.spec.js |
+| 4 | 編輯記錄：改金額後明細更新 | core.spec.js |
+| 5 | 刪除記錄：確認後從明細消失 | core.spec.js |
+| 6 | 預算：設定分類預算後顯示 | core.spec.js |
+| 7 | 發票手動輸入：金額帶入記帳表單 | core.spec.js |
+| 8 | 統計 / 預算 / 設定 皆可渲染 | core.spec.js |
+| 9 | 電腦版預設落地在概覽，KPI 卡與四張卡渲染 | core.spec.js |
+| 10 | 概覽：釘選卡片放大，再點取消 | core.spec.js |
+| 11 | 概覽：釘選後從「查看完整頁」導向明細 | core.spec.js |
+| 12 | 主題切換並持久化到 localStorage | core.spec.js |
+| 13 | 收入拆分受限資金：明細顯示、面板可見、可解鎖 | core.spec.js |
+| 14 | 偵測到新版本後跳出更新說明 Toast | core.spec.js |
+| 15 | 首次載入（無上次版本記錄）不跳 Toast | core.spec.js |
+| 16 | 資料未變時切頁不重抓；寫入後版本改變、立即重抓 | dataVersion.spec.js |
+| 17 | 離線 reload 仍能進入 App 並以快取渲染概覽 | offline.spec.js |
+| 18 | 離線記一筆 → 顯示待同步 → 回連自動同步 | offline.spec.js |
+| 19 | 既有 v1 IndexedDB 升級被擋時，明細仍正常渲染 | offline.spec.js |
+| 20 | 登出清除離線佇列，避免流入下一位登入者帳戶 | offline.spec.js |
 
 ### B. 測試資料參考
 
-詳見 `frontend/tests/fixtures/test-data.js`
+測試資料直接在各 spec 內用 `helpers.js` 的 `genUser()` 產生（隨機 email/密碼），沒有集中的 fixtures 檔案。
 
 ### C. 參考資料
 
@@ -516,7 +506,6 @@ npx playwright show-trace trace.zip
 
 ---
 
-**文件版本:** 1.0.0
-**最後更新:** 2026-02-28
+**文件版本:** 2.0.0（改版對應 v2 前端 E2E 測試架構）
+**最後更新:** 2026-08-22
 **維護者:** Development Team
-**下次審查:** 2026-03-28

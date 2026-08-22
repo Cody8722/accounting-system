@@ -1,1098 +1,249 @@
 # 前端測試實施指南
 
 **專案:** 個人記帳系統前端測試
-**目標:** 建立完整的前端自動化測試體系
-**版本:** 1.0
-**日期:** 2026-02-28
+**目標:** 說明前端測試現況（單元測試 + E2E）與如何新增測試
+**版本:** 2.0
+**日期:** 2026-08-22
 
 ---
 
 ## 📑 目錄
 
-1. [測試框架選擇建議](#測試框架選擇建議)
-2. [Vitest 實施方案 (推薦)](#vitest-實施方案-推薦)
-3. [Jest 實施方案 (替代)](#jest-實施方案-替代)
-4. [測試範例](#測試範例)
-5. [配置檔案](#配置檔案)
-6. [實施步驟](#實施步驟)
+1. [測試策略總覽](#測試策略總覽)
+2. [目錄結構](#目錄結構)
+3. [單元測試：Node 內建 `node --test`](#單元測試node-內建-node---test)
+4. [撰寫原則：只測已抽出的純函式](#撰寫原則只測已抽出的純函式)
+5. [如何新增一個單元測試](#如何新增一個單元測試)
+6. [現有單元測試涵蓋範圍](#現有單元測試涵蓋範圍)
+7. [尚未涵蓋的模組](#尚未涵蓋的模組)
+8. [E2E 測試（摘要）](#e2e-測試摘要)
+9. [執行測試 / push 前檢查](#執行測試--push-前檢查)
 
 ---
 
-## 測試框架選擇建議
+## 測試策略總覽
 
-### 方案比較矩陣
+前端（`frontend/v2/`）是**純 ES Modules，沒有 bundler、沒有 build step**：`frontend/v2/index.html` 只用一個
+`<script type="module" src="./js/main.js">` 載入，其餘全靠瀏覽器原生 `import`。這個限制直接決定了測試框架的選擇：
 
-| 特性 | Vitest | Jest | 原生測試 |
-|------|--------|------|---------|
-| **執行速度** | ⚡⚡⚡⚡⚡ 極快 | ⚡⚡⚡ 快 | ⚡⚡ 中等 |
-| **配置難度** | ✅ 簡單 | 🟡 中等 | ✅ 簡單 |
-| **ESM 支援** | ✅ 原生 | 🟡 需配置 | ✅ 原生 |
-| **熱重載** | ✅ 內建 | ❌ 無 | ❌ 無 |
-| **UI 介面** | ✅ 美觀 | ❌ 無 | ❌ 無 |
-| **生態系統** | 🟡 成長中 | ✅ 豐富 | ❌ 有限 |
-| **學習曲線** | 🟢 低 | 🟡 中 | 🟢 低 |
-| **CI/CD 整合** | ✅ 完善 | ✅ 完善 | 🟡 需手動 |
-| **覆蓋率報告** | ✅ 內建 | ✅ 內建 | ❌ 需手動 |
-| **Snapshot 測試** | ✅ 支援 | ✅ 支援 | ❌ 無 |
+- **單元測試**：使用 **Node.js 內建的 `node --test`**（`node:test` + `node:assert/strict`），不是 Jest、也不是 Vitest。
+  不需要安裝任何測試套件、不需要 babel 轉譯、不需要 module alias 設定——`frontend/v2/js/*.js` 本來就是標準 ESM，Node 可以直接 `import`。
+- **E2E 測試**：Playwright，模擬真實瀏覽器操作。細節見獨立文件
+  [`docs/E2E_TESTING_GUIDE.md`](E2E_TESTING_GUIDE.md)，本文件只做摘要（見下方「E2E 測試（摘要）」）。
 
-### 推薦決策樹
+> 舊版前端（`frontend/js-refactored/`）與當時規劃的 Vitest/Jest 方案已經不存在。若你在其他地方（舊 commit、舊筆記）看到
+> `js-refactored`、`vitest.config.js`、`moduleNameMapper` 等字眼，那是歷史文件，現況以本文件與 `CLAUDE.md` 的「測試架構」段落為準。
 
-```
-是否願意引入建構工具？
-   │
-   ├─ 是 ─→ 追求最佳效能？
-   │         ├─ 是 ─→ Vitest (推薦)
-   │         └─ 否 ─→ Jest (穩定)
-   │
-   └─ 否 ─→ 原生測試 (輕量)
-```
+### 為什麼不用 Vitest 或 Jest
 
-### 最終建議
+| 考量 | node:test（現況） | Vitest / Jest |
+|------|-------------------|----------------|
+| 額外依賴 | 無（Node 內建） | 需要安裝 test runner + 相關套件 |
+| ESM 支援 | 原生，與 `frontend/v2/js/` 的寫法完全一致 | Vitest 原生；Jest 需要 babel 轉譯設定 |
+| 建構工具 | 不需要 | Vitest 依賴 Vite；Jest 常需 babel-jest |
+| 目前測試型態 | 純函式輸入輸出斷言，用不到 jsdom/DOM 模擬 | 若要測 DOM/元件才需要 jsdom + Testing Library |
 
-**🏆 推薦: Vitest**
-
-理由:
-- ⚡ 極快的執行速度 (使用 Vite)
-- 🎯 專為 ESM 設計,與專案現有模組化架構完美契合
-- 🔥 熱重載,提升開發體驗
-- 📦 零配置,開箱即用
-- 🎨 美觀的 UI 介面
-- 📊 完整的覆蓋率報告
+目前 4 支測試檔都只測「已抽出的純函式」（見下一節），不涉及 DOM 或網路請求，`node --test` 已經完全夠用。若未來需要測試會操作
+DOM 或發 HTTP 請求的邏輯，屆時再評估是否要引入 jsdom 之類的套件（引入前依專案規則需先告知並取得確認）。
 
 ---
 
-## Vitest 實施方案 (推薦)
-
-### 1. 安裝依賴
-
-```bash
-cd frontend
-
-# 初始化 package.json (如果還沒有)
-npm init -y
-
-# 安裝 Vitest 和相關工具
-npm install -D vitest @vitest/ui @vitest/coverage-v8
-
-# 安裝 jsdom (模擬瀏覽器環境)
-npm install -D jsdom
-
-# 安裝 Testing Library (測試 DOM 操作)
-npm install -D @testing-library/dom @testing-library/user-event
-
-# 安裝 Mock Service Worker (模擬 API)
-npm install -D msw
-```
-
-### 2. 專案結構
+## 目錄結構
 
 ```
 frontend/
-├── js-refactored/
-│   ├── config.js
-│   ├── utils.js
-│   ├── events.js
-│   ├── api.js
-│   ├── auth.js
-│   ├── components.js
-│   ├── categories.js
-│   ├── records.js
-│   ├── stats.js
-│   ├── charts.js
-│   ├── budget.js
-│   ├── export.js
-│   ├── settings.js
-│   └── pwa.js
+├── v2/
+│   ├── index.html                # 唯一入口，<script type="module" src="./js/main.js">
+│   └── js/                       # 全部是標準 ES Modules，無 bundler
+│       ├── config.js             # 後端 URL 偵測（resolveBackendUrl）、storagePrefix、分類資料
+│       ├── utils.js              # escapeHtml、fmtMoney、todayStr、monthStr、debounce、showToast...
+│       ├── api.js                # 統一 Fetch 封裝、Token 管理、401 處理
+│       ├── store.js              # 極簡共用狀態 + 事件匯流排
+│       ├── jwt.js                # 純函式：解 JWT exp、離線信任判斷
+│       ├── invoice.js            # 電子發票 QR Code 解析（parseInvoiceQR）
+│       ├── sync.js               # 離線佇列同步結果分類（classifySyncOutcome）
+│       ├── main.js / router.js / auth.js / theme.js
+│       ├── add.js / ledger.js / stats.js / budget.js / charts.js
+│       ├── dashboard.js / pin.js（僅桌面）
+│       ├── wallet.js / photos.js / settings.js / offline.js / lock.js / version.js
+│       └── ...
 │
-├── tests/
-│   ├── setup.js                  # 測試環境設定
-│   ├── vitest.config.js          # Vitest 配置
-│   │
-│   ├── unit/                     # 單元測試
-│   │   ├── config.test.js
-│   │   ├── utils.test.js
-│   │   ├── events.test.js
-│   │   ├── api.test.js
-│   │   └── components.test.js
-│   │
-│   ├── integration/              # 整合測試
-│   │   ├── auth-flow.test.js
-│   │   ├── records-crud.test.js
-│   │   ├── budget-tracking.test.js
-│   │   └── stats-calculation.test.js
-│   │
-│   ├── mocks/                    # Mock 資料和 API
-│   │   ├── handlers.js           # MSW API handlers
-│   │   ├── server.js             # MSW server setup
-│   │   └── data.js               # 測試資料
-│   │
-│   └── helpers/                  # 測試輔助函數
-│       ├── render.js             # 自定義渲染函數
-│       └── test-utils.js         # 通用測試工具
-│
-├── package.json
-└── vitest.config.js              # Vitest 根配置
+└── tests/
+    ├── package.json               # test / test:unit / test:headed / test:ui / test:debug / test:report / test:codegen
+    ├── playwright.config.js       # E2E 設定
+    │
+    ├── unit/                      # 單元測試（node --test，本文件重點）
+    │   ├── config.test.js         # resolveBackendUrl、storagePrefix
+    │   ├── invoice.test.js        # parseInvoiceQR
+    │   ├── jwt.test.js            # jwtExp、tokenLocallyValid
+    │   └── sync.test.js           # classifySyncOutcome
+    │
+    └── e2e/v2/                    # E2E 測試（Playwright，詳見 E2E_TESTING_GUIDE.md）
+        ├── auth.spec.js
+        ├── core.spec.js
+        ├── dataVersion.spec.js
+        └── offline.spec.js
 ```
 
-### 3. Vitest 配置檔案
+---
 
-**`frontend/vitest.config.js`:**
+## 單元測試：Node 內建 `node --test`
 
-```javascript
-import { defineConfig } from 'vitest/config';
-import path from 'path';
+不需要安裝依賴——`node:test` 與 `node:assert/strict` 是 Node.js 標準函式庫的一部分（Node 18+ 穩定支援）。
 
-export default defineConfig({
-  test: {
-    // 測試環境
-    environment: 'jsdom',
-
-    // 全局變數 (describe, test, expect 等)
-    globals: true,
-
-    // 測試設定檔
-    setupFiles: ['./tests/setup.js'],
-
-    // 覆蓋率配置
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html', 'lcov', 'json'],
-      reportsDirectory: './coverage',
-      exclude: [
-        'node_modules/',
-        'tests/',
-        '**/*.test.js',
-        '**/*.config.js',
-        '**/main.js', // 入口文件,難以測試
-      ],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-        statements: 80,
-      },
-    },
-
-    // 並行執行
-    threads: true,
-    maxThreads: 4,
-
-    // 超時設定
-    testTimeout: 10000,
-    hookTimeout: 10000,
-
-    // 測試匹配模式
-    include: ['tests/**/*.{test,spec}.{js,mjs,cjs}'],
-    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
-
-    // 監聽模式排除
-    watchExclude: ['**/node_modules/**', '**/dist/**'],
-  },
-
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './js-refactored'),
-      '@tests': path.resolve(__dirname, './tests'),
-    },
-  },
-});
-```
-
-**`frontend/tests/setup.js`:**
-
-```javascript
-/**
- * Vitest 測試環境設定
- */
-
-import { beforeAll, afterEach, afterAll, vi } from 'vitest';
-import { cleanup } from '@testing-library/dom';
-import { server } from './mocks/server';
-
-// 設定 MSW (Mock Service Worker)
-beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'error' });
-});
-
-afterEach(() => {
-  // 清理 DOM
-  cleanup();
-
-  // 重置 MSW handlers
-  server.resetHandlers();
-
-  // 清除所有 mocks
-  vi.clearAllMocks();
-
-  // 清理 localStorage
-  localStorage.clear();
-
-  // 清理 sessionStorage
-  sessionStorage.clear();
-});
-
-afterAll(() => {
-  server.close();
-});
-
-// Mock console.error 以減少測試輸出雜訊
-const originalError = console.error;
-beforeAll(() => {
-  console.error = (...args) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes('Not implemented: HTMLFormElement.prototype.submit')
-    ) {
-      return;
-    }
-    originalError.call(console, ...args);
-  };
-});
-
-afterAll(() => {
-  console.error = originalError;
-});
-
-// 全局 DOM 環境擴充
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
-
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
-
-// Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
-```
-
-### 4. MSW (Mock Service Worker) 設定
-
-**`frontend/tests/mocks/handlers.js`:**
-
-```javascript
-import { http, HttpResponse } from 'msw';
-
-const baseURL = 'http://localhost:5001';
-
-export const handlers = [
-  // 註冊
-  http.post(`${baseURL}/api/auth/register`, async ({ request }) => {
-    const body = await request.json();
-
-    // 模擬驗證失敗
-    if (body.password && body.password.length < 12) {
-      return HttpResponse.json(
-        { error: '密碼長度不足' },
-        { status: 422 }
-      );
-    }
-
-    return HttpResponse.json({
-      success: true,
-      message: '註冊成功',
-    });
-  }),
-
-  // 登入
-  http.post(`${baseURL}/api/auth/login`, async ({ request }) => {
-    const body = await request.json();
-
-    if (body.email === 'test@example.com' && body.password === 'MyS3cur3P@ssw0rd!XyZ') {
-      return HttpResponse.json({
-        token: 'mock-jwt-token-12345',
-        user: {
-          email: 'test@example.com',
-          name: 'Test User',
-        },
-      });
-    }
-
-    return HttpResponse.json(
-      { error: 'Invalid credentials' },
-      { status: 401 }
-    );
-  }),
-
-  // 取得個人資料
-  http.get(`${baseURL}/api/user/profile`, ({ request }) => {
-    const auth = request.headers.get('Authorization');
-
-    if (!auth || !auth.startsWith('Bearer ')) {
-      return HttpResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    return HttpResponse.json({
-      email: 'test@example.com',
-      name: 'Test User',
-    });
-  }),
-
-  // 查詢記帳記錄
-  http.get(`${baseURL}/admin/api/accounting/records`, () => {
-    return HttpResponse.json({
-      records: [
-        {
-          _id: '1',
-          type: 'expense',
-          amount: 100,
-          category: '午餐',
-          date: '2026-02-28',
-          description: 'Test expense',
-        },
-      ],
-    });
-  }),
-
-  // 新增記帳記錄
-  http.post(`${baseURL}/admin/api/accounting/records`, async ({ request }) => {
-    const body = await request.json();
-
-    return HttpResponse.json({
-      success: true,
-      record: {
-        _id: 'new-record-id',
-        ...body,
-      },
-    }, { status: 201 });
-  }),
-
-  // 統計資料
-  http.get(`${baseURL}/admin/api/accounting/stats`, () => {
-    return HttpResponse.json({
-      income: 5000,
-      expense: 3000,
-      balance: 2000,
-      categories: {
-        '午餐': 800,
-        '交通': 500,
-      },
-    });
-  }),
-];
-```
-
-**`frontend/tests/mocks/server.js`:**
-
-```javascript
-import { setupServer } from 'msw/node';
-import { handlers } from './handlers';
-
-export const server = setupServer(...handlers);
-```
-
-**`frontend/tests/mocks/data.js`:**
-
-```javascript
-/**
- * 測試資料工廠
- */
-
-export const createMockUser = (overrides = {}) => ({
-  email: 'test@example.com',
-  password: 'MyS3cur3P@ssw0rd!XyZ',
-  name: 'Test User',
-  ...overrides,
-});
-
-export const createMockRecord = (overrides = {}) => ({
-  _id: 'mock-id-' + Math.random(),
-  type: 'expense',
-  amount: 100,
-  category: '午餐',
-  date: new Date().toISOString().split('T')[0],
-  description: 'Test record',
-  ...overrides,
-});
-
-export const createMockStats = (overrides = {}) => ({
-  income: 5000,
-  expense: 3000,
-  balance: 2000,
-  categories: {
-    '午餐': 800,
-    '交通': 500,
-    '娛樂': 300,
-  },
-  ...overrides,
-});
-
-export const createMockBudget = (overrides = {}) => ({
-  month: '2026-02',
-  budget: {
-    午餐: 3000,
-    交通: 2000,
-    娛樂: 1500,
-    ...overrides.budget,
-  },
-  ...overrides,
-});
-```
-
-### 5. package.json 腳本
-
-**`frontend/package.json`:**
+**`frontend/tests/package.json`（現況節錄）：**
 
 ```json
 {
-  "name": "accounting-system-frontend",
-  "version": "1.6.0",
-  "type": "module",
   "scripts": {
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:coverage-check": "vitest run --coverage && node scripts/check-coverage.js",
-    "test:watch": "vitest watch",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration"
-  },
-  "devDependencies": {
-    "@testing-library/dom": "^9.3.4",
-    "@testing-library/user-event": "^14.5.2",
-    "@vitest/coverage-v8": "^1.2.0",
-    "@vitest/ui": "^1.2.0",
-    "jsdom": "^24.0.0",
-    "msw": "^2.0.0",
-    "vitest": "^1.2.0"
+    "test": "playwright test",
+    "test:unit": "node --test unit/*.test.js",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "test:codegen": "playwright codegen http://localhost:8080"
   }
 }
 ```
 
----
-
-## 測試範例
-
-### 單元測試範例
-
-#### 1. utils.js 測試
-
-**`frontend/tests/unit/utils.test.js`:**
-
-```javascript
-import { describe, it, expect, vi } from 'vitest';
-import { escapeHtml, showToast, showConfirm } from '@/utils.js';
-
-describe('escapeHtml', () => {
-  it('should escape HTML special characters', () => {
-    expect(escapeHtml('<script>alert("XSS")</script>'))
-      .toBe('&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;');
-  });
-
-  it('should escape ampersand', () => {
-    expect(escapeHtml('Tom & Jerry')).toBe('Tom &amp; Jerry');
-  });
-
-  it('should escape single quotes', () => {
-    expect(escapeHtml("It's a test")).toBe('It&#039;s a test');
-  });
-
-  it('should handle empty string', () => {
-    expect(escapeHtml('')).toBe('');
-  });
-
-  it('should handle string without special chars', () => {
-    expect(escapeHtml('Hello World')).toBe('Hello World');
-  });
-});
-
-describe('showToast', () => {
-  it('should create toast element with correct message', () => {
-    document.body.innerHTML = '<div id="toast-container"></div>';
-
-    showToast('Test message', 'success');
-
-    const toast = document.querySelector('.toast');
-    expect(toast).toBeTruthy();
-    expect(toast.textContent).toContain('Test message');
-    expect(toast.classList.contains('toast-success')).toBe(true);
-  });
-
-  it('should support different toast types', () => {
-    document.body.innerHTML = '<div id="toast-container"></div>';
-
-    ['success', 'error', 'warning', 'info'].forEach(type => {
-      showToast(`${type} message`, type);
-      const toast = document.querySelector(`.toast-${type}`);
-      expect(toast).toBeTruthy();
-    });
-  });
-
-  it('should auto-remove toast after timeout', async () => {
-    vi.useFakeTimers();
-    document.body.innerHTML = '<div id="toast-container"></div>';
-
-    showToast('Test', 'info');
-
-    expect(document.querySelector('.toast')).toBeTruthy();
-
-    vi.advanceTimersByTime(3000);
-
-    expect(document.querySelector('.toast')).toBeFalsy();
-
-    vi.useRealTimers();
-  });
-});
-
-describe('showConfirm', () => {
-  it('should resolve with true when confirmed', async () => {
-    // 模擬用戶點擊確認
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-
-    const result = await showConfirm('Are you sure?');
-
-    expect(result).toBe(true);
-    expect(window.confirm).toHaveBeenCalledWith('Are you sure?');
-
-    window.confirm.mockRestore();
-  });
-
-  it('should resolve with false when cancelled', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-
-    const result = await showConfirm('Delete this?');
-
-    expect(result).toBe(false);
-
-    window.confirm.mockRestore();
-  });
-});
-```
-
-#### 2. events.js (EventBus) 測試
-
-**`frontend/tests/unit/events.test.js`:**
-
-```javascript
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EventBus, EVENTS } from '@/events.js';
-
-describe('EventBus', () => {
-  beforeEach(() => {
-    EventBus.clear();
-  });
-
-  describe('on/emit', () => {
-    it('should register and trigger event listener', () => {
-      const callback = vi.fn();
-
-      EventBus.on('TEST_EVENT', callback);
-      EventBus.emit('TEST_EVENT', { data: 'test' });
-
-      expect(callback).toHaveBeenCalledTimes(1);
-      expect(callback).toHaveBeenCalledWith({ data: 'test' });
-    });
-
-    it('should support multiple listeners for same event', () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-
-      EventBus.on('TEST_EVENT', callback1);
-      EventBus.on('TEST_EVENT', callback2);
-      EventBus.emit('TEST_EVENT', 'data');
-
-      expect(callback1).toHaveBeenCalledWith('data');
-      expect(callback2).toHaveBeenCalledWith('data');
-    });
-
-    it('should not trigger other events', () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-
-      EventBus.on('EVENT_A', callback1);
-      EventBus.on('EVENT_B', callback2);
-      EventBus.emit('EVENT_A');
-
-      expect(callback1).toHaveBeenCalled();
-      expect(callback2).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('off', () => {
-    it('should remove specific listener', () => {
-      const callback = vi.fn();
-
-      EventBus.on('TEST_EVENT', callback);
-      EventBus.off('TEST_EVENT', callback);
-      EventBus.emit('TEST_EVENT');
-
-      expect(callback).not.toHaveBeenCalled();
-    });
-
-    it('should only remove specified callback', () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-
-      EventBus.on('TEST_EVENT', callback1);
-      EventBus.on('TEST_EVENT', callback2);
-      EventBus.off('TEST_EVENT', callback1);
-      EventBus.emit('TEST_EVENT');
-
-      expect(callback1).not.toHaveBeenCalled();
-      expect(callback2).toHaveBeenCalled();
-    });
-  });
-
-  describe('clear', () => {
-    it('should remove all listeners', () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-
-      EventBus.on('EVENT_A', callback1);
-      EventBus.on('EVENT_B', callback2);
-      EventBus.clear();
-      EventBus.emit('EVENT_A');
-      EventBus.emit('EVENT_B');
-
-      expect(callback1).not.toHaveBeenCalled();
-      expect(callback2).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('getListenerCount', () => {
-    it('should return correct listener count', () => {
-      EventBus.on('TEST', () => {});
-      EventBus.on('TEST', () => {});
-
-      expect(EventBus.getListenerCount('TEST')).toBe(2);
-    });
-
-    it('should return 0 for non-existent event', () => {
-      expect(EventBus.getListenerCount('NONEXISTENT')).toBe(0);
-    });
-  });
-});
-
-describe('EVENTS constants', () => {
-  it('should have AUTH events', () => {
-    expect(EVENTS.AUTH_LOGIN_SUCCESS).toBeDefined();
-    expect(EVENTS.AUTH_LOGOUT).toBeDefined();
-    expect(EVENTS.AUTH_TOKEN_EXPIRED).toBeDefined();
-  });
-
-  it('should have RECORD events', () => {
-    expect(EVENTS.RECORD_ADDED).toBeDefined();
-    expect(EVENTS.RECORD_UPDATED).toBeDefined();
-    expect(EVENTS.RECORD_DELETED).toBeDefined();
-  });
-});
-```
-
-#### 3. components.js (CustomKeyboard) 測試
-
-**`frontend/tests/unit/components.test.js`:**
-
-```javascript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { CustomKeyboard } from '@/components.js';
-
-describe('CustomKeyboard', () => {
-  let input;
-  let keyboard;
-
-  beforeEach(() => {
-    document.body.innerHTML = `
-      <input type="text" id="test-input" />
-      <div id="custom-keyboard"></div>
-    `;
-    input = document.getElementById('test-input');
-    keyboard = new CustomKeyboard(input);
-  });
-
-  it('should initialize with empty value', () => {
-    expect(keyboard.getCurrentValue()).toBe('');
-  });
-
-  it('should handle number input', () => {
-    keyboard.handleInput('1');
-    keyboard.handleInput('2');
-    keyboard.handleInput('3');
-
-    expect(keyboard.getCurrentValue()).toBe('123');
-  });
-
-  it('should handle decimal point', () => {
-    keyboard.handleInput('1');
-    keyboard.handleInput('.');
-    keyboard.handleInput('5');
-
-    expect(keyboard.getCurrentValue()).toBe('1.5');
-  });
-
-  it('should prevent multiple decimal points', () => {
-    keyboard.handleInput('1');
-    keyboard.handleInput('.');
-    keyboard.handleInput('2');
-    keyboard.handleInput('.'); // 應被忽略
-
-    expect(keyboard.getCurrentValue()).toBe('1.2');
-  });
-
-  it('should handle addition', () => {
-    keyboard.handleInput('10');
-    keyboard.handleInput('+');
-    keyboard.handleInput('5');
-    keyboard.calculate();
-
-    expect(keyboard.getCurrentValue()).toBe('15');
-  });
-
-  it('should handle subtraction', () => {
-    keyboard.handleInput('100');
-    keyboard.handleInput('-');
-    keyboard.handleInput('30');
-    keyboard.calculate();
-
-    expect(keyboard.getCurrentValue()).toBe('70');
-  });
-
-  it('should handle multiplication', () => {
-    keyboard.handleInput('12');
-    keyboard.handleInput('×');
-    keyboard.handleInput('3');
-    keyboard.calculate();
-
-    expect(keyboard.getCurrentValue()).toBe('36');
-  });
-
-  it('should handle division', () => {
-    keyboard.handleInput('100');
-    keyboard.handleInput('÷');
-    keyboard.handleInput('4');
-    keyboard.calculate();
-
-    expect(keyboard.getCurrentValue()).toBe('25');
-  });
-
-  it('should handle complex expressions', () => {
-    keyboard.handleInput('10');
-    keyboard.handleInput('+');
-    keyboard.handleInput('5');
-    keyboard.handleInput('×');
-    keyboard.handleInput('2');
-    keyboard.calculate();
-
-    // 10 + 5 * 2 = 10 + 10 = 20
-    expect(keyboard.getCurrentValue()).toBe('20');
-  });
-
-  it('should handle clear button', () => {
-    keyboard.handleInput('123');
-    keyboard.clear();
-
-    expect(keyboard.getCurrentValue()).toBe('');
-  });
-
-  it('should handle backspace', () => {
-    keyboard.handleInput('123');
-    keyboard.backspace();
-
-    expect(keyboard.getCurrentValue()).toBe('12');
-  });
-});
-```
-
-### 整合測試範例
-
-#### 認證流程整合測試
-
-**`frontend/tests/integration/auth-flow.test.js`:**
-
-```javascript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { setAuthToken, getAuthToken, removeAuthToken } from '@/api.js';
-import { EventBus, EVENTS } from '@/events.js';
-import { createMockUser } from '@tests/mocks/data.js';
-
-describe('Authentication Flow Integration', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    EventBus.clear();
-  });
-
-  it('should complete full registration and login flow', async () => {
-    const user = createMockUser();
-
-    // 1. 註冊
-    const registerResponse = await fetch('http://localhost:5001/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(user),
-    });
-
-    expect(registerResponse.ok).toBe(true);
-
-    // 2. 登入
-    const loginResponse = await fetch('http://localhost:5001/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: user.email,
-        password: user.password,
-      }),
-    });
-
-    const loginData = await loginResponse.json();
-    expect(loginData.token).toBeDefined();
-
-    // 3. 儲存 token
-    setAuthToken(loginData.token);
-    expect(getAuthToken()).toBe(loginData.token);
-
-    // 4. 使用 token 取得個人資料
-    const profileResponse = await fetch('http://localhost:5001/api/user/profile', {
-      headers: {
-        'Authorization': `Bearer ${loginData.token}`,
-      },
-    });
-
-    const profile = await profileResponse.json();
-    expect(profile.email).toBe(user.email);
-
-    // 5. 登出
-    removeAuthToken();
-    expect(getAuthToken()).toBeNull();
-  });
-
-  it('should emit AUTH_LOGIN_SUCCESS event on successful login', async () => {
-    const loginSuccessHandler = vi.fn();
-    EventBus.on(EVENTS.AUTH_LOGIN_SUCCESS, loginSuccessHandler);
-
-    const user = createMockUser();
-
-    const response = await fetch('http://localhost:5001/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: user.email,
-        password: user.password,
-      }),
-    });
-
-    // 模擬登入成功後發送事件
-    if (response.ok) {
-      const data = await response.json();
-      EventBus.emit(EVENTS.AUTH_LOGIN_SUCCESS, { token: data.token });
-    }
-
-    expect(loginSuccessHandler).toHaveBeenCalledWith(
-      expect.objectContaining({ token: expect.any(String) })
-    );
-  });
-
-  it('should reject weak password during registration', async () => {
-    const weakUser = createMockUser({ password: '123' });
-
-    const response = await fetch('http://localhost:5001/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(weakUser),
-    });
-
-    expect(response.status).toBe(422);
-  });
-});
-```
-
-#### 記帳 CRUD 整合測試
-
-**`frontend/tests/integration/records-crud.test.js`:**
-
-```javascript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createMockRecord } from '@tests/mocks/data.js';
-
-describe('Records CRUD Integration', () => {
-  const mockToken = 'mock-jwt-token-12345';
-
-  it('should create, read, update, and delete a record', async () => {
-    const record = createMockRecord();
-
-    // 1. 新增記錄
-    const createResponse = await fetch('http://localhost:5001/admin/api/accounting/records', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${mockToken}`,
-      },
-      body: JSON.stringify(record),
-    });
-
-    const created = await createResponse.json();
-    expect(created.success).toBe(true);
-    expect(created.record._id).toBeDefined();
-
-    const recordId = created.record._id;
-
-    // 2. 查詢記錄
-    const readResponse = await fetch('http://localhost:5001/admin/api/accounting/records', {
-      headers: {
-        'Authorization': `Bearer ${mockToken}`,
-      },
-    });
-
-    const { records } = await readResponse.json();
-    expect(records).toBeInstanceOf(Array);
-    expect(records.length).toBeGreaterThan(0);
-
-    // 3. 更新記錄 (模擬)
-    // (根據實際 API 實作)
-
-    // 4. 刪除記錄 (模擬)
-    // (根據實際 API 實作)
-  });
-});
-```
-
----
-
-## Jest 實施方案 (替代)
-
-### 安裝與配置
+執行方式（兩種等價寫法）：
 
 ```bash
-cd frontend
+# 方式一：在 frontend/tests/ 目錄下用 npm script
+npm run test:unit --prefix frontend/tests
 
-# 安裝 Jest
-npm install -D jest @types/jest jest-environment-jsdom
-
-# 安裝 Testing Library
-npm install -D @testing-library/dom @testing-library/jest-dom
-
-# 安裝 Babel (用於轉譯 ESM)
-npm install -D @babel/core @babel/preset-env babel-jest
+# 方式二：直接呼叫 node，指定測試檔案 glob（CLAUDE.md「常用指令」採用此寫法）
+node --test frontend/tests/unit/*.test.js
 ```
 
-**`frontend/jest.config.js`:**
-
-```javascript
-export default {
-  testEnvironment: 'jsdom',
-  roots: ['<rootDir>/tests'],
-  testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/js-refactored/$1',
-    '^@tests/(.*)$': '<rootDir>/tests/$1',
-  },
-  collectCoverageFrom: [
-    'js-refactored/**/*.js',
-    '!js-refactored/main.js',
-  ],
-  coverageThreshold: {
-    global: {
-      statements: 80,
-      branches: 75,
-      functions: 80,
-      lines: 80,
-    },
-  },
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-  transform: {
-    '^.+\\.js$': 'babel-jest',
-  },
-};
-```
+`node --test` 會自動尋找符合命名規則的檔案（`*.test.js`）、平行執行每個檔案內的 `test()` 區塊，並在結尾印出通過/失敗統計，
+不需要額外的 config 檔案（沒有 `vitest.config.js` 或 `jest.config.js` 這回事）。
 
 ---
 
-## 實施步驟
+## 撰寫原則：只測已抽出的純函式
 
-### 第 1 階段: 環境建置 (1-2 天)
+現有 4 支單元測試有一個共同特徵：**只測從模組中抽出、不依賴 DOM／網路／時間（或把時間當參數傳入）的純函式**。例如：
 
-- [ ] 安裝 Vitest 和相關依賴
-- [ ] 建立測試目錄結構
-- [ ] 配置 vitest.config.js
-- [ ] 設定 MSW (Mock Service Worker)
-- [ ] 撰寫測試設定檔 (setup.js)
+- `config.js` 的 `resolveBackendUrl(hostname, pathname)`、`storagePrefix(pathname)` — 輸入主機名/路徑字串，回傳字串，不碰
+  `window.location`（呼叫端才負責從 `window.location` 取值再傳進來）。
+- `jwt.js` 的 `jwtExp(token)`、`tokenLocallyValid(token, nowMs)` — `nowMs` 當參數傳入，測試才能用固定時間戳做出決定性斷言。
+- `invoice.js` 的 `parseInvoiceQR(rawString)` — 純字串解析，不觸碰掃碼元件。
+- `sync.js` 的 `classifySyncOutcome({ res, err })` — 純粹依 HTTP 狀態碼/錯誤旗標做分類決策，不實際發請求。
 
-### 第 2 階段: 基礎模組測試 (2-3 天)
+這個設計是刻意的：只要邏輯留在模組內以「接收輸入、回傳輸出」的函式存在，`node --test` 不需要 jsdom、不需要 mock
+`fetch`／`localStorage`，測試又快又穩定。反過來說，`main.js`、`router.js`、`add.js` 這類大量操作 DOM、掛
+`window.xxx`、直接讀 `window.location`／`localStorage` 的模組，目前**沒有**對應的單元測試——要幫它們補測試，第一步通常是先把
+其中的判斷邏輯抽成純函式（參考 `jwt.js`／`sync.js` 的做法），而不是直接對整個模組做 DOM 模擬。
 
-- [ ] utils.js 單元測試 (escapeHtml, showToast, showConfirm)
-- [ ] config.js 單元測試
-- [ ] events.js 單元測試 (EventBus)
-- [ ] api.js 單元測試
-- [ ] 目標覆蓋率: 90%+
+---
 
-### 第 3 階段: 功能模組測試 (3-4 天)
+## 如何新增一個單元測試
 
-- [ ] components.js 測試 (CustomKeyboard, SwipeToDelete, etc.)
-- [ ] auth.js 測試
-- [ ] categories.js 測試
-- [ ] pwa.js 測試
-- [ ] 目標覆蓋率: 80%+
+以下步驟與範例直接對照現有 `frontend/tests/unit/jwt.test.js` 的實際寫法：
 
-### 第 4 階段: 業務模組測試 (3-4 天)
+1. 若要測的邏輯還混在有副作用的程式碼裡，先在對應的 `frontend/v2/js/<module>.js` 中把它拆成 `export function`（輸入用參數傳入，
+   不要直接讀 `window`/`document`/`Date.now()`）。
+2. 在 `frontend/tests/unit/` 建立 `<module>.test.js`，用相對路徑 `../../v2/js/<module>.js` import 目標函式。
+3. 用 `node:test` 的 `test()` 搭配 `node:assert/strict` 的 `assert.equal`／`assert.ok` 寫斷言。
+4. 執行 `node --test frontend/tests/unit/*.test.js` 確認新測試被抓到且通過。
 
-- [ ] records.js 測試
-- [ ] stats.js 測試
-- [ ] charts.js 測試
-- [ ] budget.js 測試
-- [ ] export.js 測試
-- [ ] settings.js 測試
-- [ ] 目標覆蓋率: 80%+
+範例骨架（風格對照 `jwt.test.js`）：
 
-### 第 5 階段: 整合測試 (2-3 天)
+```javascript
+/**
+ * <module>.test.js — <被測函式> 純函式單元測試（node:test）。
+ * 守住「<這段邏輯保護的是什麼>」：改壞會導致 <後果>，CI 會擋下。
+ * 執行：node --test frontend/tests/unit/
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { yourPureFunction } from '../../v2/js/<module>.js';
 
-- [ ] 認證流程整合測試
-- [ ] 記帳 CRUD 整合測試
-- [ ] 預算追蹤整合測試
-- [ ] 統計計算整合測試
+test('描述正常情況', () => {
+  assert.equal(yourPureFunction('input'), 'expected-output');
+});
 
-### 第 6 階段: CI/CD 整合 (1 天)
+test('描述邊界情況', () => {
+  assert.equal(yourPureFunction(''), null);
+  assert.equal(yourPureFunction(null), null);
+});
+```
 
-- [ ] 更新 GitHub Actions 工作流程
-- [ ] 設定覆蓋率門檻
-- [ ] 整合 Codecov
-- [ ] 配置自動化測試報告
+實際檔案中常見的斷言用法（都來自現有測試，非杜撰）：
 
-### 第 7 階段: 文檔與培訓 (1 天)
+- `assert.equal(actual, expected)` — 最常用，值相等比較（`config.test.js`、`jwt.test.js`、`invoice.test.js`、`sync.test.js` 都用）。
+- `assert.ok(value, message)` — 斷言真值，`invoice.test.js` 用來確認 `parseInvoiceQR` 有解析成功（`assert.ok(p, '應解析成功')`）。
+- 需要固定時間的測試，把時間戳當參數傳入被測函式（`jwt.test.js` 的 `const NOW = 1_700_000_000_000` 寫法），不要在測試裡用真的
+  `Date.now()`，否則測試結果不具決定性。
+- 需要組出測試資料（例如一個合法的 JWT 字串）時，直接在測試檔內寫一個小型 helper 函式（`jwt.test.js` 的 `makeToken()`），不需要
+  額外的 mock 函式庫。
 
-- [ ] 撰寫測試撰寫指南
-- [ ] 建立測試範例集
-- [ ] 團隊培訓 (如需要)
+---
+
+## 現有單元測試涵蓋範圍
+
+| 測試檔案 | 對應模組 | 涵蓋函式 | 守護的邏輯 |
+|---------|---------|---------|-----------|
+| `config.test.js` | `frontend/v2/js/config.js` | `resolveBackendUrl`、`storagePrefix` | 依 hostname/pathname 判斷本機、區網 IP、Tailscale 正式/測試環境、Zeabur 的後端 URL 與 localStorage key 前綴推導 |
+| `jwt.test.js` | `frontend/v2/js/jwt.js` | `jwtExp`、`tokenLocallyValid` | 離線時信任本地 JWT 的過期判斷，避免把過期 token 當作有效登入狀態放行 |
+| `invoice.test.js` | `frontend/v2/js/invoice.js` | `parseInvoiceQR` | 電子發票 QR Code 左側 77 碼格式解析，並確保右側加密內容/雜訊不會被誤判成合法發票 |
+| `sync.test.js` | `frontend/v2/js/sync.js` | `classifySyncOutcome` | 離線佇列同步的逐筆失敗政策：2xx 成功、401 停止整批、4xx 標記需處理、5xx/網路錯誤重試 |
+
+這四支測試都聚焦在「一旦壞掉會直接影響資料正確性或帳號安全」的邊界判斷邏輯，屬於高投資報酬率的純函式測試。
+
+---
+
+## 尚未涵蓋的模組
+
+`frontend/v2/js/` 目前共有 24 個模組，只有上面 4 個模組的部分匯出函式有單元測試。其餘模組（`main.js`、`router.js`、`auth.js`、
+`add.js`、`ledger.js`、`stats.js`、`budget.js`、`charts.js`、`dashboard.js`、`pin.js`、`wallet.js`、`photos.js`、`settings.js`、
+`offline.js`、`lock.js`、`theme.js`、`store.js`、`api.js`、`version.js`）目前**沒有**專屬的單元測試——這是「純函式優先」策略下
+的自然缺口，不代表已知的 bug，這些模組的行為目前主要靠 E2E 測試（見下一節）間接覆蓋。
+
+`frontend/v2/js/utils.js` 是一個明顯可以擴充的候選：裡面同時混了純函式（`escapeHtml`、`fmtMoney`、`todayStr`、`monthStr`、
+`debounce`）與會碰 DOM 的函式（`showToast`、`showConfirm`、`el`）。若要補測試，`escapeHtml`／`fmtMoney`／`monthStr` 這類純函式
+可以直接照上面「如何新增一個單元測試」的步驟加測試檔，不需要額外工具。
+
+---
+
+## E2E 測試（摘要）
+
+E2E 測試用 Playwright，涵蓋登入/註冊、核心記帳流程、資料版本相容性、離線同步等跨模組的真實使用者流程，測試檔位於
+`frontend/tests/e2e/v2/`（`auth.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`）。
+
+安裝、執行方式、撰寫規範、CI/CD 整合、故障排除等完整說明**已獨立在** [`docs/E2E_TESTING_GUIDE.md`](E2E_TESTING_GUIDE.md)，
+本文件不重複維護細節，避免兩份文件內容漂移不一致。快速指令可參考 `CLAUDE.md` 的「常用指令」與下一節。
+
+---
+
+## 執行測試 / push 前檢查
+
+```bash
+# 前端單元測試（不需啟動任何服務）
+node --test frontend/tests/unit/*.test.js
+
+# E2E 測試（需先啟動後端，見 E2E_TESTING_GUIDE.md）
+npx playwright test --config frontend/tests/playwright.config.js
+```
+
+依專案 `CLAUDE.md` 規則，這兩項測試是「push 前的最後守門員」：一個功能/任務完成、準備 `git push` 前執行一次即可，不需要每次
+修改單一檔案後都跑。測試失敗必須先修正程式碼本身，不可為了讓測試通過而修改測試邏輯。
 
 ---
 
 ## 總結
 
-本文件提供了前端測試的完整實施方案,包括:
+前端測試現況：
 
-✅ 測試框架選擇建議 (推薦 Vitest)
-✅ 完整的配置檔案
-✅ 專案結構規劃
-✅ MSW API Mock 設定
-✅ 豐富的測試範例
-✅ 清晰的實施步驟
-
-**預估工時:** 12-18 天 (1 人全職)
-
-**預期成果:**
-- 前端代碼覆蓋率達到 80%+
-- 所有關鍵模組有完整測試
-- CI/CD 自動化測試整合完成
+- ✅ 單元測試：`node --test`，零額外依賴，聚焦 4 個模組的純函式邊界邏輯（後端 URL 推導、JWT 過期判斷、發票 QR 解析、離線同步分類）
+- ✅ E2E 測試：Playwright，涵蓋登入、核心記帳流程、資料版本、離線同步（細節見 `docs/E2E_TESTING_GUIDE.md`）
+- 🟡 待補：其餘 20 個前端模組尚無專屬單元測試，優先順序建議依「該模組壞掉的後果嚴重度」與「邏輯是否容易抽成純函式」評估，
+  `utils.js` 的純函式匯出是現成的低成本起點
 
 ---
 
-**版本:** 1.0
-**最後更新:** 2026-02-28
-**下次審查:** 實施完成後
+**版本:** 2.0
+**最後更新:** 2026-08-22
+**下次審查:** 新增純函式模組單元測試，或前端測試框架有變動時

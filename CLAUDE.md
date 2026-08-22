@@ -51,46 +51,53 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **`routes/`**：各功能 Blueprint
   - `auth.py` — 登入、註冊、驗證、忘記/重設密碼、密碼強度檢查
   - `user.py` — 個人資料、修改密碼
-  - `records.py` — 記帳記錄 CRUD
+  - `records.py` — 記帳記錄 CRUD、內部轉移（`transfer`）、受限資金解鎖（`unlock`）、輕量更新檢查（`data-version`）
   - `stats.py` — 統計、趨勢、期間比較、整合概覽
   - `budget.py` — 預算設定
   - `recurring.py` — 定期收支
   - `debts.py` — 欠款追蹤（含多人分帳、還款、結清）
   - `io.py` — 匯出（CSV/Excel/JSON）、匯入
+  - `wallets.py` — 資金錢包 CRUD、餘額（含帳戶×位置雙維度）、受限資金列表、餘額歷史、單一錢包資金流向樹
+  - `photos.py` — 記帳記錄照片上傳/刪除/存取、跨記錄照片瀏覽清單
 
 **速率限制**：Flask-Limiter，以 JWT user_id 識別；記錄查詢 100/min；新增/更新/刪除 50/min；註冊端點每 IP 每小時 5 次。
 
 **API 路由前綴**：
 - `/api/auth/` — 認證（登入、註冊、驗證、忘記/重設密碼）
 - `/api/user/` — 用戶個人資料、修改密碼
-- `/admin/api/accounting/` — 記帳記錄、統計、預算、匯出匯入
+- `/admin/api/accounting/` — 記帳記錄、統計、預算、匯出匯入、照片
 - `/admin/api/recurring/` — 定期收支
 - `/admin/api/debts/` — 欠款追蹤
 - `/admin/api/stats/` — 整合財務概覽
+- `/admin/api/wallets/` — 資金錢包（CRUD、餘額、位置維度、受限資金、流向樹）
 - `/` 或 `/health` — 健康檢查（無需認證）
 
-### 前端（`frontend/`）
+### 前端（`frontend/v2/`）
 
-單頁應用程式（SPA），主 HTML 為 `index.html`，JS 邏輯全部模組化於 `js-refactored/`（ES Modules）：
+單頁應用程式（SPA），現行前端**只有 v2**（舊版 `js-refactored/` 已整個移除）。主 HTML 為 `frontend/v2/index.html`，只用一個 `<script type="module" src="./js/main.js">` 載入，其餘全靠 ES `import`（無 bundler、無 script 標籤序列）：
 
-**模組載入順序**（`main.js` 控制）：
-1. **基礎層**：`config.js`（後端 URL 偵測、`debugLog`、分類資料）、`utils.js`（`escapeHtml`、`showToast`、`showConfirm`、`debounce`）、`api.js`（統一 Fetch 封裝、Token 管理、401 處理）、`events.js`（EventBus 事件匯流排、EVENTS 常量）
-2. **功能層**：`auth.js`（登入/註冊/登出/密碼管理）、`components.js`（Router、CustomKeyboard、SwipeToDelete、LongPressMenu）、`categories.js`（分類選擇器、篩選器）
-3. **核心層**：`stats.js`（統計數字、動畫、Stale-while-revalidate）、`records.js`（記錄 CRUD、分頁、篩選）、`charts.js`（支出圓餅圖、趨勢折線圖）、`budget.js`（預算設定與使用率）
-4. **附加層**：`export.js`（匯出 CSV/Excel/JSON、匯入）、`settings.js`（帳號設定）、`pwa.js`（Service Worker、安裝提示、離線同步）、`analytics.js`（期間比較、日期快速切換）、`recurring.js`（定期收支）、`theme.js`（深色/淺色/系統主題）、`debts.js`（欠款追蹤）
+**`frontend/v2/js/` 模組**（依角色分組，非載入順序）：
+- **基礎層**：`config.js`（後端 URL 偵測、分類資料）、`utils.js`（通用工具）、`api.js`（統一 Fetch 封裝、Token 管理、401 處理）、`store.js`（極簡共用狀態 + 事件匯流排，取代舊版 `events.js`；`emit('records:changed')` 等）、`jwt.js`（純函式：解 JWT exp、離線信任判斷）
+- **殼層 / 認證**：`main.js`（進入點：主題初始化、登入 gate、掛載 App、SW 註冊）、`router.js`（響應式外殼：手機底部導覽 + FAB／電腦側欄，畫面切換）、`auth.js`（登入/註冊/驗證/登出/改密碼）、`theme.js`（深色/淺色/系統主題）
+- **核心畫面**：`add.js`（記一筆：計算機鍵盤、分類、附加照片、設為定期）、`ledger.js`（帳本/明細：CRUD、排序篩選）、`stats.js`（統計圖表）、`budget.js`（預算卡與進度條）、`charts.js`（自製 SVG 圖表元件）、`dashboard.js` + `pin.js`（電腦版概覽儀表板與卡片釘選，僅桌面）
+- **錢包 / 資金**：`wallet.js`（資金錢包資料層、管理 UI、帳本頁餘額摘要條；含帳戶×位置雙維度、受限資金、資金流向樹）、`lock.js`（手機版明細頁鎖定模式：複選錢包＋分類鎖定，套用到帳本/統計/預算）
+- **照片**：`photos.js`（上傳前壓縮、上傳/刪除、需認證照片 blob URL）、`invoice.js`（電子發票 QR 掃描，記一筆入口之一）
+- **離線 / 同步 / 版本**：`offline.js`（IndexedDB 讀取快取 + 線上/離線偵測 + 離線寫入 outbox）、`sync.js`（回連後 outbox FIFO 同步，含照片 FormData 同步）、`version.js`（`APP_VERSION`/更新說明，供「已更新」Toast 與 data-version 閘門比對）
+- **其他**：`settings.js`（帳戶管理、分類設定、定期項目、資料同步、匯出、照片瀏覽入口）
 
-模組間通訊透過 **EventBus**（`events.js`）解耦，不直接呼叫彼此的函式。各模組透過 `window.xxx` 暴露函式供 HTML `onclick` 呼叫。
+各模組透過 `window.xxx` 暴露函式供 HTML `onclick` 呼叫，模組間狀態/事件經 `store.js` 解耦。
 
-PWA 相關：`service-worker.js`（快取策略、版本號控制）、`manifest.json`、IndexedDB（離線操作佇列）。
+PWA 相關：`frontend/v2/service-worker.js`（快取策略、版本號控制）、`manifest.json`、IndexedDB（離線讀取快取 + 寫入 outbox）。
 
 ### 資料庫（MongoDB `accounting_db`）
 
-五個集合：`users`、`records`、`budget`、`recurring`、`debts`。詳細 schema 見 `README.md`。
+六個集合：`users`、`records`、`budget`、`recurring`、`debts`、`wallets`。詳細 schema 見 `README.md`。
 
 ### 測試架構
 
 - **後端單元測試**：`backend/tests/`（pytest），使用 `conftest.py` 共享 fixtures，測試時設定 `TESTING=true` 環境變數
-- **E2E 測試**：`frontend/tests/e2e/`（Playwright），測試檔案：`auth.spec.js`、`records.spec.js`、`budget-stats.spec.js`、`settings.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
+- **前端單元測試**：`frontend/tests/unit/`（Node 內建 `node --test`，非 Jest），測試檔案：`config.test.js`、`invoice.test.js`、`jwt.test.js`、`sync.test.js`
+- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`auth.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
 
 ---
 
@@ -132,8 +139,11 @@ npm install --prefix frontend/tests
 # E2E 測試
 npx playwright test --config frontend/tests/playwright.config.js           # 預設只跑 Chromium
 BROWSERS=all npx playwright test --config frontend/tests/playwright.config.js  # 跑全瀏覽器
-npx playwright test e2e/auth.spec.js --config frontend/tests/playwright.config.js  # 單一檔案
+npx playwright test e2e/v2/auth.spec.js --config frontend/tests/playwright.config.js  # 單一檔案
 npx playwright show-report                                    # 查看 HTML 報告
+
+# 前端單元測試
+node --test frontend/tests/unit/*.test.js
 ```
 
 ## push 前必須執行
@@ -169,7 +179,7 @@ npx playwright test --config frontend/tests/playwright.config.js
 
 ## 前端更新必做事項
 
-每次修改前端後，**必須**更新 `frontend/service-worker.js` 第 14 行的版本號：
+每次修改前端後，**必須**更新 `frontend/v2/service-worker.js` 第 14 行的版本號：
 
 ```javascript
 const CACHE_NAME = 'accounting-system-vX.Y.Z';
@@ -204,12 +214,13 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 - **`records.user_id` 舊資料可能為空**：資料庫中歷史記錄的 `user_id` 欄位可能為 null，查詢時必須做 null 處理，不可假設一定有值。
 - **`records` vs `recurring` 的 `user_id` 型別不同**：`records.user_id` 是 **ObjectId**（經 `require_auth` 轉換），`recurring.user_id` 也是 ObjectId，但歷史資料可能混有 String，跨集合查詢時注意。
 - **不要硬寫後端 URL**：前端 `resolveBackendUrl()`（`frontend/v2/js/config.js`）會依執行環境自動切換後端位址（localhost:5001、區網 IP，或 NAS 的 `*.ts.net` 網域），任何地方都不要 hardcode URL。
-- **Service Worker 版本號需手動更新**：每次修改前端後，必須升版 `frontend/service-worker.js` 第 14 行的 `CACHE_NAME`，否則用戶端快取不會自動清除。詳見「前端更新必做事項」。
+- **Service Worker 版本號需手動更新**：每次修改前端後，必須升版 `frontend/v2/service-worker.js` 第 14 行的 `CACHE_NAME`，同步更新 `frontend/v2/js/version.js` 的 `APP_VERSION`，否則用戶端快取不會自動清除。詳見「前端更新必做事項」。
 - **E2E 測試並行策略**：同一 spec file 內**串行**（避免同帳號資料競爭），spec files **之間**才是並行（最多 4 workers）。不要在同一 spec file 內加 `test.parallel()`。
 - **後端測試必須設 `TESTING=true`**：未設定時 Flask app 會連接真實 MongoDB，測試資料會污染生產資料庫。
 - **Port 8080 可能被佔用**：Windows 上 FANUC 等工業軟體會佔用 8080；改用 8081，並確保 `backend/.env` 的 `FRONTEND_URLS` 包含 `http://localhost:8081`，重啟後端才能讓 CORS 生效。
 - **路由在 Blueprint，不在 main.py**：修改或新增 API 端點請操作 `backend/routes/` 下對應檔案，而非 `main.py`。`main.py` 只負責 app 設定與 blueprint 註冊。
-- **`SwipeToDelete` 需傳入元素**：`new SwipeToDelete(element)` 必須傳入具體 DOM 元素，不像其他組件無參數構建；在 `records.js` 的 `renderRecords()` 中為每張卡片單獨 new 一個實例。
+- **`records.wallet_id` 可為 null**：代表「未分類」，沿用舊資料相容，不強制搬遷；查詢/統計時需視為合法值處理，不可假設一定指向某個 `wallets` 文件。
+- **`records.type` 不只 income/expense**：還有 `transfer`（帳戶內部轉移，不計入收支統計）與 `restricted`（受限資金，收入拆分時產生，解鎖前不可視為可用餘額）；新增邏輯若走過 `records` 集合的統計/篩選，需確認有沒有漏處理這兩種 type。
 
 ---
 

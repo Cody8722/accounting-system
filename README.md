@@ -103,6 +103,32 @@ pytest --cov=. --cov-report=term-missing   # 含覆蓋率
 - 為每個支出分類設定月度預算（整合於定期收支頁面）
 - 追蹤預算執行情況
 
+### 資金錢包分離
+
+- 同一登入帳號可建立多個「錢包」（如零用錢、薪資帳戶），與收支記錄脫鉤：記錄可選填 `wallet_id`，未分類記錄仍可正常使用
+- **帳戶 × 位置雙維度**：每筆收支需標記位置（銀行／現金），支出時系統自動判斷位置；現金不足會提示自動從銀行提領補齊
+- **受限資金**：收入可拆分出一筆「代收代付」性質的受限資金（例如代收款項），解鎖前不計入可用餘額，解鎖後轉為一般收入 + 支出
+- **內部轉移**：同一帳戶內銀行/現金間的資金移動，不計入收支統計
+- 各錢包即時餘額、近 N 月餘額變化歷史、資金流向樹視覺化（見下）
+
+### 資金流向樹
+
+- 針對單一錢包，以樹狀圖呈現銀行／現金／受限資金三者間的資金流向與加總關係，快速看懂一筆錢實際去了哪裡
+
+### 記帳照片
+
+- 記一筆時可直接拍照或選圖上傳（自動壓縮），既有記錄也可事後補充或刪除照片
+- 離線時可先將照片排入待同步佇列，回連後自動上傳
+- 提供跨記錄的照片瀏覽介面（設定頁「照片」入口）
+
+### 輕量更新檢查
+
+- 前端定期比對後端資料版本簽章，資料有變更時才重新抓取，避免多裝置間顯示過期資料，同時不需要每次都整包重抓
+
+### 電腦版儀表板
+
+- 電腦版另有概覽儀表板，KPI 卡與功能卡可自由釘選、放大檢視
+
 ### 多用戶帳號系統
 
 - 使用 Email + 密碼註冊 / 登入
@@ -198,7 +224,7 @@ python -m http.server 8080
 # 瀏覽 http://localhost:8080
 ```
 
-或直接用瀏覽器開啟 `frontend/index.html`（部分 PWA 功能需要 HTTP 伺服器）。
+或直接用瀏覽器開啟 `frontend/v2/index.html`（部分 PWA 功能需要 HTTP 伺服器）。
 
 ---
 
@@ -235,7 +261,7 @@ pytest
 
 ## 資料庫結構
 
-資料庫名稱：`accounting_db`，包含**五個**集合（`users`／`records`／`budget`／`recurring`／`debts`）。
+資料庫名稱：`accounting_db`，包含**六個**集合（`users`／`records`／`budget`／`recurring`／`debts`／`wallets`）。
 
 > ⚠️ 以下為對照後端實際程式碼（`backend/routes/*.py`）確認過的真實欄位。`user_id` 在 `records`／`budget` 皆為 **ObjectId**（非字串），三個資料表寫入時一律用 `ObjectId(request.user_id)`。
 
@@ -264,19 +290,40 @@ pytest
 {
   _id: ObjectId,
   user_id: ObjectId,     // 所屬用戶 ID（對應 users._id）；舊資料可能為空，查詢須做 null 處理
-  type: String,          // 'income'（收入）或 'expense'（支出）
-  amount: Number,        // 金額（正數，上限 9,999,999.99）
-  category: String,      // 分類，預設集合或自訂字串（最多 50 字元）
-  expense_type: String,  // 支出類型：'fixed'｜'variable'｜'onetime'｜null（可選）
+  type: String,          // 'income'｜'expense'｜'transfer'（帳戶內部轉移）｜'restricted'（受限資金）
+  amount: Number,        // 金額（正數，上限 9,999,999.99）；transfer/restricted 皆適用同一欄位
+  category: String,      // 分類，預設集合或自訂字串（最多 50 字元）；restricted 固定為 null
+  expense_type: String,  // 支出類型：'fixed'｜'variable'｜'onetime'｜null（可選，僅 expense）
   date: String,          // 日期，格式 YYYY-MM-DD
   description: String,   // 說明備註（可為空，最多 500 字元）
   created_at: DateTime,
   updated_at: DateTime,  // 更新記錄時才有（可選）
 
+  // 資金錢包分離（見 wallets 集合）：income/expense/transfer/restricted 皆適用
+  wallet_id: ObjectId,   // 所屬錢包；null 代表「未分類」（相容舊資料，不強制搬遷）
+  location: String,      // 'bank'｜'cash'；income 由使用者手動選，expense 由系統依現金餘額自動判斷
+  client_id: String,     // 離線同步冪等去重用（可選，≤64 字元）；線上請求通常不帶
+
+  // 僅 type='transfer' 才有：同一帳戶內位置間資金移動，不計入收支統計
+  from_location: String, // 'bank'｜'cash'
+  to_location: String,   // 'bank'｜'cash'，與 from_location 不可相同
+
+  // 僅 expense 因現金不足觸發「自動從銀行提領」時才有：指向系統自動產生的那筆 transfer 記錄
+  source_transfer_id: ObjectId,
+
+  // 僅 type='restricted' 才有：收入拆分出的受限資金，解鎖前不計入可用餘額
+  linked_income_id: ObjectId,   // 對應同時產生的一般收入記錄（可能為 null，見「全額受限」情況）
+  unlocked_at: DateTime,        // 解鎖時間；null 代表尚未解鎖
+  source_restricted_id: ObjectId, // 解鎖後產生的一般收入/支出記錄，回指原本的受限資金記錄
+
+  photos: [               // 附加照片 metadata（見「記帳照片」API），檔案存於 PHOTO_STORAGE_PATH
+    { id: String, filename: String, original_filename: String, content_type: String, size_bytes: Number, uploaded_at: String }
+  ],
+
   // 以下三個欄位僅「欠款還款同步寫入」的記錄才有（見 debts 集合）；
   // 一般手動記帳不會帶這些欄位，前端也不提供手動輸入介面
   debt_id: ObjectId,     // 對應 debts._id（可選）
-  auto_generated: Boolean, // true = 由還款動作自動產生（可選）
+  auto_generated: Boolean, // true = 由還款動作或現金不足自動提領產生（可選）
   debt_deleted: Boolean  // 對應的欠款已被刪除，但保留這筆記帳歷史（可選）
 }
 ```
@@ -342,6 +389,24 @@ pytest
 >
 > 列表/單筆查詢回傳時，`members` 非空的欠款會動態附加 `total_members`／`paid_members`／`pending_receivable`（未存於資料庫，即時計算）。
 
+### wallets（資金錢包）
+
+```javascript
+{
+  _id: ObjectId,
+  user_id: ObjectId,   // 所屬用戶
+  name: String,        // 錢包名稱
+  icon: String,        // 圖示（可選，最多 40 字元）
+  color: String,       // 顏色（可選，最多 40 字元）
+  is_default: Boolean, // 是否為預設錢包；同一用戶僅能有一個 true（設定新的會自動取消舊的）
+  archived: Boolean,   // 封存（軟刪除，歷史關聯記錄不受影響；封存時 is_default 會一併設為 false）
+  created_at: DateTime,
+  updated_at: DateTime
+}
+```
+
+> 錢包只是「同一登入帳號底下的資金分組」，與 `user_id`（登入帳號）是獨立概念。`records.wallet_id` 為可選欄位，未分類（`null`）的記錄仍完全可用，不強制搬遷舊資料。餘額、位置維度、受限資金、資金流向樹皆是即時從 `records` 聚合計算，不存於 `wallets` 本身。
+
 ---
 
 ## API 端點
@@ -378,9 +443,12 @@ Token 有效期：**7 天**。過期後需重新登入。
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | `GET` | `/admin/api/accounting/records` | 查詢記錄，支援 `start_date`、`end_date`、`type`、`category` 參數，最多回傳 500 筆 |
-| `POST` | `/admin/api/accounting/records` | 新增記錄 |
+| `POST` | `/admin/api/accounting/records` | 新增記錄（可選 `wallet_id`/`location`/`client_id`；收入可選 `restricted_amount` 拆分受限資金；支出現金不足時回 409，需帶 `confirm_withdrawal:true` 確認自動提領） |
 | `PUT` | `/admin/api/accounting/records/<id>` | 更新指定記錄（只能修改自己的） |
-| `DELETE` | `/admin/api/accounting/records/<id>` | 刪除指定記錄（只能刪除自己的） |
+| `DELETE` | `/admin/api/accounting/records/<id>` | 刪除指定記錄（只能刪除自己的；連動刪除自動產生的提領轉帳與附加照片） |
+| `POST` | `/admin/api/accounting/records/transfer` | 新增內部轉移（必要欄位 `wallet_id`/`from_location`/`to_location`/`amount`/`date`，同一帳戶內銀行↔現金搬移，不計入收支統計） |
+| `POST` | `/admin/api/accounting/records/<id>/unlock` | 解鎖受限資金：整筆轉為一般收入 + 新增一筆對應支出，不支援部分解鎖 |
+| `GET` | `/admin/api/accounting/data-version` | 輕量更新檢查：回傳目前使用者資料的版本簽章，供前端判斷是否需要重新抓取 |
 
 ### 統計資料（需 Token）
 
@@ -421,6 +489,29 @@ Token 有效期：**7 天**。過期後需重新登入。
 | `POST` | `/admin/api/debts/<id>/members/<idx>/repay` | 分帳成員還款，同步寫入記帳記錄 |
 | `POST` | `/admin/api/debts/<id>/settle` | 切換結清狀態 |
 | `PUT` | `/admin/api/debts/<id>/members/<idx>/pay` | 群組分帳：切換成員已付款狀態 |
+
+### 資金錢包（需 Token）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/admin/api/wallets` | 列出錢包（預設不含已封存，`?show_archived=true` 可含） |
+| `POST` | `/admin/api/wallets` | 新增錢包 |
+| `PUT` | `/admin/api/wallets/<id>` | 更新錢包（改名／圖示／顏色／設為預設／封存還原） |
+| `DELETE` | `/admin/api/wallets/<id>` | 封存錢包（軟刪除，不影響歷史關聯記錄） |
+| `GET` | `/admin/api/wallets/balances` | 各錢包即時餘額（含「未分類」） |
+| `GET` | `/admin/api/wallets/location-summary` | 帳戶 × 位置（銀行/現金）雙維度餘額 |
+| `GET` | `/admin/api/wallets/<id>/balance-history` | 單一錢包近 N 月餘額變化 |
+| `GET` | `/admin/api/wallets/restricted-funds` | 目前還鎖著的受限資金列表（未解鎖） |
+| `GET` | `/admin/api/wallets/<id>/flow-tree` | 單一錢包資金流向樹（銀行/現金/受限資金三者關聯加總） |
+
+### 記帳照片（需 Token）
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `POST` | `/admin/api/accounting/records/<id>/photos` | 上傳照片（multipart，欄位名 `photos`，可多檔；單筆記錄最多 20 張，單檔上限 10MB，僅 jpeg/png/webp） |
+| `DELETE` | `/admin/api/accounting/records/<id>/photos/<photo_id>` | 刪除單張照片 |
+| `GET` | `/admin/api/accounting/records/<id>/photos/<photo_id>` | 取得照片本體 |
+| `GET` | `/admin/api/accounting/photos` | 跨記錄的照片瀏覽清單（分頁，新到舊） |
 
 匯出/匯入（需 Token）：`GET /admin/api/accounting/export`（支援 `format=csv/xlsx/json`）、`POST /admin/api/accounting/import`（JSON 備份還原）。
 
