@@ -40,6 +40,7 @@ from extensions import (
     validate_objectid,
     validate_record_type,
 )
+from routes.photos import _photo_dir
 
 CASH_WITHDRAWAL_UNIT = 1000  # 支出現金不足時，從銀行提領的最小單位（無條件進位）
 
@@ -597,6 +598,26 @@ def update_accounting_record(record_id):
         return jsonify({"error": "更新記錄失敗"}), 500
 
 
+def _cleanup_record_photos(record):
+    """刪除記錄後，把該記錄附加的照片檔案一併清掉，否則磁碟會留下永遠不會
+    再被任何 API 存取到的孤兒檔案（DB 參照已經隨記錄一起沒了）。先刪檔案、
+    檔案刪完才嘗試移除該記錄的照片目錄——目錄非空或不存在時 rmdir 會丟例外，
+    直接忽略即可，不影響呼叫端刪除記錄本身的成功結果。"""
+    photos = record.get("photos") or []
+    if not photos:
+        return
+    photo_dir = _photo_dir(record["user_id"], record["_id"])
+    for p in photos:
+        try:
+            (photo_dir / p["filename"]).unlink(missing_ok=True)
+        except OSError as e:
+            logger.warning(f"刪除記錄關聯照片檔案失敗: {e}")
+    try:
+        photo_dir.rmdir()
+    except OSError:
+        pass
+
+
 @bp.route("/admin/api/accounting/records/<record_id>", methods=["DELETE"])
 @limiter.limit("50 per minute")
 @require_auth
@@ -619,12 +640,19 @@ def delete_accounting_record(record_id):
         if not deleted:
             return jsonify({"error": "找不到該記錄或無權限刪除"}), 404
 
+        _cleanup_record_photos(deleted)
+
         # 刪除連動：若這筆支出曾觸發自動提領現金，一併刪除對應的轉帳記錄
         source_transfer_id = deleted.get("source_transfer_id")
         if source_transfer_id:
-            db.accounting_records_collection.delete_one(
-                {"_id": source_transfer_id, "user_id": ObjectId(request.user_id)}
-            )
+            transfer_query = {
+                "_id": source_transfer_id,
+                "user_id": ObjectId(request.user_id),
+            }
+            transfer_doc = db.accounting_records_collection.find_one(transfer_query)
+            db.accounting_records_collection.delete_one(transfer_query)
+            if transfer_doc:
+                _cleanup_record_photos(transfer_doc)
 
         # 刪除連動：若這筆支出是解鎖受限資金時產生的，把來源記錄復原為受限狀態
         # （等同撤銷這次解鎖），而不是連帶刪除——那筆錢確實收到過，這個事實不該消失

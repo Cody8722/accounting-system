@@ -19,6 +19,8 @@ from pathlib import Path
 import pytest
 from bson import ObjectId
 
+import db
+
 os.environ["TESTING"] = "true"
 os.environ["JWT_SECRET"] = "test-jwt-secret-key-for-testing-only"
 
@@ -404,3 +406,94 @@ class TestRecordCreationIncludesPhotosField:
             f"/admin/api/accounting/records/{r.get_json()['id']}", headers=auth_headers
         ).get_json()
         assert rec["photos"] == []
+
+
+@pytest.mark.integration
+class TestDeleteRecordCleansUpPhotos:
+    """刪除整筆記錄時，該記錄附加的照片檔案要跟著從磁碟清掉，不能只刪 DB
+    參照、留下永遠不會再被存取到的孤兒檔案。"""
+
+    def test_delete_record_removes_photo_files_from_disk(
+        self, client, auth_headers, record_id
+    ):
+        upload_r = _upload(
+            client, auth_headers, record_id, [(JPEG_BYTES, "a.jpg", "image/jpeg")]
+        )
+        assert upload_r.status_code == 201, upload_r.get_json()
+        photo = upload_r.get_json()["photos"][0]
+        rec = db.accounting_records_collection.find_one({"_id": ObjectId(record_id)})
+        photo_path = (
+            photos_module.PHOTO_STORAGE_PATH
+            / str(rec["user_id"])
+            / record_id
+            / photo["filename"]
+        )
+        assert photo_path.is_file()
+
+        del_r = client.delete(
+            f"/admin/api/accounting/records/{record_id}", headers=auth_headers
+        )
+        assert del_r.status_code == 200
+
+        assert not photo_path.is_file()
+        # 記錄目錄應該一併被清掉（已空），不留下永遠不會再用到的空目錄
+        assert not photo_path.parent.is_dir()
+        # 照片端點也拿不到了（record 本身已經不存在）
+        get_r = client.get(
+            f"/admin/api/accounting/records/{record_id}/photos/{photo['id']}",
+            headers=auth_headers,
+        )
+        assert get_r.status_code == 404
+
+    def test_delete_expense_with_auto_withdrawal_cleans_up_transfer_photos(
+        self, client, auth_headers
+    ):
+        """支出現金不足觸發自動提領時連帶產生的轉帳記錄，理論上也可能被附加
+        照片（後端沒有限制照片只能掛在 income/expense，即使目前前端 UI 不會
+        這樣做）；刪除主記錄、連動刪除轉帳記錄時，轉帳記錄的照片也要一併清掉。
+        """
+        r = client.post(
+            "/admin/api/accounting/records",
+            json={
+                "type": "expense",
+                "amount": 100,
+                "category": "測試",
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "confirm_withdrawal": True,
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 201, r.get_json()
+        primary_id = r.get_json()["id"]
+        primary = db.accounting_records_collection.find_one(
+            {"_id": ObjectId(primary_id)}
+        )
+        transfer_id = str(primary["source_transfer_id"])
+        assert transfer_id
+
+        upload_r = _upload(
+            client, auth_headers, transfer_id, [(PNG_BYTES, "t.png", "image/png")]
+        )
+        assert upload_r.status_code == 201, upload_r.get_json()
+        photo = upload_r.get_json()["photos"][0]
+        transfer_doc = db.accounting_records_collection.find_one(
+            {"_id": ObjectId(transfer_id)}
+        )
+        photo_path = (
+            photos_module.PHOTO_STORAGE_PATH
+            / str(transfer_doc["user_id"])
+            / transfer_id
+            / photo["filename"]
+        )
+        assert photo_path.is_file()
+
+        del_r = client.delete(
+            f"/admin/api/accounting/records/{primary_id}", headers=auth_headers
+        )
+        assert del_r.status_code == 200
+        # 轉帳記錄本身也該連動被刪了（既有行為，不是這次改動的範圍，這裡順便斷言）
+        assert (
+            db.accounting_records_collection.find_one({"_id": ObjectId(transfer_id)})
+            is None
+        )
+        assert not photo_path.is_file()
