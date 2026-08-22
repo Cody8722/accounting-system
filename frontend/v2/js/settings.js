@@ -11,6 +11,8 @@ import { logout, changePassword } from './auth.js';
 import { monthRange, emit } from './store.js';
 import { openWalletManager } from './wallet.js';
 import { isOnline } from './offline.js';
+import { fetchPhotoGallery, fetchPhotoUrl } from './photos.js';
+import { openEditById } from './ledger.js';
 
 function sheet(title, bodyHtml) {
   const ov = document.createElement('div');
@@ -152,6 +154,77 @@ function openExport() {
   };
 }
 
+/** 照片瀏覽介面（功能性版本，視覺細節之後再調整）：跨記錄縮圖網格，分頁
+ * 用「載入更多」，點縮圖跳轉到對應記帳記錄的編輯視窗。 */
+function openPhotoGallery() {
+  const ov = sheet('照片', '<div style="text-align:center;color:var(--muted2);padding:20px">載入中…</div>');
+  const PAGE_SIZE = 30;
+  let items = [];
+  let page = 1;
+  let totalPages = 1;
+  const objectUrls = [];
+
+  async function loadThumb(item, idx) {
+    try {
+      const url = await fetchPhotoUrl(item.record_id, item.photo_id);
+      objectUrls.push(url);
+      const el = ov.querySelector(`[data-el="thumb-${idx}"]`);
+      if (el) el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+    } catch {
+      /* 抓不到就留預設圖示，不擋其他張 */
+    }
+  }
+
+  function itemHtml(it, idx) {
+    const dateShort = (it.record_date || '').slice(5);
+    return `<div data-photo-idx="${idx}" style="cursor:pointer;border-radius:10px;overflow:hidden;background:var(--fill);aspect-ratio:1;position:relative">
+      <div data-el="thumb-${idx}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:20px"><i class="ti ti-photo"></i></div>
+      <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(it.record_category || '')} ${dateShort}</div>
+    </div>`;
+  }
+
+  async function loadPage() {
+    const data = await fetchPhotoGallery(page, PAGE_SIZE);
+    totalPages = data.total_pages;
+    const newItems = data.items || [];
+    const startIdx = items.length;
+    items = items.concat(newItems);
+    const body = ov.querySelector('[data-el="body"]');
+    if (!items.length) {
+      body.innerHTML = '<div style="text-align:center;color:var(--muted2);padding:30px 0">尚無照片</div>';
+      return;
+    }
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px">${items.map(itemHtml).join('')}</div>
+      ${page < totalPages ? '<button class="btn-primary" data-el="more" style="width:100%;margin-top:14px;background:var(--fill);color:var(--text);box-shadow:none">載入更多</button>' : ''}`;
+    const moreBtn = body.querySelector('[data-el="more"]');
+    if (moreBtn) moreBtn.onclick = async () => { page++; await loadPage(); };
+    newItems.forEach((it, i) => loadThumb(it, startIdx + i));
+  }
+
+  function cleanup() { objectUrls.forEach((u) => URL.revokeObjectURL(u)); }
+  // 點縮圖跳轉：只掛一次在 ov 上（loadPage 會重繪內容多次，掛在會被整批替換
+  // 的節點上會累積重複監聽）
+  ov.addEventListener('click', (e) => {
+    const cell = e.target.closest('[data-photo-idx]');
+    if (cell) {
+      const it = items[Number(cell.dataset.photoIdx)];
+      if (!it) return;
+      cleanup();
+      ov.remove();
+      emit('nav', 'ledger');
+      openEditById(it.record_id);
+      return;
+    }
+    if (e.target === ov || e.target.closest('[data-close]')) cleanup();
+  });
+
+  loadPage().catch((e) => {
+    const body = ov.querySelector('[data-el="body"]');
+    if (body) body.innerHTML = `<div style="color:var(--expense)">${escapeHtml(e.message)}</div>`;
+  });
+}
+
 const REMINDER_KEY = 'v2-reminder';
 function getReminder() { try { return JSON.parse(localStorage.getItem(REMINDER_KEY)) || { on: false, time: '21:00' }; } catch { return { on: false, time: '21:00' }; } }
 function openReminder() {
@@ -225,6 +298,7 @@ async function render(container, mode) {
       { act: 'wallet', icon: 'ti-coin', label: '錢包管理' },
       { act: 'category', icon: 'ti-category', label: '分類設定' },
       { act: 'recurring', icon: 'ti-repeat', label: '定期項目', extra: recurCount },
+      { act: 'photos', icon: 'ti-photo', label: '照片' },
     ])}
     ${menuGroup([
       { act: 'sync', icon: 'ti-refresh', label: '資料同步', extra: isOnline() ? '已同步' : '離線', extraEl: 'sync-status' },
@@ -245,6 +319,7 @@ async function render(container, mode) {
       else if (act === 'wallet') openWalletManager();
       else if (act === 'category') openCategory();
       else if (act === 'recurring') openRecurring();
+      else if (act === 'photos') openPhotoGallery();
       else if (act === 'export') openExport();
       else if (act === 'reminder') openReminder();
       else if (act === 'sync') showToast(isOnline() ? '資料即時同步至雲端，免手動備份' : '目前離線，顯示本地快取；恢復連線後會即時同步', 'info');

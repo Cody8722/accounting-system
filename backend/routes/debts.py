@@ -307,6 +307,7 @@ def add_repayment(debt_id):
                 "description": f"還款：{person}",
                 "debt_id": ObjectId(debt_id),
                 "auto_generated": True,
+                "photos": [],
                 "created_at": datetime.now(),
                 "user_id": user_oid,
             }
@@ -396,6 +397,7 @@ def repay_member(debt_id, member_idx):
                 "description": f"還款：{member_name}",
                 "debt_id": ObjectId(debt_id),
                 "auto_generated": True,
+                "photos": [],
                 "created_at": datetime.now(),
                 "user_id": user_oid,
             }
