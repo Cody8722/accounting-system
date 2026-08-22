@@ -67,7 +67,10 @@ export function setUserData(data) { localStorage.setItem(K_USER, JSON.stringify(
 export async function apiCall(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${backendUrl}${endpoint}`;
   const token = getAuthToken();
-  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  // FormData（照片上傳等）不能手動設 Content-Type——瀏覽器要自己補上正確的
+  // multipart boundary，手動設成 application/json 會讓後端解析不到檔案。
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let response;

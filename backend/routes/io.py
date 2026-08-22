@@ -279,6 +279,7 @@ def import_accounting_records():
                     "date": date,
                     "description": description,
                     "expense_type": expense_type,
+                    "photos": [],
                     "created_at": datetime.now(),
                 }
             )

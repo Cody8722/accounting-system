@@ -16,6 +16,7 @@ import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
 import { fetchWallets, walletChipsHtml, locationChipsHtml } from './wallet.js';
 import { isOnline, enqueueOutbox, genClientId } from './offline.js';
+import { compressImage, uploadPhotos } from './photos.js';
 
 let host = null;          // 掛載容器（覆蓋層）
 let mode = 'mobile';      // mobile | desktop
@@ -32,8 +33,11 @@ let recurring = false;
 let recur = { every: 1, unit: 'month', end: 'never', count: 12 };
 // 計算機狀態
 let acc = null, op = null, buf = '';
+// 待上傳照片：{file(壓縮後), url(預覽用 objectURL)}[]；存檔成功、拿到 record id 後才真正上傳
+let pendingPhotos = [];
 
 const UNIT_LABEL = { day: '天', week: '週', month: '個月', year: '年' };
+const MAX_PENDING_PHOTOS = 20; // 與後端 MAX_PHOTOS_PER_RECORD 一致，前端先攔一次給即時提示
 
 function evaluate() {
   const b = buf === '' ? (acc === null ? 0 : acc) : parseFloat(buf);
@@ -128,6 +132,58 @@ function renderLocationArea() {
 }
 function highlightLocation() {
   host.querySelectorAll('[data-el="locationArea"] [data-location]').forEach((b) => b.classList.toggle('active', b.dataset.location === location));
+}
+
+/** 照片縮圖列：已選照片 + 一顆加號（離線時停用，照片需連線上傳） */
+function photoAreaHtml() {
+  const online = isOnline();
+  const thumbs = pendingPhotos.map((p, i) => `
+    <div style="position:relative;width:56px;height:56px;flex-shrink:0">
+      <img src="${p.url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)">
+      <button data-photo-remove="${i}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:12px"></i></button>
+    </div>`).join('');
+  const addBtn = online
+    ? `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
+        <i class="ti ti-camera-plus" style="font-size:20px"></i>
+        <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
+      </label>`
+    : `<div style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:10px;color:var(--faint)" title="照片需連線上傳"><i class="ti ti-camera-off" style="font-size:18px"></i></div>`;
+  return thumbs + addBtn;
+}
+
+function renderPhotoArea() {
+  const area = host && host.querySelector('[data-el="photoArea"]');
+  if (!area) return;
+  area.innerHTML = photoAreaHtml();
+  const input = area.querySelector('[data-el="photoFile"]');
+  if (input) input.addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
+}
+
+async function addPhotoFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  const room = MAX_PENDING_PHOTOS - pendingPhotos.length;
+  if (room <= 0) { showToast(`單筆記錄最多 ${MAX_PENDING_PHOTOS} 張照片`, 'warning'); return; }
+  if (files.length > room) showToast(`最多再加 ${room} 張，已為您選前 ${room} 張`, 'warning');
+  for (const file of files.slice(0, room)) {
+    const compressed = await compressImage(file);
+    pendingPhotos.push({ file: compressed, url: URL.createObjectURL(compressed) });
+  }
+  renderPhotoArea();
+}
+
+function removePhotoAt(i) {
+  const p = pendingPhotos[i];
+  if (!p) return;
+  URL.revokeObjectURL(p.url);
+  pendingPhotos.splice(i, 1);
+  renderPhotoArea();
+}
+
+function resetPhotos() {
+  pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+  pendingPhotos = [];
+  renderPhotoArea();
 }
 
 /** 這筆收入是否要拆出受限資金（代收代付，如學費夾零用錢） */
@@ -271,8 +327,23 @@ async function offlineSave(payload, amount) {
   if (mode === 'desktop') close();
 }
 
-/** 存檔成功後的共用收尾：定期排程、提示、清空計算機與備註、電腦版關閉 */
-async function finishSave(amount, hadSplit = false) {
+/** 已選照片實際上傳到剛建立的記錄；失敗不擋記錄已存的成功結果，另外 toast 提醒。 */
+async function uploadPendingPhotosIfAny(recordId) {
+  if (!pendingPhotos.length) return;
+  if (!recordId) {
+    showToast('此筆記錄無法附加照片（全額轉為受限資金），之後可從明細另外補上', 'warning');
+    return;
+  }
+  try {
+    await uploadPhotos(recordId, pendingPhotos.map((p) => p.file));
+  } catch (e) {
+    showToast('記錄已新增，但照片上傳失敗：' + e.message, 'error');
+  }
+}
+
+/** 存檔成功後的共用收尾：上傳照片、定期排程、提示、清空計算機與備註、電腦版關閉 */
+async function finishSave(amount, hadSplit = false, recordId = null) {
+  await uploadPendingPhotosIfAny(recordId);
   if (recurring) {
     const day = Number(date.slice(8, 10)) || 1;
     await apiJson('/admin/api/recurring', {
@@ -288,6 +359,7 @@ async function finishSave(amount, hadSplit = false) {
   const noteInput = host.querySelector('[data-el="note"]');
   if (noteInput) noteInput.value = '';
   resetSplit();
+  resetPhotos();
   // 電腦版存完關閉（回到清單）；手機版留著連續記帳
   if (mode === 'desktop') close();
 }
@@ -308,29 +380,33 @@ async function save() {
     payload.restricted_description = restrictedNote;
   }
 
-  // 離線：只支援一般收入/支出；拆分（受限資金）與定期需連線
+  // 離線：只支援一般收入/支出；拆分（受限資金）、定期、照片（需連線上傳）都需連線
   if (!isOnline()) {
     if (hasSplit || recurring) {
       showToast('拆分與定期記帳需連線，請恢復連線後再記', 'warning');
+      return;
+    }
+    if (pendingPhotos.length) {
+      showToast('照片需連線才能上傳，請移除照片或恢復連線後再記', 'warning');
       return;
     }
     return offlineSave(payload, amount || 0);
   }
 
   try {
-    await apiJson('/admin/api/accounting/records', { method: 'POST', body: JSON.stringify(payload) });
-    await finishSave(amount || 0, hasSplit);
+    const data = await apiJson('/admin/api/accounting/records', { method: 'POST', body: JSON.stringify(payload) });
+    await finishSave(amount || 0, hasSplit, data.id);
   } catch (e) {
     // 支出現金不足：後端回 409 附帶提領試算，跳確認框，確認後帶 confirm_withdrawal 重送
     if (e.status === 409 && e.body && e.body.error === 'cash_insufficient') {
       const ok = await showConfirm(e.body.message, { confirmText: '確認提領', danger: false });
       if (!ok) return;
       try {
-        await apiJson('/admin/api/accounting/records', {
+        const data2 = await apiJson('/admin/api/accounting/records', {
           method: 'POST',
           body: JSON.stringify({ ...payload, confirm_withdrawal: true }),
         });
-        await finishSave(amount);
+        await finishSave(amount, hasSplit, data2.id);
       } catch (e2) {
         showToast(e2.message, 'error');
       }
@@ -341,6 +417,8 @@ async function save() {
 }
 
 function close() {
+  pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+  pendingPhotos = [];
   if (host) { host.remove(); host = null; }
   window.dispatchEvent(new CustomEvent('add:closed'));
 }
@@ -379,6 +457,7 @@ function onHostClick(e) {
   if (t.closest('[data-more]')) return openCategorySheet();
   const wb = t.closest('[data-wallet]'); if (wb) { walletId = wb.dataset.wallet || null; highlightWallet(); return; }
   const lb = t.closest('[data-location]'); if (lb) { location = lb.dataset.location; highlightLocation(); return; }
+  const pr = t.closest('[data-photo-remove]'); if (pr) return removePhotoAt(Number(pr.dataset.photoRemove));
   const dg = t.closest('[data-digit]'); if (dg) return pressDigit(dg.dataset.digit);
   const opb = t.closest('[data-op]'); if (opb) return pressOp(opb.dataset.op);
   if (t.closest('[data-back]')) return backspace();
@@ -424,6 +503,10 @@ function buildMobile() {
       <div style="padding:6px 18px 0">
         <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">錢包</div>
         <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+      <div style="padding:10px 18px 0">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">照片</div>
+        <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
       <div data-el="locationWrap" class="hidden" style="padding:10px 18px 0">
         <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">位置</div>
@@ -490,6 +573,8 @@ function buildDesktop() {
           <div data-el="catArea"></div>
           <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">錢包</div>
           <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
+          <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">照片</div>
+          <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
           <div data-el="locationWrap" class="hidden">
             <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">位置</div>
             <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
@@ -559,10 +644,13 @@ export function openAdd(initialType = 'expense') {
   type = initialType; category = ''; walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
   splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
   acc = null; op = null; buf = '';
+  pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+  pendingPhotos = [];
   if (mode === 'desktop') buildDesktop(); else buildMobile();
   renderCatArea();
   renderWalletArea();
   renderLocationArea();
+  renderPhotoArea();
   refresh();
   // 錢包清單快取可能尚未載入過（例如尚未開過設定頁的錢包管理）；抓回後重繪一次 chips
   fetchWallets().then(renderWalletArea).catch(() => {});
