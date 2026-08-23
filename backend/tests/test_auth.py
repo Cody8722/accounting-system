@@ -473,6 +473,94 @@ class TestChangePassword:
         assert response.status_code == 200
 
 
+class TestRequiresPasswordChange:
+    """requires_password_change 旗標：login/verify 需回傳、change-password 成功後需清除"""
+
+    @pytest.fixture
+    def flagged_user(self, client):
+        """建立用戶並直接在 DB 把 requires_password_change 設為 True（模擬管理員強制動作）"""
+        import time
+        import db as db_module
+
+        email = f"forcepwchange{int(time.time()*1000)}@example.com"
+        password = "OldP@ss2026!Xy"
+        client.post(
+            "/api/auth/register",
+            json={"email": email, "password": password, "name": "Forced User"},
+        )
+
+        if db_module.users_collection is None:
+            pytest.skip("DB not available")
+
+        db_module.users_collection.update_one(
+            {"email": email}, {"$set": {"requires_password_change": True}}
+        )
+        return email, password
+
+    def test_login_reports_requires_password_change_true(self, client, flagged_user):
+        """旗標為 True 時，登入回應的 user 物件需帶 requires_password_change: true"""
+        email, password = flagged_user
+        response = client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+        assert response.status_code == 200
+        assert response.get_json()["user"]["requires_password_change"] is True
+
+    def test_login_reports_requires_password_change_false_by_default(self, client):
+        """一般帳號登入回應需帶 requires_password_change: false（向下兼容預設值）"""
+        import time
+
+        email = f"normalpwflag{int(time.time()*1000)}@example.com"
+        password = "NormalP@ss2026!Xy"
+        client.post(
+            "/api/auth/register",
+            json={"email": email, "password": password, "name": "Normal User"},
+        )
+        response = client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+        assert response.status_code == 200
+        assert response.get_json()["user"]["requires_password_change"] is False
+
+    def test_verify_reports_requires_password_change_true(self, client, flagged_user):
+        """旗標為 True 時，已登入 session 的 /verify 也要回報，涵蓋「旗標在既有 session 期間才被設定」的情況"""
+        email, password = flagged_user
+        login_resp = client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+        token = login_resp.get_json()["token"]
+        verify_resp = client.get(
+            "/api/auth/verify", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert verify_resp.status_code == 200
+        assert verify_resp.get_json()["user"]["requires_password_change"] is True
+
+    def test_change_password_clears_requires_password_change(
+        self, client, flagged_user
+    ):
+        """成功改密碼後，旗標要被清除，下次登入不再要求強制改密碼"""
+        email, password = flagged_user
+        login_resp = client.post(
+            "/api/auth/login", json={"email": email, "password": password}
+        )
+        token = login_resp.get_json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        change_resp = client.post(
+            "/api/user/change-password",
+            json={"old_password": password, "new_password": "Br@nd!NewP@ss2026XyZ"},
+            headers=headers,
+        )
+        assert change_resp.status_code == 200
+
+        relogin_resp = client.post(
+            "/api/auth/login",
+            json={"email": email, "password": "Br@nd!NewP@ss2026XyZ"},
+        )
+        assert relogin_resp.status_code == 200
+        assert relogin_resp.get_json()["user"]["requires_password_change"] is False
+
+
 class TestForgotResetPasswordFlow:
     """忘記/重設密碼完整流程測試"""
 

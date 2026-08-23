@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.13.0';
-export const RELEASE_NOTE = '新增：「我的」頁新增照片瀏覽，可點縮圖跳轉到對應記錄';
+export const APP_VERSION = '1.14.0';
+export const RELEASE_NOTE = '安全性強化：管理員可強制指定帳號下次登入時更新密碼';

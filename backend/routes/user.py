@@ -150,6 +150,7 @@ def change_password():
                 "$set": {
                     "password_hash": new_password_hash,
                     "updated_at": datetime.now(),
+                    "requires_password_change": False,
                 }
             },
         )
