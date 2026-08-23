@@ -66,7 +66,7 @@ function openCategory() {
   const body = CATEGORY_TREE.expense.concat(CATEGORY_TREE.income).map((g) => `
     <div style="margin-bottom:12px">
       <div style="font-weight:600;font-size:var(--text-emphasis);color:var(--text);margin-bottom:8px"><i class="ti ${g.icon}" style="color:${g.color};margin-right:6px"></i>${g.group}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${g.items.map((l) => `<span style="font-size:13px;color:var(--text3);background:var(--fill);border-radius:8px;padding:5px 10px">${escapeHtml(l)}</span>`).join('')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${g.items.map((l) => `<span style="font-size:13px;color:var(--text3);background:var(--fill);border-radius:var(--radius-sm);padding:5px 10px">${escapeHtml(l)}</span>`).join('')}</div>
     </div>`).join('');
   sheet('分類設定', body + '<div style="font-size:var(--text-base);color:var(--muted2);text-align:center;margin-top:8px">分類結構內建於前端，記錄以細項名稱儲存</div>');
 }

@@ -141,8 +141,8 @@ function openUnlockDialog(item, onUnlocked) {
     <label style="font-size:13px;color:var(--muted2)">實際交出去的日期</label>
     <input data-el="date" type="date" class="field" style="margin:6px 0 18px" value="${todayStr()}">
     <div style="display:flex;gap:12px">
-      <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer">取消</button>
-      <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認解鎖</button>
+      <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer">取消</button>
+      <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:var(--radius-md);background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認解鎖</button>
     </div>
   </div>`;
   ov.querySelector('[data-act="cancel"]').onclick = () => ov.remove();
@@ -255,11 +255,11 @@ export async function openWalletManager() {
     if (summary) for (const entry of summary.wallets) locMap[entry.wallet_id] = entry;
 
     const totalsBar = summary ? `<div style="display:flex;gap:10px;margin-bottom:14px">
-        <div style="flex:1;background:var(--fill);border-radius:12px;padding:10px 13px">
+        <div style="flex:1;background:var(--fill);border-radius:var(--radius-md);padding:10px 13px">
           <div style="font-size:11px;color:var(--muted2)"><i class="ti ${LOCATION_META.bank.icon}"></i> 銀行總計</div>
           <div class="mono" style="font-size:var(--text-lg);font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.bank)}</div>
         </div>
-        <div style="flex:1;background:var(--fill);border-radius:12px;padding:10px 13px">
+        <div style="flex:1;background:var(--fill);border-radius:var(--radius-md);padding:10px 13px">
           <div style="font-size:11px;color:var(--muted2)"><i class="ti ${LOCATION_META.cash.icon}"></i> 現金總計</div>
           <div class="mono" style="font-size:var(--text-lg);font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.cash)}</div>
         </div>

@@ -526,7 +526,7 @@ function openEditTransfer(record) {
         <span style="font-weight:600;font-size:17px;color:var(--text)">編輯內部轉移</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:12px;padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
+      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:var(--radius-md);padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
         <i class="ti ti-lock"></i> 轉移方向建立後無法修改，如需更改請刪除後重新記錄
       </div>
       <label style="font-size:13px;color:var(--muted2)">方向</label>
@@ -591,7 +591,7 @@ function openEditRestricted(record) {
         <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-lock" style="margin-right:6px;color:var(--muted2)"></i>受限資金</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:12px;padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
+      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:var(--radius-md);padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
         <i class="ti ti-info-circle"></i> 已鎖住，不計入可用餘額；解鎖請至「設定 → 錢包管理」操作
       </div>
       <label style="font-size:13px;color:var(--muted2)">金額</label>
