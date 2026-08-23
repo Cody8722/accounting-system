@@ -101,9 +101,9 @@ function walletRowHtml(w, locEntry) {
   return `<div class="list-row" data-wallet-row="${w.id}">
     <div class="cat-icon" style="width:34px;height:34px;background:${w.color || 'var(--fill)'}1f"><i class="ti ${w.icon || 'ti-tag'}" style="color:${w.color || 'var(--muted)'}"></i></div>
     <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:var(--space-2xs)">
         <span style="font-weight:500;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(w.name)}</span>
-        ${w.is_default ? '<span style="font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 8px">預設</span>' : ''}
+        ${w.is_default ? '<span style="font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px var(--space-xs)">預設</span>' : ''}
       </div>
       <div class="mono" style="font-size:var(--text-base);color:${bal >= 0 ? 'var(--muted2)' : 'var(--expense)'}">${bal >= 0 ? '' : '−'}NT$ ${fmtMoney(Math.abs(bal))}</div>
       <div style="display:flex;gap:10px;margin-top:2px">
@@ -125,7 +125,7 @@ function restrictedRowHtml(item) {
       <div style="font-weight:500;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(item.description || '（無說明）')}</div>
       <div style="font-size:11px;color:var(--faint)">${escapeHtml(item.wallet_name)}${locMeta ? ' · ' + locMeta.label : ''} · ${item.date}</div>
     </div>
-    <span class="mono" style="font-weight:500;font-size:var(--text-emphasis);color:var(--text);margin-right:4px">NT$ ${fmtMoney(item.amount)}</span>
+    <span class="mono" style="font-weight:500;font-size:var(--text-emphasis);color:var(--text);margin-right:var(--space-3xs)">NT$ ${fmtMoney(item.amount)}</span>
     <button class="icon-btn" data-unlock="${item.id}" title="解鎖"><i class="ti ti-lock-open" style="color:var(--accent)"></i></button>
   </div>`;
 }
@@ -135,12 +135,12 @@ function openUnlockDialog(item, onUnlocked) {
   const ov = document.createElement('div');
   ov.className = 'overlay center';
   ov.style.zIndex = '99998';
-  ov.innerHTML = `<div class="sheet dialog" style="padding:24px 20px">
-    <div style="font-weight:600;font-size:var(--text-lg);color:var(--text);margin-bottom:6px">解鎖受限資金</div>
-    <div style="font-size:13px;color:var(--muted2);margin-bottom:16px">${escapeHtml(item.description || '（無說明）')}・NT$ ${fmtMoney(item.amount)}</div>
+  ov.innerHTML = `<div class="sheet dialog" style="padding:var(--space-2xl) var(--space-xl)">
+    <div style="font-weight:600;font-size:var(--text-lg);color:var(--text);margin-bottom:var(--space-2xs)">解鎖受限資金</div>
+    <div style="font-size:13px;color:var(--muted2);margin-bottom:var(--space-lg)">${escapeHtml(item.description || '（無說明）')}・NT$ ${fmtMoney(item.amount)}</div>
     <label style="font-size:13px;color:var(--muted2)">實際交出去的日期</label>
-    <input data-el="date" type="date" class="field" style="margin:6px 0 18px" value="${todayStr()}">
-    <div style="display:flex;gap:12px">
+    <input data-el="date" type="date" class="field" style="margin:var(--space-2xs) 0 18px" value="${todayStr()}">
+    <div style="display:flex;gap:var(--space-base)">
       <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer">取消</button>
       <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:var(--radius-md);background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認解鎖</button>
     </div>
@@ -166,11 +166,11 @@ function openFlowTree(wallet) {
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `<div class="sheet">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-sitemap" style="margin-right:6px;color:var(--muted2)"></i>${escapeHtml(wallet.name)}・資金流向</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
+      <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-sitemap" style="margin-right:var(--space-2xs);color:var(--muted2)"></i>${escapeHtml(wallet.name)}・資金流向</span>
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
-    <div data-el="body"><div style="text-align:center;color:var(--muted2);padding:20px">載入中…</div></div>
+    <div data-el="body"><div style="text-align:center;color:var(--muted2);padding:var(--space-xl)">載入中…</div></div>
   </div>`;
   ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
   document.body.appendChild(ov);
@@ -189,13 +189,13 @@ function openWalletForm(existing, onSaved) {
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `<div class="sheet">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
       <span style="font-weight:600;font-size:17px;color:var(--text)">${isEdit ? '編輯錢包' : '新增錢包'}</span>
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
     <label style="font-size:13px;color:var(--muted2)">名稱</label>
-    <input data-el="name" class="field" style="margin:6px 0 14px" maxlength="30" placeholder="如：零用錢" value="${escapeHtml(existing ? existing.name : '')}">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:18px">
+    <input data-el="name" class="field" style="margin:var(--space-2xs) 0 var(--space-emphasis)" maxlength="30" placeholder="如：零用錢" value="${escapeHtml(existing ? existing.name : '')}">
+    <label style="display:flex;align-items:center;gap:var(--space-xs);cursor:pointer;margin-bottom:18px">
       <input data-el="isDefault" type="checkbox" ${existing && existing.is_default ? 'checked' : ''} style="width:18px;height:18px">
       <span style="font-size:var(--text-emphasis);color:var(--text)">設為預設錢包</span>
     </label>
@@ -226,11 +226,11 @@ export async function openWalletManager() {
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `<div class="sheet">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
       <span style="font-weight:600;font-size:17px;color:var(--text)">錢包管理</span>
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
-    <div data-el="body"><div style="text-align:center;color:var(--muted2);padding:20px">載入中…</div></div>
+    <div data-el="body"><div style="text-align:center;color:var(--muted2);padding:var(--space-xl)">載入中…</div></div>
   </div>`;
   ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
   document.body.appendChild(ov);
@@ -254,7 +254,7 @@ export async function openWalletManager() {
     const locMap = {};
     if (summary) for (const entry of summary.wallets) locMap[entry.wallet_id] = entry;
 
-    const totalsBar = summary ? `<div style="display:flex;gap:10px;margin-bottom:14px">
+    const totalsBar = summary ? `<div style="display:flex;gap:10px;margin-bottom:var(--space-emphasis)">
         <div style="flex:1;background:var(--fill);border-radius:var(--radius-md);padding:10px 13px">
           <div style="font-size:11px;color:var(--muted2)"><i class="ti ${LOCATION_META.bank.icon}"></i> 銀行總計</div>
           <div class="mono" style="font-size:var(--text-lg);font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.bank)}</div>
@@ -267,9 +267,9 @@ export async function openWalletManager() {
 
     // 受限資金：只有存在還鎖著的項目才顯示這張卡片，平常不佔畫面
     const restrictedSection = restricted && restricted.items.length ? `
-      <div class="card" style="padding:14px;margin-bottom:14px">
+      <div class="card" style="padding:var(--space-emphasis);margin-bottom:var(--space-emphasis)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <span style="font-weight:600;font-size:var(--text-emphasis);color:var(--text)"><i class="ti ti-lock" style="color:var(--muted2);margin-right:6px"></i>受限資金</span>
+          <span style="font-weight:600;font-size:var(--text-emphasis);color:var(--text)"><i class="ti ti-lock" style="color:var(--muted2);margin-right:var(--space-2xs)"></i>受限資金</span>
           <span class="mono" style="font-size:var(--text-emphasis);color:var(--text)">NT$ ${fmtMoney(restricted.total)}</span>
         </div>
         ${restricted.items.map(restrictedRowHtml).join('')}
@@ -278,12 +278,12 @@ export async function openWalletManager() {
     body.innerHTML = `
       ${totalsBar}
       ${restrictedSection}
-      <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
-        ${wallets.length ? wallets.map((w) => walletRowHtml(w, locMap[w.id])).join('') : '<div style="text-align:center;color:var(--muted2);padding:20px">尚無錢包，新增一個開始分類記帳資金來源</div>'}
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:var(--space-emphasis)">
+        ${wallets.length ? wallets.map((w) => walletRowHtml(w, locMap[w.id])).join('') : '<div style="text-align:center;color:var(--muted2);padding:var(--space-xl)">尚無錢包，新增一個開始分類記帳資金來源</div>'}
       </div>
       <button class="btn-primary" data-add="1" style="width:100%;margin-bottom:10px">＋ 新增錢包</button>
-      <button class="link" data-el="transfer" style="width:100%;text-align:center;padding:6px 0"><i class="ti ti-arrows-right-left"></i> 內部轉移（存錢／領錢）</button>
-      <button class="link" data-toggle-archived="1" style="width:100%;text-align:center;padding:6px 0">${showArchived ? '只顯示使用中的錢包' : '顯示已封存的錢包'}</button>`;
+      <button class="link" data-el="transfer" style="width:100%;text-align:center;padding:var(--space-2xs) 0"><i class="ti ti-arrows-right-left"></i> 內部轉移（存錢／領錢）</button>
+      <button class="link" data-toggle-archived="1" style="width:100%;text-align:center;padding:var(--space-2xs) 0">${showArchived ? '只顯示使用中的錢包' : '顯示已封存的錢包'}</button>`;
 
     if (restricted) {
       body.querySelectorAll('[data-unlock]').forEach((b) => b.onclick = () => {
@@ -341,22 +341,22 @@ export function openTransferForm(onSaved) {
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `<div class="sheet">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
       <span style="font-weight:600;font-size:17px;color:var(--text)">內部轉移</span>
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
-    <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:14px">同一帳戶內，銀行與現金之間的資金移動，不計入收入/支出統計</div>
+    <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:var(--space-emphasis)">同一帳戶內，銀行與現金之間的資金移動，不計入收入/支出統計</div>
     <label style="font-size:13px;color:var(--muted2)">帳戶</label>
-    <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 16px">${walletOnlyChipsHtml(walletId)}</div>
+    <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-lg)">${walletOnlyChipsHtml(walletId)}</div>
     <label style="font-size:13px;color:var(--muted2)">從</label>
-    <div data-el="fromArea" style="display:flex;gap:8px;margin:6px 0 8px">${locationChipsHtml(fromLocation)}</div>
-    <div style="text-align:center;color:var(--faint);margin:4px 0"><i class="ti ti-arrow-down"></i></div>
+    <div data-el="fromArea" style="display:flex;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-xs)">${locationChipsHtml(fromLocation)}</div>
+    <div style="text-align:center;color:var(--faint);margin:var(--space-3xs) 0"><i class="ti ti-arrow-down"></i></div>
     <label style="font-size:13px;color:var(--muted2)">到</label>
-    <div data-el="toDisplay" style="margin:6px 0 16px"></div>
+    <div data-el="toDisplay" style="margin:var(--space-2xs) 0 var(--space-lg)"></div>
     <label style="font-size:13px;color:var(--muted2)">金額</label>
-    <input data-el="amount" type="number" min="0" class="field mono" style="margin:6px 0 14px" placeholder="0">
+    <input data-el="amount" type="number" min="0" class="field mono" style="margin:var(--space-2xs) 0 var(--space-emphasis)" placeholder="0">
     <label style="font-size:13px;color:var(--muted2)">備註</label>
-    <input data-el="note" class="field" style="margin:6px 0 18px" placeholder="如：提領現金">
+    <input data-el="note" class="field" style="margin:var(--space-2xs) 0 18px" placeholder="如：提領現金">
     <button class="btn-primary" data-save="1" style="width:100%">確認轉移</button>
   </div>`;
 

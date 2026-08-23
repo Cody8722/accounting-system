@@ -69,7 +69,7 @@ export function renderForcedPasswordChange(container, onSuccess) {
   container.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
-        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 14px"><i class="ti ti-shield-lock" style="font-size:var(--text-3xl)"></i></div>
+        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-emphasis)"><i class="ti ti-shield-lock" style="font-size:var(--text-3xl)"></i></div>
         <div class="auth-title">需要更新密碼</div>
         <div class="auth-sub">系統要求你在繼續使用前設定新密碼</div>
         <form data-el="form">
@@ -77,9 +77,9 @@ export function renderForcedPasswordChange(container, onSuccess) {
           <input class="auth-field" data-el="new1" type="password" placeholder="新密碼" autocomplete="new-password" required>
           <input class="auth-field" data-el="new2" type="password" placeholder="確認新密碼" autocomplete="new-password" required>
           <div class="err hidden" data-el="err"></div>
-          <button class="btn-primary" data-el="submit" type="submit" style="width:100%;margin-top:6px">更新密碼</button>
+          <button class="btn-primary" data-el="submit" type="submit" style="width:100%;margin-top:var(--space-2xs)">更新密碼</button>
         </form>
-        <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--muted2)">
+        <div style="text-align:center;margin-top:var(--space-lg);font-size:13px;color:var(--muted2)">
           <button class="link" data-el="logout" type="button">登出</button>
         </div>
       </div>
@@ -125,7 +125,7 @@ export function renderAuth(container, onSuccess) {
   container.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
-        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 14px"><i class="ti ti-wallet" style="font-size:var(--text-3xl)"></i></div>
+        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-emphasis)"><i class="ti ti-wallet" style="font-size:var(--text-3xl)"></i></div>
         <div class="auth-title" data-el="title">歡迎回來</div>
         <div class="auth-sub" data-el="sub">登入以繼續記帳</div>
         <form data-el="form">
@@ -133,9 +133,9 @@ export function renderAuth(container, onSuccess) {
           <input class="auth-field" data-el="email" type="email" placeholder="Email" autocomplete="email" required>
           <input class="auth-field" data-el="password" type="password" placeholder="密碼" autocomplete="current-password" required>
           <div class="err hidden" data-el="err"></div>
-          <button class="btn-primary" data-el="submit" type="submit" style="width:100%;margin-top:6px">登入</button>
+          <button class="btn-primary" data-el="submit" type="submit" style="width:100%;margin-top:var(--space-2xs)">登入</button>
         </form>
-        <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--muted2)">
+        <div style="text-align:center;margin-top:var(--space-lg);font-size:13px;color:var(--muted2)">
           <span data-el="switchText">還沒有帳號？</span>
           <button class="link" data-el="switch" type="button">註冊</button>
         </div>
