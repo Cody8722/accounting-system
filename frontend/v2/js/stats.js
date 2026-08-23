@@ -30,8 +30,8 @@ export function donutCard(stats) {
     <div style="display:flex;justify-content:center;position:relative;margin-bottom:var(--space-2xs)">
       <div data-el="donut"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
-        <div data-el="cLabel" style="font-size:12px;color:var(--muted2)">本月支出</div>
-        <div data-el="cAmt" class="mono" style="font-weight:500;font-size:24px;color:var(--text)">${fmtMoney(totalExp)}</div>
+        <div data-el="cLabel" style="font-size:var(--text-base);color:var(--muted2)">本月支出</div>
+        <div data-el="cAmt" class="mono" style="font-weight:500;font-size:var(--text-2xl);color:var(--text)">${fmtMoney(totalExp)}</div>
         <div data-el="cSub" style="font-size:11px;color:var(--faint)">${cats.length} 個分類</div>
       </div>
     </div>
@@ -47,9 +47,9 @@ export function donutCard(stats) {
   wrap.querySelector('[data-el="legend"]').innerHTML = cats.slice(0, 6).map((c) => `
     <div style="display:flex;align-items:center;gap:10px">
       <span style="width:10px;height:10px;border-radius:3px;background:${c.color};flex-shrink:0"></span>
-      <span style="flex:1;font-size:14px;color:var(--text)">${escapeHtml(c.label)}</span>
+      <span style="flex:1;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(c.label)}</span>
       <span class="mono" style="font-size:13px;color:var(--text2)">${fmtMoney(c.value)}</span>
-      <span style="font-size:12px;color:var(--muted2);min-width:44px;text-align:right">${totalExp ? (c.value / totalExp * 100).toFixed(0) : 0}%</span>
+      <span style="font-size:var(--text-base);color:var(--muted2);min-width:44px;text-align:right">${totalExp ? (c.value / totalExp * 100).toFixed(0) : 0}%</span>
     </div>`).join('') || '<div style="text-align:center;color:var(--muted2);padding:10px">本月尚無支出</div>';
   return wrap;
 }
@@ -61,7 +61,7 @@ function barsCard(trends) {
   wrap.style.cssText = 'padding:18px';
   wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-base)">
       <span style="font-weight:600;font-size:15px;color:var(--text)">月度收支比較</span>
-      <span style="font-size:12px;color:var(--muted2)"><span style="color:var(--income)">■</span> 收 <span style="color:var(--expense);margin-left:var(--space-2xs)">■</span> 支</span>
+      <span style="font-size:var(--text-base);color:var(--muted2)"><span style="color:var(--income)">■</span> 收 <span style="color:var(--expense);margin-left:var(--space-2xs)">■</span> 支</span>
     </div><div data-el="bars" style="height:200px"></div>`;
   requestAnimationFrame(() => bars(wrap.querySelector('[data-el="bars"]'), rows));
   return wrap;

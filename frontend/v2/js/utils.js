@@ -33,8 +33,8 @@ export function showToast(message, type = 'info', duration = 3200) {
   const el = document.createElement('div');
   el.style.cssText = [
     'position:fixed', 'top:calc(20px + env(safe-area-inset-top))', 'right:16px',
-    'max-width:320px', 'padding:var(--space-base) var(--space-lg)', 'border-radius:12px', 'color:#fff',
-    'font-size:14px', 'font-weight:500', 'z-index:99999',
+    'max-width:320px', 'padding:var(--space-base) var(--space-lg)', 'border-radius:var(--radius-md)', 'color:#fff',
+    'font-size:var(--text-emphasis)', 'font-weight:500', 'z-index:99999',
     'box-shadow:0 6px 20px rgba(0,0,0,.22)', 'display:flex', 'align-items:center', 'gap:9px',
     `background:${TOAST_BG[type] || TOAST_BG.info}`, 'transition:opacity .3s ease',
   ].join(';');
@@ -53,10 +53,10 @@ export function showConfirm(message, { confirmText = '確定', cancelText = '取
     const accent = danger ? 'var(--expense)' : 'var(--accent)';
     overlay.innerHTML = `
       <div class="sheet dialog" style="padding:var(--space-2xl) var(--space-xl)">
-        <p style="text-align:center;font-size:16px;color:var(--text);margin-bottom:var(--space-xl);line-height:1.5"></p>
+        <p style="text-align:center;font-size:var(--text-lg);color:var(--text);margin-bottom:var(--space-xl);line-height:1.5"></p>
         <div style="display:flex;gap:var(--space-base)">
-          <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer"></button>
-          <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:12px;background:${accent};color:#fff;font-size:15px;font-weight:600;cursor:pointer"></button>
+          <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer"></button>
+          <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:var(--radius-md);background:${accent};color:#fff;font-size:15px;font-weight:600;cursor:pointer"></button>
         </div>
       </div>`;
     overlay.querySelector('p').textContent = message;

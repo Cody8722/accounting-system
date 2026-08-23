@@ -92,8 +92,8 @@ function walletRowHtml(w, locEntry) {
     return `<div class="list-row" data-wallet-row="${w.id}">
       <div class="cat-icon" style="width:34px;height:34px;background:var(--fill)"><i class="ti ${w.icon || 'ti-tag'}" style="color:var(--faint)"></i></div>
       <div style="flex:1;min-width:0">
-        <span style="font-weight:500;font-size:14px;color:var(--muted)">${escapeHtml(w.name)}</span>
-        <div style="font-size:12px;color:var(--faint)">已封存</div>
+        <span style="font-weight:500;font-size:var(--text-emphasis);color:var(--muted)">${escapeHtml(w.name)}</span>
+        <div style="font-size:var(--text-base);color:var(--faint)">已封存</div>
       </div>
       <button class="icon-btn" data-restore-wallet="${w.id}" title="還原"><i class="ti ti-arrow-back-up" style="color:var(--accent)"></i></button>
     </div>`;
@@ -102,10 +102,10 @@ function walletRowHtml(w, locEntry) {
     <div class="cat-icon" style="width:34px;height:34px;background:${w.color || 'var(--fill)'}1f"><i class="ti ${w.icon || 'ti-tag'}" style="color:${w.color || 'var(--muted)'}"></i></div>
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:var(--space-2xs)">
-        <span style="font-weight:500;font-size:14px;color:var(--text)">${escapeHtml(w.name)}</span>
+        <span style="font-weight:500;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(w.name)}</span>
         ${w.is_default ? '<span style="font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px var(--space-xs)">預設</span>' : ''}
       </div>
-      <div class="mono" style="font-size:12px;color:${bal >= 0 ? 'var(--muted2)' : 'var(--expense)'}">${bal >= 0 ? '' : '−'}NT$ ${fmtMoney(Math.abs(bal))}</div>
+      <div class="mono" style="font-size:var(--text-base);color:${bal >= 0 ? 'var(--muted2)' : 'var(--expense)'}">${bal >= 0 ? '' : '−'}NT$ ${fmtMoney(Math.abs(bal))}</div>
       <div style="display:flex;gap:10px;margin-top:2px">
         <span style="font-size:11px;color:var(--faint)"><i class="ti ${LOCATION_META.bank.icon}"></i> ${fmtMoney(bankBal)}</span>
         <span style="font-size:11px;color:var(--faint)"><i class="ti ${LOCATION_META.cash.icon}"></i> ${fmtMoney(cashBal)}</span>
@@ -122,10 +122,10 @@ function restrictedRowHtml(item) {
   return `<div class="list-row" data-restricted-row="${item.id}">
     <div class="cat-icon" style="width:34px;height:34px;background:var(--fill)"><i class="ti ti-lock" style="color:var(--muted2)"></i></div>
     <div style="flex:1;min-width:0">
-      <div style="font-weight:500;font-size:14px;color:var(--text)">${escapeHtml(item.description || '（無說明）')}</div>
+      <div style="font-weight:500;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(item.description || '（無說明）')}</div>
       <div style="font-size:11px;color:var(--faint)">${escapeHtml(item.wallet_name)}${locMeta ? ' · ' + locMeta.label : ''} · ${item.date}</div>
     </div>
-    <span class="mono" style="font-weight:500;font-size:14px;color:var(--text);margin-right:var(--space-3xs)">NT$ ${fmtMoney(item.amount)}</span>
+    <span class="mono" style="font-weight:500;font-size:var(--text-emphasis);color:var(--text);margin-right:var(--space-3xs)">NT$ ${fmtMoney(item.amount)}</span>
     <button class="icon-btn" data-unlock="${item.id}" title="解鎖"><i class="ti ti-lock-open" style="color:var(--accent)"></i></button>
   </div>`;
 }
@@ -136,13 +136,13 @@ function openUnlockDialog(item, onUnlocked) {
   ov.className = 'overlay center';
   ov.style.zIndex = '99998';
   ov.innerHTML = `<div class="sheet dialog" style="padding:var(--space-2xl) var(--space-xl)">
-    <div style="font-weight:600;font-size:16px;color:var(--text);margin-bottom:var(--space-2xs)">解鎖受限資金</div>
+    <div style="font-weight:600;font-size:var(--text-lg);color:var(--text);margin-bottom:var(--space-2xs)">解鎖受限資金</div>
     <div style="font-size:13px;color:var(--muted2);margin-bottom:var(--space-lg)">${escapeHtml(item.description || '（無說明）')}・NT$ ${fmtMoney(item.amount)}</div>
     <label style="font-size:13px;color:var(--muted2)">實際交出去的日期</label>
     <input data-el="date" type="date" class="field" style="margin:var(--space-2xs) 0 18px" value="${todayStr()}">
     <div style="display:flex;gap:var(--space-base)">
-      <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer">取消</button>
-      <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認解鎖</button>
+      <button data-act="cancel" style="flex:1;padding:13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:15px;color:var(--text3);cursor:pointer">取消</button>
+      <button data-act="ok" style="flex:1;padding:13px;border:none;border-radius:var(--radius-md);background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer">確認解鎖</button>
     </div>
   </div>`;
   ov.querySelector('[data-act="cancel"]').onclick = () => ov.remove();
@@ -197,7 +197,7 @@ function openWalletForm(existing, onSaved) {
     <input data-el="name" class="field" style="margin:var(--space-2xs) 0 var(--space-emphasis)" maxlength="30" placeholder="如：零用錢" value="${escapeHtml(existing ? existing.name : '')}">
     <label style="display:flex;align-items:center;gap:var(--space-xs);cursor:pointer;margin-bottom:18px">
       <input data-el="isDefault" type="checkbox" ${existing && existing.is_default ? 'checked' : ''} style="width:18px;height:18px">
-      <span style="font-size:14px;color:var(--text)">設為預設錢包</span>
+      <span style="font-size:var(--text-emphasis);color:var(--text)">設為預設錢包</span>
     </label>
     <button class="btn-primary" data-save="1" style="width:100%">${isEdit ? '儲存' : '新增'}</button>
   </div>`;
@@ -255,13 +255,13 @@ export async function openWalletManager() {
     if (summary) for (const entry of summary.wallets) locMap[entry.wallet_id] = entry;
 
     const totalsBar = summary ? `<div style="display:flex;gap:10px;margin-bottom:var(--space-emphasis)">
-        <div style="flex:1;background:var(--fill);border-radius:12px;padding:10px 13px">
+        <div style="flex:1;background:var(--fill);border-radius:var(--radius-md);padding:10px 13px">
           <div style="font-size:11px;color:var(--muted2)"><i class="ti ${LOCATION_META.bank.icon}"></i> 銀行總計</div>
-          <div class="mono" style="font-size:16px;font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.bank)}</div>
+          <div class="mono" style="font-size:var(--text-lg);font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.bank)}</div>
         </div>
-        <div style="flex:1;background:var(--fill);border-radius:12px;padding:10px 13px">
+        <div style="flex:1;background:var(--fill);border-radius:var(--radius-md);padding:10px 13px">
           <div style="font-size:11px;color:var(--muted2)"><i class="ti ${LOCATION_META.cash.icon}"></i> 現金總計</div>
-          <div class="mono" style="font-size:16px;font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.cash)}</div>
+          <div class="mono" style="font-size:var(--text-lg);font-weight:500;color:var(--text)">NT$ ${fmtMoney(summary.location_totals.cash)}</div>
         </div>
       </div>` : '';
 
@@ -269,8 +269,8 @@ export async function openWalletManager() {
     const restrictedSection = restricted && restricted.items.length ? `
       <div class="card" style="padding:var(--space-emphasis);margin-bottom:var(--space-emphasis)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <span style="font-weight:600;font-size:14px;color:var(--text)"><i class="ti ti-lock" style="color:var(--muted2);margin-right:var(--space-2xs)"></i>受限資金</span>
-          <span class="mono" style="font-size:14px;color:var(--text)">NT$ ${fmtMoney(restricted.total)}</span>
+          <span style="font-weight:600;font-size:var(--text-emphasis);color:var(--text)"><i class="ti ti-lock" style="color:var(--muted2);margin-right:var(--space-2xs)"></i>受限資金</span>
+          <span class="mono" style="font-size:var(--text-emphasis);color:var(--text)">NT$ ${fmtMoney(restricted.total)}</span>
         </div>
         ${restricted.items.map(restrictedRowHtml).join('')}
       </div>` : '';
@@ -345,7 +345,7 @@ export function openTransferForm(onSaved) {
       <span style="font-weight:600;font-size:17px;color:var(--text)">內部轉移</span>
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
-    <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-emphasis)">同一帳戶內，銀行與現金之間的資金移動，不計入收入/支出統計</div>
+    <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:var(--space-emphasis)">同一帳戶內，銀行與現金之間的資金移動，不計入收入/支出統計</div>
     <label style="font-size:13px;color:var(--muted2)">帳戶</label>
     <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-lg)">${walletOnlyChipsHtml(walletId)}</div>
     <label style="font-size:13px;color:var(--muted2)">從</label>

@@ -91,7 +91,7 @@ export function forceUnlock() {
 export function lockBadgeHtml() {
   if (!state.active) return '';
   const n = state.walletIds.size + state.categories.size;
-  return `<button type="button" data-el="lockBadge" style="display:flex;align-items:center;gap:var(--space-2xs);background:var(--accent);color:#fff;border:none;border-radius:999px;padding:var(--space-2xs) var(--space-base);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px">
+  return `<button type="button" data-el="lockBadge" style="display:flex;align-items:center;gap:var(--space-2xs);background:var(--accent);color:#fff;border:none;border-radius:999px;padding:var(--space-2xs) var(--space-base);font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:10px">
     <i class="ti ti-lock"></i>已鎖定篩選${n ? `（${n}）` : ''} · 連按兩次返回或點此解鎖
   </button>`;
 }
@@ -124,7 +124,7 @@ export async function openLockPicker() {
       <span style="font-weight:600;font-size:17px;color:var(--text)">鎖定篩選</span>
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
-    <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-emphasis)">複選錢包／分類後鎖定，套用到帳本/統計/預算，直到連按兩次返回鍵解鎖</div>
+    <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:var(--space-emphasis)">複選錢包／分類後鎖定，套用到帳本/統計/預算，直到連按兩次返回鍵解鎖</div>
     ${wallets.length ? `<div style="font-size:13px;color:var(--muted2);margin-bottom:var(--space-xs)">錢包</div>
     <div data-el="walletChips" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin-bottom:var(--space-lg)">
       ${wallets.map((w) => `<button type="button" class="chip${selWallets.has(w.id) ? ' active' : ''}" data-wallet="${w.id}"><i class="ti ${w.icon || 'ti-tag'}"></i><span>${escapeHtml(w.name)}</span></button>`).join('')}

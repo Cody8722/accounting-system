@@ -69,7 +69,7 @@ export function renderForcedPasswordChange(container, onSuccess) {
   container.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
-        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-emphasis)"><i class="ti ti-shield-lock" style="font-size:28px"></i></div>
+        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-emphasis)"><i class="ti ti-shield-lock" style="font-size:var(--text-3xl)"></i></div>
         <div class="auth-title">需要更新密碼</div>
         <div class="auth-sub">系統要求你在繼續使用前設定新密碼</div>
         <form data-el="form">
@@ -125,7 +125,7 @@ export function renderAuth(container, onSuccess) {
   container.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
-        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-emphasis)"><i class="ti ti-wallet" style="font-size:28px"></i></div>
+        <div style="width:52px;height:52px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto var(--space-emphasis)"><i class="ti ti-wallet" style="font-size:var(--text-3xl)"></i></div>
         <div class="auth-title" data-el="title">歡迎回來</div>
         <div class="auth-sub" data-el="sub">登入以繼續記帳</div>
         <form data-el="form">

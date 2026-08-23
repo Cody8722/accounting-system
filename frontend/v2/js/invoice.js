@@ -61,7 +61,7 @@ export function openInvoiceScan(onSingle) {
   ov.innerHTML = `
     <div class="sheet">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-emphasis)">
-        <span style="font-weight:600;font-size:16px;color:var(--text)"><i class="ti ti-qrcode" style="margin-right:var(--space-2xs);color:var(--accent)"></i>掃描電子發票</span>
+        <span style="font-weight:600;font-size:var(--text-lg);color:var(--text)"><i class="ti ti-qrcode" style="margin-right:var(--space-2xs);color:var(--accent)"></i>掃描電子發票</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
       <div data-el="stage"></div>
@@ -74,10 +74,10 @@ export function openInvoiceScan(onSingle) {
     cleanup();
     const dup = await isDuplicate(p.number);
     stage.innerHTML = `
-      <div style="background:var(--income-soft);border:1px solid var(--income);border-radius:12px;padding:10px var(--space-base);margin-bottom:var(--space-base);display:flex;align-items:center;gap:var(--space-xs)">
+      <div style="background:var(--income-soft);border:1px solid var(--income);border-radius:var(--radius-md);padding:10px var(--space-base);margin-bottom:var(--space-base);display:flex;align-items:center;gap:var(--space-xs)">
         <i class="ti ti-circle-check" style="color:var(--income)"></i><span style="font-size:13px;color:var(--income)">已讀取發票</span>
       </div>
-      ${dup ? '<div style="background:var(--expense-soft);border-radius:12px;padding:10px var(--space-base);margin-bottom:var(--space-base);font-size:13px;color:var(--expense)"><i class="ti ti-alert-triangle"></i> 這張發票先前已記過帳，仍可再帶入。</div>' : ''}
+      ${dup ? '<div style="background:var(--expense-soft);border-radius:var(--radius-md);padding:10px var(--space-base);margin-bottom:var(--space-base);font-size:13px;color:var(--expense)"><i class="ti ti-alert-triangle"></i> 這張發票先前已記過帳，仍可再帶入。</div>' : ''}
       <div style="background:var(--fill);border-radius:14px;padding:var(--space-emphasis);margin-bottom:var(--space-emphasis)">
         <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-2xs)"><span style="color:var(--muted2);font-size:13px">總金額</span><span class="mono" style="color:var(--text);font-weight:600">NT$ ${p.totalAmount}</span></div>
         <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-3xs)"><span style="color:var(--muted2);font-size:13px">發票號碼</span><span class="mono" style="color:var(--text2);font-size:13px">${escapeHtml(p.number)}</span></div>
@@ -85,7 +85,7 @@ export function openInvoiceScan(onSingle) {
         ${p.sellerId && /\d{8}/.test(p.sellerId) ? `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2);font-size:13px">賣方統編</span><span class="mono" style="color:var(--text2);font-size:13px">${escapeHtml(p.sellerId)}</span></div>` : ''}
       </div>
       <button data-el="use" class="btn-primary" style="width:100%">帶入這筆（NT$ ${p.totalAmount}）</button>
-      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.6">※ 號碼／日期／金額／賣方統編由 QR 離線解析。品項明細需財政部 API（限公司申請），個人版不提供。</div>`;
+      <div style="font-size:var(--text-base);color:var(--faint);margin-top:10px;line-height:1.6">※ 號碼／日期／金額／賣方統編由 QR 離線解析。品項明細需財政部 API（限公司申請），個人版不提供。</div>`;
     stage.querySelector('[data-el="use"]').onclick = () => finish({
       total: p.totalAmount, date: p.date, number: p.number,
       note: `發票 ${p.number}`, category: '其他支出',
@@ -97,7 +97,7 @@ export function openInvoiceScan(onSingle) {
       <button data-el="camBtn" class="btn-primary" style="width:100%;margin-bottom:10px"><i class="ti ti-camera"></i> 開啟相機掃描</button>
       <label class="btn-primary" style="width:100%;margin-bottom:var(--space-emphasis);background:var(--fill);color:var(--text);box-shadow:none;cursor:pointer"><i class="ti ti-photo-up"></i> 上傳發票圖片<input data-el="file" type="file" accept="image/*" style="display:none"></label>
       <div style="border-top:1px solid var(--border);padding-top:var(--space-base)">
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-xs)">掃不到？手動輸入：</div>
+        <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:var(--space-xs)">掃不到？手動輸入：</div>
         <button data-el="manual" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text2);box-shadow:none;font-weight:500"><i class="ti ti-keyboard"></i> 手動輸入發票</button>
       </div>`;
     stage.querySelector('[data-el="camBtn"]').onclick = startCamera;
@@ -130,9 +130,9 @@ export function openInvoiceScan(onSingle) {
   async function startCamera() {
     if (!window.jsQR) { showToast('掃碼元件未載入', 'error'); return; }
     stage.innerHTML = `
-      <div style="position:relative;border-radius:16px;overflow:hidden;background:#000;margin-bottom:var(--space-base)">
+      <div style="position:relative;border-radius:var(--radius-lg);overflow:hidden;background:#000;margin-bottom:var(--space-base)">
         <video data-el="video" playsinline muted style="width:100%;display:block;max-height:320px;object-fit:cover"></video>
-        <div style="position:absolute;left:6%;right:6%;bottom:14%;height:34%;border:2px solid rgba(255,255,255,.7);border-radius:12px;pointer-events:none"></div>
+        <div style="position:absolute;left:6%;right:6%;bottom:14%;height:34%;border:2px solid rgba(255,255,255,.7);border-radius:var(--radius-md);pointer-events:none"></div>
       </div>
       <div style="text-align:center;font-size:13px;color:var(--muted2);margin-bottom:10px">將發票下方 QR Code 區域置中對準框內…</div>
       <button data-el="back" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text3);box-shadow:none;font-weight:500">返回</button>`;
@@ -159,7 +159,7 @@ export function openInvoiceScan(onSingle) {
       };
       requestAnimationFrame(loop);
     } catch (e) {
-      stage.innerHTML = `<div style="background:var(--expense-soft);border-radius:12px;padding:var(--space-base);margin-bottom:var(--space-base);font-size:13px;color:var(--expense)">無法開啟相機：${escapeHtml(e.message || '權限被拒')}</div><button data-el="back" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text);box-shadow:none">返回</button>`;
+      stage.innerHTML = `<div style="background:var(--expense-soft);border-radius:var(--radius-md);padding:var(--space-base);margin-bottom:var(--space-base);font-size:13px;color:var(--expense)">無法開啟相機：${escapeHtml(e.message || '權限被拒')}</div><button data-el="back" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text);box-shadow:none">返回</button>`;
       stage.querySelector('[data-el="back"]').onclick = renderHome;
     }
   }
