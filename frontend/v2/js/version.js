@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.14.2';
-export const RELEASE_NOTE = '內部調整：分類色票同步收錄進設計系統，畫面顯示無變化';
+export const APP_VERSION = '1.14.3';
+export const RELEASE_NOTE = '內部調整：圓角/字級/間距 scale token 定義收錄進設計系統，畫面顯示無變化';
