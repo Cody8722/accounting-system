@@ -516,7 +516,7 @@ function buildMobile() {
         <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:2px 0">
           <i class="ti ti-chevron-right" data-el="splitChevron" style="transition:transform .15s"></i>這筆包含要轉交的錢？
         </button>
-        <div data-el="splitFields" class="hidden" style="margin-top:10px;background:var(--fill);border-radius:12px;padding:12px">
+        <div data-el="splitFields" class="hidden" style="margin-top:10px;background:var(--fill);border-radius:var(--radius-md);padding:12px">
           <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">受限金額（鎖住，不計入可用餘額）</div>
           <input data-el="restrictedAmount" type="number" min="0" step="0.01" class="field mono" style="margin-bottom:10px" placeholder="0">
           <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">用途</div>
@@ -524,13 +524,13 @@ function buildMobile() {
         </div>
       </div>
       <div style="margin:6px 18px 0;display:flex;align-items:center;gap:10px">
-        <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:12px;padding:11px 13px">
+        <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:var(--radius-md);padding:11px 13px">
           <i class="ti ti-pencil" style="color:var(--muted2)"></i>
           <input data-el="note" placeholder="加個備註…" style="border:none;background:none;outline:none;font-size:14px;color:var(--text);width:100%">
         </div>
-        <button data-el="recBtn" title="設為定期" style="display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:11px 13px;cursor:pointer;color:var(--muted)"><i class="ti ti-repeat"></i><span style="font-weight:600;font-size:13px">定期</span></button>
+        <button data-el="recBtn" title="設為定期" style="display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-md);padding:11px 13px;cursor:pointer;color:var(--muted)"><i class="ti ti-repeat"></i><span style="font-weight:600;font-size:13px">定期</span></button>
       </div>
-      <div data-el="recRow" class="hidden" style="margin:10px 18px 0;display:flex;align-items:center;gap:9px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:12px;padding:11px 13px;cursor:pointer">
+      <div data-el="recRow" class="hidden" style="margin:10px 18px 0;display:flex;align-items:center;gap:9px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:var(--radius-md);padding:11px 13px;cursor:pointer">
         <i class="ti ti-calendar-repeat" style="color:var(--accent)"></i>
         <span data-el="recSummary" style="flex:1;font-weight:600;font-size:13px;color:var(--accent-soft-text)"></span>
         <span style="font-size:13px;color:var(--accent)">編輯</span>
@@ -553,7 +553,7 @@ function buildDesktop() {
   host.className = 'overlay center';
   host.style.zIndex = '70';
   host.innerHTML = `
-    <div style="width:820px;max-width:94vw;max-height:90vh;background:var(--surface);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow)">
+    <div style="width:820px;max-width:94vw;max-height:90vh;background:var(--surface);border-radius:var(--radius-xl);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
         <span style="font-weight:600;font-size:17px;color:var(--text)">記一筆</span>
         <button class="icon-btn" data-el="cancel"><i class="ti ti-x"></i></button>
@@ -583,7 +583,7 @@ function buildDesktop() {
             <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:2px 0">
               <i class="ti ti-chevron-right" data-el="splitChevron" style="transition:transform .15s"></i>這筆包含要轉交的錢？
             </button>
-            <div data-el="splitFields" class="hidden" style="margin-top:8px;background:var(--fill);border-radius:12px;padding:12px;display:flex;gap:10px">
+            <div data-el="splitFields" class="hidden" style="margin-top:8px;background:var(--fill);border-radius:var(--radius-md);padding:12px;display:flex;gap:10px">
               <div style="flex:1">
                 <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">受限金額（鎖住）</div>
                 <input data-el="restrictedAmount" type="number" min="0" step="0.01" class="field mono" placeholder="0">
@@ -600,8 +600,8 @@ function buildDesktop() {
             <input data-el="date" type="date" class="field" style="width:160px" value="${date}">
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <button data-el="recBtn" title="設為定期" style="display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px 13px;cursor:pointer;color:var(--muted)"><i class="ti ti-repeat"></i><span style="font-weight:600;font-size:13px">設為定期</span></button>
-            <div data-el="recRow" class="hidden" style="flex:1;display:flex;align-items:center;gap:9px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:12px;padding:10px 13px;cursor:pointer">
+            <button data-el="recBtn" title="設為定期" style="display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-md);padding:10px 13px;cursor:pointer;color:var(--muted)"><i class="ti ti-repeat"></i><span style="font-weight:600;font-size:13px">設為定期</span></button>
+            <div data-el="recRow" class="hidden" style="flex:1;display:flex;align-items:center;gap:9px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:var(--radius-md);padding:10px 13px;cursor:pointer">
               <i class="ti ti-calendar-repeat" style="color:var(--accent)"></i>
               <span data-el="recSummary" style="flex:1;font-weight:600;font-size:13px;color:var(--accent-soft-text)"></span>
               <span style="font-size:13px;color:var(--accent)">編輯</span>
@@ -613,7 +613,7 @@ function buildDesktop() {
           <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:4px"><i class="ti ti-qrcode" style="color:var(--accent);margin-right:6px"></i>電子發票</div>
           <div style="font-size:12px;color:var(--muted2);margin-bottom:14px">輸入號碼或上傳圖片查詢，自動帶入金額與明細</div>
           <input data-el="invNo" class="field" placeholder="發票號碼（如 AB-12345678）" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--border-strong);border-radius:12px;padding:16px;cursor:pointer;color:var(--muted);margin-bottom:10px">
+          <label style="display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--border-strong);border-radius:var(--radius-md);padding:16px;cursor:pointer;color:var(--muted);margin-bottom:10px">
             <i class="ti ti-photo-up" style="font-size:20px"></i>上傳發票圖片
             <input type="file" accept="image/*" style="display:none" data-el="invFile">
           </label>

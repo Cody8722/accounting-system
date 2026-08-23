@@ -155,7 +155,7 @@ input, select, textarea { font-family:inherit; }
 .btn-primary i { font-size:21px; }
 .sidenav { display:flex; flex-direction:column; gap:4px; margin-top:22px; }
 .sidenav .row {
-  display:flex; align-items:center; gap:12px; padding:11px 13px; border-radius:12px;
+  display:flex; align-items:center; gap:12px; padding:11px 13px; border-radius:var(--radius-md);
   cursor:pointer; color:var(--text3); font-size:15px;
 }
 .sidenav .row i { font-size:21px; }
@@ -210,7 +210,7 @@ input, select, textarea { font-family:inherit; }
 .pindash .dot { width:9px; height:9px; border-radius:3px; flex-shrink:0; }
 .pindash .ctitle { font-weight:600; font-size:14.5px; color:var(--text); }
 .pindash .is-thumb .ctitle { font-size:13px; }
-.pindash .pinbtn { margin-left:auto; width:28px; height:28px; border-radius:8px; border:none; background:transparent; color:var(--faint); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pindash .pinbtn { margin-left:auto; width:28px; height:28px; border-radius:var(--radius-sm); border:none; background:transparent; color:var(--faint); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
 .pindash .card:hover .pinbtn { color:var(--muted2); }
 .pindash .is-pinned .pinbtn { color:var(--accent); background:var(--accent-soft); }
 .pindash .pinbtn svg { width:16px; height:16px; }
@@ -291,7 +291,7 @@ input, select, textarea { font-family:inherit; }
   cursor:pointer; color:var(--text3); display:flex; align-items:center; justify-content:center;
 }
 .icon-btn i { font-size:18px; }
-.card { background:var(--surface); border:2px solid var(--border); border-radius:16px; }
+.card { background:var(--surface); border:2px solid var(--border); border-radius:var(--radius-lg); }
 .list-row {
   display:flex; align-items:center; gap:12px; padding:12px 14px;
   border-bottom:1px solid var(--border);
@@ -302,7 +302,7 @@ input, select, textarea { font-family:inherit; }
   display:flex; align-items:center; justify-content:center;
 }
 .cat-icon i { font-size:20px; }
-.segment { display:flex; background:var(--fill); border-radius:12px; padding:4px; gap:2px; }
+.segment { display:flex; background:var(--fill); border-radius:var(--radius-md); padding:4px; gap:2px; }
 .segment button {
   flex:1; border:none; background:none; cursor:pointer; border-radius:9px;
   padding:9px 0; font-size:14px; font-weight:500; color:var(--muted); font-family:inherit;
@@ -339,16 +339,16 @@ input, select, textarea { font-family:inherit; }
 }
 .overlay.center { align-items:center; padding:16px; }
 .sheet {
-  background:var(--surface); border-radius:24px 24px 0 0; padding:18px 20px 28px;
+  background:var(--surface); border-radius:var(--radius-2xl) var(--radius-2xl) 0 0; padding:18px 20px 28px;
   width:100%; max-width:480px; max-height:86vh; overflow-y:auto;
 }
-.sheet.dialog { border-radius:20px; max-width:420px; }
+.sheet.dialog { border-radius:var(--radius-xl); max-width:420px; }
 /* 桌面：彈窗/子面板改為「置中對話框」，不再是手機貼底窄版 sheet。
    涵蓋所有共用 .overlay/.sheet 的次層 UI：設定各面板、分類選擇、編輯記錄、
    預算設定、發票掃描、定期排程、確認框等。桌面版記一筆用獨立 820px 彈窗，不受影響。 */
 @media (min-width:900px) {
   .overlay { align-items:center; padding:20px; }
-  .sheet { border-radius:20px; max-width:520px; max-height:82vh; }
+  .sheet { border-radius:var(--radius-xl); max-width:520px; max-height:82vh; }
 }
 
 /* 記一筆 全螢幕 */
@@ -375,7 +375,7 @@ input, select, textarea { font-family:inherit; }
 
 /* 表單控制 */
 .field {
-  width:100%; border:1px solid var(--border); border-radius:12px; background:var(--fill);
+  width:100%; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--fill);
   padding:11px 13px; font-size:14px; color:var(--text); outline:none;
 }
 .field:focus { border-color:var(--accent); }
@@ -388,7 +388,7 @@ input, select, textarea { font-family:inherit; }
 .auth-card { width:100%; max-width:380px; background:var(--surface); border:2px solid var(--border); border-radius:22px; padding:28px 24px; }
 .auth-title { font-weight:700; font-size:22px; color:var(--text); text-align:center; margin-bottom:4px; }
 .auth-sub { font-size:13px; color:var(--muted2); text-align:center; margin-bottom:22px; }
-.auth-field { width:100%; height:46px; border:1px solid var(--border); border-radius:12px; background:var(--fill); padding:0 14px; font-size:15px; color:var(--text); outline:none; margin-bottom:12px; }
+.auth-field { width:100%; height:46px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--fill); padding:0 14px; font-size:15px; color:var(--text); outline:none; margin-bottom:12px; }
 .auth-field:focus { border-color:var(--accent); }
 .link { color:var(--accent); cursor:pointer; background:none; border:none; font-size:13px; font-family:inherit; }
 .err { color:var(--expense); font-size:13px; margin-bottom:10px; text-align:center; }
@@ -396,6 +396,6 @@ input, select, textarea { font-family:inherit; }
 /* tooltip（圖表） */
 .chart-tip {
   position:absolute; pointer-events:none; background:var(--ink); color:#fff;
-  font-size:12px; padding:6px 10px; border-radius:8px; white-space:nowrap;
+  font-size:12px; padding:6px 10px; border-radius:var(--radius-sm); white-space:nowrap;
   transform:translate(-50%,-120%); z-index:5; box-shadow:0 4px 12px rgba(0,0,0,.25);
 }
