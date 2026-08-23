@@ -118,12 +118,12 @@ export async function renderLedgerMobile(container) {
       </div>
       <div style="display:flex;gap:10px">
         <div style="flex:1;background:rgba(255,255,255,.08);border-radius:13px;padding:10px 13px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-down-left" style="color:#C0F2DA"></i>收入</div>
-          <div class="mono" style="font-size:16px;color:#C0F2DA">${fmtMoney(t.income)}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:var(--text-base);color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-down-left" style="color:#C0F2DA"></i>收入</div>
+          <div class="mono" style="font-size:var(--text-lg);color:#C0F2DA">${fmtMoney(t.income)}</div>
         </div>
         <div style="flex:1;background:rgba(255,255,255,.08);border-radius:13px;padding:10px 13px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-up-right" style="color:#FBE0DD"></i>支出</div>
-          <div class="mono" style="font-size:16px;color:#FBE0DD">${fmtMoney(t.expense)}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:var(--text-base);color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-up-right" style="color:#FBE0DD"></i>支出</div>
+          <div class="mono" style="font-size:var(--text-lg);color:#FBE0DD">${fmtMoney(t.expense)}</div>
         </div>
       </div>
     </div>`;
@@ -133,7 +133,7 @@ export async function renderLedgerMobile(container) {
   head.querySelector('[data-el="lock"]').onclick = () => openLockPicker();
   bindLockBadge(head);
 
-  if (!items.length) { list.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:50px 0"><i class="ti ti-notebook" style="font-size:40px;color:var(--faint)"></i><div style="margin-top:10px;font-size:14px">本月尚無記錄</div></div>`; return; }
+  if (!items.length) { list.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:50px 0"><i class="ti ti-notebook" style="font-size:40px;color:var(--faint)"></i><div style="margin-top:10px;font-size:var(--text-emphasis)">本月尚無記錄</div></div>`; return; }
 
   const groups = {};
   for (const r of items) (groups[r.date] = groups[r.date] || []).push(r);
@@ -145,14 +145,14 @@ export async function renderLedgerMobile(container) {
     return `<div style="margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:0 2px">
         <span style="font-weight:600;font-size:13px;color:var(--text3)">${d.slice(5)}</span>
-        <span class="mono" style="font-size:12px;color:var(--muted2)">${sum >= 0 ? '+' : '−'}${fmtMoney(Math.abs(sum))}</span>
+        <span class="mono" style="font-size:var(--text-base);color:var(--muted2)">${sum >= 0 ? '+' : '−'}${fmtMoney(Math.abs(sum))}</span>
       </div>
       <div class="card">${rows.map((r) => r.type === 'transfer' ? `
         <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
           ${transferIconHtml()}
           <div style="flex:1;min-width:0">
             <div style="font-weight:500;font-size:15px;color:var(--text)">內部轉移</div>
-            <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || transferLabel(r))}</div>
+            <div style="font-size:var(--text-base);color:var(--muted2)">${escapeHtml(r.description || transferLabel(r))}</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${transferLabel(r)}</span>
         </div>` : r.type === 'restricted' ? `
@@ -160,7 +160,7 @@ export async function renderLedgerMobile(container) {
           ${restrictedIconHtml()}
           <div style="flex:1;min-width:0">
             <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.description || '受限資金')}</div>
-            <div style="font-size:12px;color:var(--muted2)">已鎖住，不計入可用餘額</div>
+            <div style="font-size:var(--text-base);color:var(--muted2)">已鎖住，不計入可用餘額</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${fmtMoney(r.amount)}</span>
         </div>` : `
@@ -168,7 +168,7 @@ export async function renderLedgerMobile(container) {
           ${catIconHtml(r.category)}
           <div style="flex:1;min-width:0">
             <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</div>
-            <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || categoryMeta(r.category).group)}</div>
+            <div style="font-size:var(--text-base);color:var(--muted2)">${escapeHtml(r.description || categoryMeta(r.category).group)}</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:${r.type === 'income' ? 'var(--income)' : 'var(--text)'}">${r.type === 'income' ? '+' : '−'}${fmtMoney(r.amount)}</span>
         </div>`).join('')}</div>
@@ -214,7 +214,7 @@ export async function renderLedgerDesktop(container) {
         <div style="display:flex;gap:10px;align-items:center">
           <div style="display:flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:3px">
             <button class="icon-btn" data-el="prev" style="background:none"><i class="ti ti-chevron-left"></i></button>
-            <span class="mono" style="min-width:64px;text-align:center;font-size:14px;color:var(--text)">${label}</span>
+            <span class="mono" style="min-width:64px;text-align:center;font-size:var(--text-emphasis);color:var(--text)">${label}</span>
             <button class="icon-btn" data-el="next" style="background:none"><i class="ti ti-chevron-right"></i></button>
           </div>
         </div>
@@ -225,13 +225,13 @@ export async function renderLedgerDesktop(container) {
         </div>
         <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;background:var(--surface);border:1px solid var(--border);border-radius:11px">
           <i class="ti ti-category" style="color:var(--muted2)"></i>
-          <select data-el="cat" style="border:none;background:none;outline:none;font-size:14px;color:var(--text2);cursor:pointer">
+          <select data-el="cat" style="border:none;background:none;outline:none;font-size:var(--text-emphasis);color:var(--text2);cursor:pointer">
             ${catOpts.map((c) => `<option value="${escapeHtml(c)}" ${table.category === c ? 'selected' : ''}>${c || '全部分類'}</option>`).join('')}
           </select>
         </div>
         <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 13px;background:var(--surface);border:1px solid var(--border);border-radius:11px;flex:1;min-width:200px;max-width:320px">
           <i class="ti ti-search" style="color:var(--muted2)"></i>
-          <input data-el="q" value="${escapeHtml(table.query)}" placeholder="搜尋備註或分類…" style="border:none;background:none;outline:none;font-size:14px;color:var(--text);width:100%">
+          <input data-el="q" value="${escapeHtml(table.query)}" placeholder="搜尋備註或分類…" style="border:none;background:none;outline:none;font-size:var(--text-emphasis);color:var(--text);width:100%">
         </div>
         ${hasFilter ? '<button data-el="clear" class="link" style="color:var(--muted)"><i class="ti ti-x"></i> 清除</button>' : ''}
         <div style="margin-left:auto;display:flex;gap:18px;font-size:13px;color:var(--muted2)">
@@ -241,32 +241,32 @@ export async function renderLedgerDesktop(container) {
       </div>
       <div class="card" style="overflow:hidden">
         <div style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border);background:var(--fill)">
-          <button data-sort="date" style="display:flex;align-items:center;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:12px;color:var(--muted)">日期<i class="ti ${arrow('date')}"></i></button>
-          <span style="font-weight:600;font-size:12px;color:var(--muted)">分類</span>
-          <span style="font-weight:600;font-size:12px;color:var(--muted)">備註</span>
-          <span style="font-weight:600;font-size:12px;color:var(--muted)">類型</span>
-          <button data-sort="amount" style="display:flex;align-items:center;justify-content:flex-end;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:12px;color:var(--muted)">金額<i class="ti ${arrow('amount')}"></i></button>
+          <button data-sort="date" style="display:flex;align-items:center;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:var(--text-base);color:var(--muted)">日期<i class="ti ${arrow('date')}"></i></button>
+          <span style="font-weight:600;font-size:var(--text-base);color:var(--muted)">分類</span>
+          <span style="font-weight:600;font-size:var(--text-base);color:var(--muted)">備註</span>
+          <span style="font-weight:600;font-size:var(--text-base);color:var(--muted)">類型</span>
+          <button data-sort="amount" style="display:flex;align-items:center;justify-content:flex-end;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:var(--text-base);color:var(--muted)">金額<i class="ti ${arrow('amount')}"></i></button>
         </div>
         ${list.length ? list.map((r) => r.type === 'transfer' ? `
           <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${transferIconHtml(30)}<span style="font-size:14px;color:var(--text)">${transferLabel(r)}</span></div>
-            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
-            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">轉帳</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${transferIconHtml(30)}<span style="font-size:var(--text-emphasis);color:var(--text)">${transferLabel(r)}</span></div>
+            <div style="font-size:var(--text-emphasis);color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
+            <div><span style="font-size:var(--text-base);padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">轉帳</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
           </div>` : r.type === 'restricted' ? `
           <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${restrictedIconHtml(30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.description || '受限資金')}</span></div>
-            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">已鎖住，不計入可用餘額</div>
-            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">受限</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${restrictedIconHtml(30)}<span style="font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(r.description || '受限資金')}</span></div>
+            <div style="font-size:var(--text-emphasis);color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">已鎖住，不計入可用餘額</div>
+            <div><span style="font-size:var(--text-base);padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">受限</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
           </div>` : `
           <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</span></div>
-            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
-            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:${r.type === 'income' ? 'var(--income-soft)' : 'var(--expense-soft)'};color:${r.type === 'income' ? 'var(--income)' : 'var(--expense)'}">${r.type === 'income' ? '收入' : '支出'}</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</span></div>
+            <div style="font-size:var(--text-emphasis);color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
+            <div><span style="font-size:var(--text-base);padding:2px 9px;border-radius:999px;background:${r.type === 'income' ? 'var(--income-soft)' : 'var(--expense-soft)'};color:${r.type === 'income' ? 'var(--income)' : 'var(--expense)'}">${r.type === 'income' ? '收入' : '支出'}</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:${r.type === 'income' ? 'var(--income)' : 'var(--text)'}">${r.type === 'income' ? '+' : '−'}${fmtMoney(r.amount)}</div>
           </div>`).join('') : '<div style="text-align:center;color:var(--muted2);padding:40px">沒有符合條件的記錄</div>'}
       </div>`;
@@ -345,11 +345,11 @@ function openEditIncomeExpense(record) {
   let photos = record._pending ? [] : (record.photos || []).map((p) => ({ ...p, url: null }));
   function cleanupPhotoUrls() { photos.forEach((p) => { if (p.url) URL.revokeObjectURL(p.url); }); }
   function photoAreaHtml() {
-    if (record._pending) return '<div style="font-size:12px;color:var(--faint)">待同步後才能管理照片</div>';
+    if (record._pending) return '<div style="font-size:var(--text-base);color:var(--faint)">待同步後才能管理照片</div>';
     const thumbs = photos.map((p) => {
       const canRemove = p._pending || isOnline();
       const removeBtn = canRemove
-        ? `<button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:12px"></i></button>`
+        ? `<button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:var(--text-base)"></i></button>`
         : '';
       const badge = p._pending
         ? `<span style="position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:9px;line-height:14px;background:rgba(0,0,0,.55);color:#fff">待同步</span>`
@@ -363,7 +363,7 @@ function openEditIncomeExpense(record) {
     }).join('');
     // 新增一律開放（離線會排隊，不是被擋下）；只有刪除受限於是否連線。
     const addBtn = `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
-          <i class="ti ti-camera-plus" style="font-size:20px"></i>
+          <i class="ti ti-camera-plus" style="font-size:var(--text-xl)"></i>
           <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
         </label>`;
     return thumbs + addBtn;

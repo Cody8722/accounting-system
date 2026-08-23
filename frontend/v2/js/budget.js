@@ -34,10 +34,10 @@ function rowHtml(cat, budgetAmt, spent) {
       <div class="cat-icon" style="width:34px;height:34px;background:${m.color}1f"><i class="ti ${m.icon}" style="color:${m.color};font-size:18px"></i></div>
       <div style="flex:1">
         <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-weight:500;font-size:14px;color:var(--text)">${escapeHtml(cat)}</span>
+          <span style="font-weight:500;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(cat)}</span>
           <span class="mono" style="font-size:13px;color:var(--text2)">${fmtMoney(spent)} <span style="color:var(--faint)">/ ${fmtMoney(budgetAmt)}</span></span>
         </div>
-        <div style="font-size:12px;color:${over ? 'var(--expense)' : 'var(--muted2)'}">${over ? `超支 ${fmtMoney(-left)}` : `剩 ${fmtMoney(left)}`}</div>
+        <div style="font-size:var(--text-base);color:${over ? 'var(--expense)' : 'var(--muted2)'}">${over ? `超支 ${fmtMoney(-left)}` : `剩 ${fmtMoney(left)}`}</div>
       </div>
     </div>
     <div class="track" style="margin-top:7px"><div class="bar" style="width:${pct}%;background:${barColor}"></div></div>
@@ -55,7 +55,7 @@ function openEditor(current, onSaved) {
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
       ${BUDGET_CATEGORIES.map((c) => `
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="flex:1;font-size:14px;color:var(--text)">${escapeHtml(c)}</span>
+          <span style="flex:1;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(c)}</span>
           <input data-cat="${escapeHtml(c)}" type="number" min="0" class="field mono" style="width:120px;text-align:right" value="${current[c] || ''}" placeholder="0">
         </div>`).join('')}
     </div>
@@ -104,7 +104,7 @@ export async function budgetSummaryCard() {
     ${totalBudget === 0
       ? '<div style="text-align:center;color:var(--muted2);padding:22px 0">尚未設定預算</div>'
       : `<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:7px">
-          <span class="mono" style="font-size:20px;font-weight:500;color:var(--text)">${fmtMoney(totalSpent)} <span style="font-size:13px;color:var(--faint)">/ ${fmtMoney(totalBudget)}</span></span>
+          <span class="mono" style="font-size:var(--text-xl);font-weight:500;color:var(--text)">${fmtMoney(totalSpent)} <span style="font-size:13px;color:var(--faint)">/ ${fmtMoney(totalBudget)}</span></span>
           <span style="font-size:13px;color:${left >= 0 ? 'var(--muted2)' : 'var(--expense)'}">${left >= 0 ? `剩 ${fmtMoney(left)}` : `超支 ${fmtMoney(-left)}`}</span>
         </div>
         <div class="track" style="margin-bottom:16px"><div class="bar" style="width:${Math.min(100, pct)}%;background:${left >= 0 ? 'var(--accent)' : 'var(--expense)'}"></div></div>
@@ -136,10 +136,10 @@ async function render(container, mode) {
       </div>
       <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:14px">
         <span class="mono" style="font-weight:500;font-size:32px;line-height:1">${fmtMoney(totalSpent)}</span>
-        <span class="mono" style="font-size:16px;color:#cfe0ff;margin-bottom:2px">/ ${fmtMoney(totalBudget)}</span>
+        <span class="mono" style="font-size:var(--text-lg);color:#cfe0ff;margin-bottom:2px">/ ${fmtMoney(totalBudget)}</span>
       </div>
       <div style="height:10px;border-radius:5px;background:rgba(255,255,255,.25);overflow:hidden"><div style="height:100%;border-radius:5px;background:#fff;width:${Math.min(100, pct)}%"></div></div>
-      <div style="font-size:12px;color:#cfe0ff;margin-top:9px">${totalBudget === 0 ? '尚未設定預算，點右上「設定」開始' : left >= 0 ? `還可花 NT$ ${fmtMoney(left)}（${pct}%）` : `已超支 NT$ ${fmtMoney(-left)}`}</div>
+      <div style="font-size:var(--text-base);color:#cfe0ff;margin-top:9px">${totalBudget === 0 ? '尚未設定預算，點右上「設定」開始' : left >= 0 ? `還可花 NT$ ${fmtMoney(left)}（${pct}%）` : `已超支 NT$ ${fmtMoney(-left)}`}</div>
     </div>
     <div data-el="rows">${cats.map((c) => rowHtml(c, data.budget[c], data.spentMap[c] || 0)).join('') || '<div style="text-align:center;color:var(--muted2);padding:20px">尚未設定任何分類預算</div>'}</div>`;
   inner.querySelector('[data-el="edit"]').onclick = () => openEditor(data.budget, () => emit('records:changed'));
