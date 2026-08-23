@@ -15,6 +15,7 @@
   --nav-bg:rgba(255,255,255,.94);
   --shadow:0 8px 24px rgba(0,0,0,.08);
   --card-bd:var(--border-strong); --card-bw:2px;
+  --balance-bg:#0081FA;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -27,6 +28,7 @@
   --nav-bg:rgba(22,22,27,.94);
   --shadow:0 8px 24px rgba(0,0,0,.4);
   --card-bd:var(--border); --card-bw:1.5px;
+  --balance-bg:#0057A8;
 }
 :root {
   --accent:#1f6feb; --income:#3f8f66; --expense:#b15c58;
@@ -278,7 +280,7 @@ input, select, textarea { font-family:inherit; }
 .segment button.active { background:var(--surface); color:var(--text); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 
 /* 大金額卡（帳本結餘） */
-.balance-card { background:var(--ink); border-radius:22px; padding:20px 22px; color:#fff; }
+.balance-card { background:var(--balance-bg); border-radius:22px; padding:20px 22px; color:#fff; }
 .balance-amt { font-family:var(--mono); font-weight:500; font-size:40px; letter-spacing:-1px; line-height:1; }
 
 /* 錢包餘額摘要條（帳本頁，橫向捲動） */
