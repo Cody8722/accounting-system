@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.14.0';
-export const RELEASE_NOTE = '安全性強化：管理員可強制指定帳號下次登入時更新密碼';
+export const APP_VERSION = '1.14.1';
+export const RELEASE_NOTE = '調整帳本結餘卡配色，改用專屬藍底並確保文字對比度';

@@ -106,24 +106,24 @@ export async function renderLedgerMobile(container) {
     ${walletStrip}
     <div class="balance-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;color:var(--muted2)">${label} · 結餘</span>
-        <div style="display:flex;gap:8px;color:var(--faint)">
+        <span style="font-size:13px;color:rgba(255,255,255,.85)">${label} · 結餘</span>
+        <div style="display:flex;gap:8px;color:rgba(255,255,255,.85)">
           <button data-el="prev" style="border:none;background:none;color:inherit;cursor:pointer"><i class="ti ti-chevron-left"></i></button>
           <button data-el="next" style="border:none;background:none;color:inherit;cursor:pointer"><i class="ti ti-chevron-right"></i></button>
         </div>
       </div>
       <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:18px">
-        <span style="font-size:15px;color:var(--faint);margin-bottom:5px">NT$</span>
+        <span style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:5px">NT$</span>
         <span class="balance-amt">${fmtMoney(t.balance)}</span>
       </div>
       <div style="display:flex;gap:10px">
         <div style="flex:1;background:rgba(255,255,255,.08);border-radius:13px;padding:10px 13px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted2);margin-bottom:3px"><i class="ti ti-arrow-down-left" style="color:#5fb98a"></i>收入</div>
-          <div class="mono" style="font-size:16px;color:#7fd0a3">${fmtMoney(t.income)}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-down-left" style="color:#C0F2DA"></i>收入</div>
+          <div class="mono" style="font-size:16px;color:#C0F2DA">${fmtMoney(t.income)}</div>
         </div>
         <div style="flex:1;background:rgba(255,255,255,.08);border-radius:13px;padding:10px 13px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted2);margin-bottom:3px"><i class="ti ti-arrow-up-right" style="color:#e08a85"></i>支出</div>
-          <div class="mono" style="font-size:16px;color:#eaa19c">${fmtMoney(t.expense)}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-up-right" style="color:#FBE0DD"></i>支出</div>
+          <div class="mono" style="font-size:16px;color:#FBE0DD">${fmtMoney(t.expense)}</div>
         </div>
       </div>
     </div>`;
