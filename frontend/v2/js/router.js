@@ -82,8 +82,8 @@ function buildDesktop() {
           ${NAV.map((n) => `<div class="row" data-nav="${n.key}"><i class="ti ${n.icon}"></i><span>${n.dLabel}</span></div>`).join('')}
         </nav>
         <div class="user">
-          <div class="avatar" style="width:38px;height:38px;font-size:16px">${escapeHtml((user.name || 'U').slice(0, 1))}</div>
-          <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--text)">${escapeHtml(user.name || '使用者')}</div><div style="font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || '')}</div></div>
+          <div class="avatar" style="width:38px;height:38px;font-size:var(--text-lg)">${escapeHtml((user.name || 'U').slice(0, 1))}</div>
+          <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(user.name || '使用者')}</div><div style="font-size:var(--text-base);color:var(--muted2);overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.email || '')}</div></div>
           <button class="icon-btn" data-el="theme" style="width:34px;height:34px;border-radius:9px"><i class="ti ${themeToggleIcon()}"></i></button>
         </div>
       </aside>

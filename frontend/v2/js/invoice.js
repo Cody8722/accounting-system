@@ -61,7 +61,7 @@ export function openInvoiceScan(onSingle) {
   ov.innerHTML = `
     <div class="sheet">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <span style="font-weight:600;font-size:16px;color:var(--text)"><i class="ti ti-qrcode" style="margin-right:6px;color:var(--accent)"></i>掃描電子發票</span>
+        <span style="font-weight:600;font-size:var(--text-lg);color:var(--text)"><i class="ti ti-qrcode" style="margin-right:6px;color:var(--accent)"></i>掃描電子發票</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
       <div data-el="stage"></div>
@@ -85,7 +85,7 @@ export function openInvoiceScan(onSingle) {
         ${p.sellerId && /\d{8}/.test(p.sellerId) ? `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2);font-size:13px">賣方統編</span><span class="mono" style="color:var(--text2);font-size:13px">${escapeHtml(p.sellerId)}</span></div>` : ''}
       </div>
       <button data-el="use" class="btn-primary" style="width:100%">帶入這筆（NT$ ${p.totalAmount}）</button>
-      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.6">※ 號碼／日期／金額／賣方統編由 QR 離線解析。品項明細需財政部 API（限公司申請），個人版不提供。</div>`;
+      <div style="font-size:var(--text-base);color:var(--faint);margin-top:10px;line-height:1.6">※ 號碼／日期／金額／賣方統編由 QR 離線解析。品項明細需財政部 API（限公司申請），個人版不提供。</div>`;
     stage.querySelector('[data-el="use"]').onclick = () => finish({
       total: p.totalAmount, date: p.date, number: p.number,
       note: `發票 ${p.number}`, category: '其他支出',
@@ -97,7 +97,7 @@ export function openInvoiceScan(onSingle) {
       <button data-el="camBtn" class="btn-primary" style="width:100%;margin-bottom:10px"><i class="ti ti-camera"></i> 開啟相機掃描</button>
       <label class="btn-primary" style="width:100%;margin-bottom:14px;background:var(--fill);color:var(--text);box-shadow:none;cursor:pointer"><i class="ti ti-photo-up"></i> 上傳發票圖片<input data-el="file" type="file" accept="image/*" style="display:none"></label>
       <div style="border-top:1px solid var(--border);padding-top:12px">
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">掃不到？手動輸入：</div>
+        <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:8px">掃不到？手動輸入：</div>
         <button data-el="manual" class="btn-primary" style="width:100%;background:var(--fill);color:var(--text2);box-shadow:none;font-weight:500"><i class="ti ti-keyboard"></i> 手動輸入發票</button>
       </div>`;
     stage.querySelector('[data-el="camBtn"]').onclick = startCamera;

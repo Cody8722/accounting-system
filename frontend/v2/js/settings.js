@@ -37,14 +37,14 @@ async function openAccount() {
   ov.querySelector('[data-el="body"]').innerHTML = `
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
       <div class="list-row"><span style="flex:1;color:var(--muted)">顯示名稱</span><input data-el="name" class="field" style="width:150px" value="${escapeHtml(p.name || '')}"></div>
-      <div class="list-row"><span style="flex:1;color:var(--muted)">Email</span><span style="color:var(--text2);font-size:14px">${escapeHtml(p.email)}</span></div>
+      <div class="list-row"><span style="flex:1;color:var(--muted)">Email</span><span style="color:var(--text2);font-size:var(--text-emphasis)">${escapeHtml(p.email)}</span></div>
       <div class="list-row"><span style="flex:1;color:var(--muted)">加入時間</span><span class="mono" style="color:var(--text3);font-size:13px">${fmtD(p.created_at)}</span></div>
       <div class="list-row"><span style="flex:1;color:var(--muted)">上次登入</span><span class="mono" style="color:var(--text3);font-size:13px">${fmtD(p.last_login)}</span></div>
     </div>
     <button class="btn-primary" data-el="saveName" style="width:100%;margin-bottom:10px">儲存名稱</button>
     <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
-      <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:6px">變更密碼</div>
-      <div style="font-size:12px;color:var(--muted2);margin-bottom:10px">需 ≥12 字元，含大小寫 + 數字 + 特殊符號</div>
+      <div style="font-weight:600;font-size:var(--text-emphasis);color:var(--text);margin-bottom:6px">變更密碼</div>
+      <div style="font-size:var(--text-base);color:var(--muted2);margin-bottom:10px">需 ≥12 字元，含大小寫 + 數字 + 特殊符號</div>
       <input data-el="oldpw" type="password" class="field" style="margin-bottom:8px" placeholder="目前密碼">
       <input data-el="newpw" type="password" class="field" style="margin-bottom:12px" placeholder="新密碼">
       <button class="btn-primary" data-el="chpw" style="width:100%;background:var(--fill);color:var(--text);box-shadow:none">更新密碼</button>
@@ -65,10 +65,10 @@ async function openAccount() {
 function openCategory() {
   const body = CATEGORY_TREE.expense.concat(CATEGORY_TREE.income).map((g) => `
     <div style="margin-bottom:12px">
-      <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px"><i class="ti ${g.icon}" style="color:${g.color};margin-right:6px"></i>${g.group}</div>
+      <div style="font-weight:600;font-size:var(--text-emphasis);color:var(--text);margin-bottom:8px"><i class="ti ${g.icon}" style="color:${g.color};margin-right:6px"></i>${g.group}</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${g.items.map((l) => `<span style="font-size:13px;color:var(--text3);background:var(--fill);border-radius:var(--radius-sm);padding:5px 10px">${escapeHtml(l)}</span>`).join('')}</div>
     </div>`).join('');
-  sheet('分類設定', body + '<div style="font-size:12px;color:var(--muted2);text-align:center;margin-top:8px">分類結構內建於前端，記錄以細項名稱儲存</div>');
+  sheet('分類設定', body + '<div style="font-size:var(--text-base);color:var(--muted2);text-align:center;margin-top:8px">分類結構內建於前端，記錄以細項名稱儲存</div>');
 }
 
 async function openRecurring() {
@@ -80,8 +80,8 @@ async function openRecurring() {
       <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
         ${items.length ? items.map((it) => `
           <div class="list-row">
-            <div style="flex:1"><div style="font-weight:500;font-size:14px;color:var(--text)">${escapeHtml(it.name)}</div><div style="font-size:12px;color:var(--muted2)">每月 ${it.day_of_month} 號 · ${escapeHtml(it.category)}</div></div>
-            <span class="mono" style="color:${it.type === 'income' ? 'var(--income)' : 'var(--text)'};font-size:14px">${it.type === 'income' ? '+' : '−'}${fmtMoney(it.amount)}</span>
+            <div style="flex:1"><div style="font-weight:500;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(it.name)}</div><div style="font-size:var(--text-base);color:var(--muted2)">每月 ${it.day_of_month} 號 · ${escapeHtml(it.category)}</div></div>
+            <span class="mono" style="color:${it.type === 'income' ? 'var(--income)' : 'var(--text)'};font-size:var(--text-emphasis)">${it.type === 'income' ? '+' : '−'}${fmtMoney(it.amount)}</span>
             <button class="icon-btn" data-apply="${it._id}" title="立即記一筆" style="background:var(--accent-soft)"><i class="ti ti-player-play" style="color:var(--accent)"></i></button>
             <button class="icon-btn" data-del="${it._id}"><i class="ti ti-trash" style="color:var(--expense)"></i></button>
           </div>`).join('') : '<div style="text-align:center;color:var(--muted2);padding:20px">尚無定期項目</div>'}
@@ -178,7 +178,7 @@ function openPhotoGallery() {
   function itemHtml(it, idx) {
     const dateShort = (it.record_date || '').slice(5);
     return `<div data-photo-idx="${idx}" style="cursor:pointer;border-radius:10px;overflow:hidden;background:var(--fill);aspect-ratio:1;position:relative">
-      <div data-el="thumb-${idx}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:20px"><i class="ti ti-photo"></i></div>
+      <div data-el="thumb-${idx}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:var(--text-xl)"><i class="ti ti-photo"></i></div>
       <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(it.record_category || '')} ${dateShort}</div>
     </div>`;
   }
@@ -239,7 +239,7 @@ function openReminder() {
       </label>
     </div>
     <div class="list-row" style="border:none;padding:0"><span style="flex:1;color:var(--text)">提醒時間</span><input data-el="time" type="time" class="field" style="width:130px" value="${r.time}"></div>
-    <div style="font-size:12px;color:var(--muted2);margin-top:12px">提醒為本機功能，需允許瀏覽器通知權限</div>`);
+    <div style="font-size:var(--text-base);color:var(--muted2);margin-top:12px">提醒為本機功能，需允許瀏覽器通知權限</div>`);
   const cb = ov.querySelector('[data-el="on"]'), track = ov.querySelector('[data-el="track"]'), knob = ov.querySelector('[data-el="knob"]'), time = ov.querySelector('[data-el="time"]');
   function save() { localStorage.setItem(REMINDER_KEY, JSON.stringify({ on: cb.checked, time: time.value })); }
   track.onclick = () => { cb.checked = !cb.checked; track.style.background = cb.checked ? 'var(--accent)' : 'var(--border-strong)'; knob.style.left = cb.checked ? '23px' : '3px'; if (cb.checked && 'Notification' in window) Notification.requestPermission(); save(); };
@@ -274,7 +274,7 @@ function wireSyncStatus(scope) {
 function menuGroup(rows) {
   return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">${rows.map((r) => `
     <div class="list-row" data-act="${r.act}" style="cursor:pointer">
-      <i class="ti ${r.icon}" style="font-size:20px;color:var(--muted)"></i>
+      <i class="ti ${r.icon}" style="font-size:var(--text-xl);color:var(--muted)"></i>
       <span style="flex:1;color:var(--text);font-size:15px">${r.label}</span>
       ${r.extra ? `<span ${r.extraEl ? `data-el="${r.extraEl}"` : ''} style="font-size:13px;color:var(--muted2)">${r.extra}</span>` : ''}
       <i class="ti ti-chevron-right" style="color:var(--faint)"></i>
@@ -290,8 +290,8 @@ async function render(container, mode) {
   const inner = document.createElement('div');
   inner.innerHTML = `
     <div class="card" style="display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:18px">
-      <div class="avatar" style="width:50px;height:50px;font-size:20px">${escapeHtml(initial)}</div>
-      <div style="flex:1"><div style="font-weight:600;font-size:16px;color:var(--text)">${escapeHtml(user.name || '使用者')}</div><div style="font-size:13px;color:var(--muted2)">${escapeHtml(user.email || '')}</div></div>
+      <div class="avatar" style="width:50px;height:50px;font-size:var(--text-xl)">${escapeHtml(initial)}</div>
+      <div style="flex:1"><div style="font-weight:600;font-size:var(--text-lg);color:var(--text)">${escapeHtml(user.name || '使用者')}</div><div style="font-size:13px;color:var(--muted2)">${escapeHtml(user.email || '')}</div></div>
     </div>
     ${menuGroup([
       { act: 'account', icon: 'ti-wallet', label: '帳戶管理' },
@@ -306,10 +306,10 @@ async function render(container, mode) {
       { act: 'reminder', icon: 'ti-bell', label: '記帳提醒' },
     ])}
     <div class="card" style="padding:14px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:13px;margin-bottom:12px"><i class="ti ti-palette" style="font-size:20px;color:var(--muted)"></i><span style="flex:1;color:var(--text);font-size:15px">外觀主題</span></div>
+      <div style="display:flex;align-items:center;gap:13px;margin-bottom:12px"><i class="ti ti-palette" style="font-size:var(--text-xl);color:var(--muted)"></i><span style="flex:1;color:var(--text);font-size:15px">外觀主題</span></div>
       ${themeSegment()}
     </div>
-    <div style="text-align:center;font-size:12px;color:var(--faint)">記帳 App v2 · 設計稿實作</div>`;
+    <div style="text-align:center;font-size:var(--text-base);color:var(--faint)">記帳 App v2 · 設計稿實作</div>`;
 
   inner.addEventListener('click', (e) => {
     const row = e.target.closest('[data-act]');
