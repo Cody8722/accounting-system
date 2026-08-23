@@ -36,6 +36,14 @@
   --mono:'IBM Plex Mono',ui-monospace,monospace;
   /* Cody Design System：有機感 ease-out 曲線，動畫統一用這個（140-320ms） */
   --ease-organic:cubic-bezier(0.22,1,0.36,1);
+
+  /* 分類代表色（CATEGORY_TREE 大類色，見 frontend/v2/js/config.js）。
+     「收入」大類與「債務收回」leaf 沿用 --income、「債務償還」leaf 沿用 --expense，
+     顏色本來就跟這兩個既有 token 相同，不另外重複定義。 */
+  --cat-food:#e0894f; --cat-transport:#4f86e0; --cat-housing:#7d6fe0;
+  --cat-shopping:#e05fa0; --cat-medical:#e05f5f; --cat-entertainment:#9b5fe0;
+  --cat-subscription:#5fb0e0; --cat-education:#5fbf8a; --cat-family:#e0a94f;
+  --cat-other:#8a8a94;
 }
 
 * { box-sizing:border-box; margin:0; padding:0; }
