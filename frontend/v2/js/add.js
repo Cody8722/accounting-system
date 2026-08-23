@@ -96,7 +96,7 @@ function keypadHtml() {
 function catAreaHtml() {
   if (mode === 'desktop') {
     return CATEGORY_TREE[type].map((g) => `
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:var(--space-base)">
         <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:7px"><i class="ti ${g.icon}" style="color:${g.color};margin-right:5px"></i>${g.group}</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">
           ${g.items.map((leaf) => `<button class="chip${category === leaf ? ' active' : ''}" data-leaf="${escapeHtml(leaf)}"><i class="ti ${g.icon}" style="color:${g.color}"></i><span>${escapeHtml(leaf)}</span></button>`).join('')}
@@ -242,14 +242,14 @@ function openCategorySheet() {
   const groups = CATEGORY_TREE[type];
   ov.innerHTML = `
     <div class="sheet">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-emphasis)">
         <span style="font-weight:600;font-size:16px;color:var(--text)">選擇分類</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
       ${groups.map((g) => `
-        <div style="margin-bottom:14px">
-          <div style="font-size:13px;color:var(--text3);font-weight:600;margin-bottom:8px"><i class="ti ${g.icon}" style="color:${g.color};margin-right:5px"></i>${g.group}</div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="margin-bottom:var(--space-emphasis)">
+          <div style="font-size:13px;color:var(--text3);font-weight:600;margin-bottom:var(--space-xs)"><i class="ti ${g.icon}" style="color:${g.color};margin-right:5px"></i>${g.group}</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-xs)">
             ${g.items.map((leaf) => `<button class="chip" data-leaf="${escapeHtml(leaf)}"><i class="ti ${g.icon}" style="color:${g.color}"></i><span>${escapeHtml(leaf)}</span></button>`).join('')}
           </div>
         </div>`).join('')}
@@ -265,7 +265,7 @@ function openCategorySheet() {
 function openRecurSheet() {
   const ov = document.createElement('div');
   ov.className = 'overlay';
-  const unitChip = (u) => `<button data-unit="${u}" style="flex:1;border:none;border-radius:9px;padding:8px 0;cursor:pointer;font-size:13px;background:${recur.unit === u ? 'var(--surface)' : 'transparent'};color:${recur.unit === u ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.unit === u ? 600 : 400}">${UNIT_LABEL[u].replace('個月', '月')}</button>`;
+  const unitChip = (u) => `<button data-unit="${u}" style="flex:1;border:none;border-radius:9px;padding:var(--space-xs) 0;cursor:pointer;font-size:13px;background:${recur.unit === u ? 'var(--surface)' : 'transparent'};color:${recur.unit === u ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.unit === u ? 600 : 400}">${UNIT_LABEL[u].replace('個月', '月')}</button>`;
   const endChip = (v, label) => `<button data-end="${v}" style="flex:1;border:none;border-radius:9px;padding:9px 0;cursor:pointer;font-size:13px;background:${recur.end === v ? 'var(--surface)' : 'transparent'};color:${recur.end === v ? 'var(--text)' : 'var(--muted)'};font-weight:${recur.end === v ? 600 : 400}">${label}</button>`;
   ov.innerHTML = `
     <div class="sheet">
@@ -273,7 +273,7 @@ function openRecurSheet() {
         <span style="font-weight:600;font-size:17px;color:var(--text)">定期排程</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
-      <div style="display:flex;align-items:center;gap:7px;background:var(--accent-soft);border-radius:11px;padding:11px 13px;margin:6px 0 18px"><i class="ti ti-calendar-repeat" style="color:var(--accent)"></i><span data-el="sum" style="font-weight:600;font-size:14px;color:var(--accent-soft-text)">${recurSummary()}</span></div>
+      <div style="display:flex;align-items:center;gap:7px;background:var(--accent-soft);border-radius:11px;padding:11px 13px;margin:var(--space-2xs) 0 18px"><i class="ti ti-calendar-repeat" style="color:var(--accent)"></i><span data-el="sum" style="font-weight:600;font-size:14px;color:var(--accent-soft-text)">${recurSummary()}</span></div>
       <div style="font-size:13px;color:var(--muted2);margin-bottom:9px">重複頻率</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
         <span style="font-size:15px;color:var(--text3)">每</span>
@@ -281,7 +281,7 @@ function openRecurSheet() {
         <div class="segment" style="flex:1" data-el="units">${['day', 'week', 'month', 'year'].map(unitChip).join('')}</div>
       </div>
       <div style="font-size:13px;color:var(--muted2);margin-bottom:9px">結束</div>
-      <div class="segment" data-el="ends" style="margin-bottom:20px">${endChip('never', '永不')}${endChip('date', '指定日期')}${endChip('count', '重複次數')}</div>
+      <div class="segment" data-el="ends" style="margin-bottom:var(--space-xl)">${endChip('never', '永不')}${endChip('date', '指定日期')}${endChip('count', '重複次數')}</div>
       <button class="btn-primary" data-done="1" style="width:100%">完成</button>
     </div>`;
   const sync = () => { ov.querySelector('[data-el="sum"]').textContent = recurSummary(); ov.querySelector('[data-el="every"]').textContent = recur.every; };
@@ -471,59 +471,59 @@ function buildMobile() {
   host = document.createElement('div');
   host.className = 'add-screen';
   host.innerHTML = `
-    <div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex-shrink:0">
-      <button data-el="cancel" style="border:none;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:6px 8px">取消</button>
+    <div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-lg);flex-shrink:0">
+      <button data-el="cancel" style="border:none;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:var(--space-2xs) var(--space-xs)">取消</button>
       <span style="font-weight:600;font-size:16px;color:var(--text)">記一筆</span>
-      <label style="display:flex;align-items:center;gap:4px;color:var(--accent);font-size:14px;cursor:pointer">
+      <label style="display:flex;align-items:center;gap:var(--space-3xs);color:var(--accent);font-size:14px;cursor:pointer">
         <i class="ti ti-calendar-event"></i>
         <input data-el="date" type="date" value="${date}" style="border:none;background:none;color:var(--accent);font-family:inherit;cursor:pointer">
       </label>
     </div>
-    <div style="padding:6px 20px 0;flex-shrink:0">
+    <div style="padding:var(--space-2xs) var(--space-xl) 0;flex-shrink:0">
       <div class="segment"><button data-el="expBtn" class="active">支出</button><button data-el="incBtn">收入</button></div>
     </div>
     <div class="noscroll" style="flex:1;overflow-y:auto;min-height:0">
-      <div style="padding:12px 20px 0">
-        <button data-el="invoice" style="width:100%;display:flex;align-items:center;gap:11px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:13px;padding:12px 14px;cursor:pointer;text-align:left">
+      <div style="padding:var(--space-base) var(--space-xl) 0">
+        <button data-el="invoice" style="width:100%;display:flex;align-items:center;gap:11px;background:var(--accent-soft);border:1px solid var(--accent-soft-border);border-radius:13px;padding:var(--space-base) var(--space-emphasis);cursor:pointer;text-align:left">
           <i class="ti ti-qrcode" style="font-size:21px;color:var(--accent)"></i>
           <div style="flex:1"><div style="font-weight:600;font-size:14px;color:var(--accent-soft-text)">掃描電子發票</div><div style="font-size:12px;color:var(--muted)">對準 QR 碼自動帶入金額與明細</div></div>
           <i class="ti ti-chevron-right" style="color:var(--accent)"></i>
         </button>
       </div>
-      <div style="margin:16px 20px 0;background:var(--fill);border:2px solid var(--border);border-radius:18px;padding:18px 0 16px;text-align:center">
+      <div style="margin:var(--space-lg) var(--space-xl) 0;background:var(--fill);border:2px solid var(--border);border-radius:18px;padding:18px 0 var(--space-lg);text-align:center">
         <div style="display:flex;align-items:flex-end;justify-content:center;gap:7px">
           <span data-el="sign" style="font-size:30px;font-weight:600;color:var(--expense);align-self:center">−</span>
           <span style="font-size:13px;color:var(--muted2);align-self:flex-start;margin-top:11px">NT$</span>
           <span data-el="amount" class="mono" style="font-weight:500;font-size:44px;color:var(--text);letter-spacing:-1.5px;line-height:1">0</span>
         </div>
       </div>
-      <div style="padding:16px 18px 6px">
+      <div style="padding:var(--space-lg) 18px var(--space-2xs)">
         <div data-el="catArea" style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px"></div>
       </div>
-      <div style="padding:6px 18px 0">
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">錢包</div>
-        <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      <div style="padding:var(--space-2xs) 18px 0">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-xs)">錢包</div>
+        <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs)"></div>
       </div>
       <div style="padding:10px 18px 0">
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">照片</div>
-        <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-xs)">照片</div>
+        <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs)"></div>
       </div>
       <div data-el="locationWrap" class="hidden" style="padding:10px 18px 0">
-        <div style="font-size:12px;color:var(--muted2);margin-bottom:8px">位置</div>
-        <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-xs)">位置</div>
+        <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs)"></div>
       </div>
       <div data-el="splitWrap" class="hidden" style="padding:10px 18px 0">
-        <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:2px 0">
+        <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:var(--space-3xs);padding:2px 0">
           <i class="ti ti-chevron-right" data-el="splitChevron" style="transition:transform .15s"></i>這筆包含要轉交的錢？
         </button>
-        <div data-el="splitFields" class="hidden" style="margin-top:10px;background:var(--fill);border-radius:12px;padding:12px">
-          <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">受限金額（鎖住，不計入可用餘額）</div>
+        <div data-el="splitFields" class="hidden" style="margin-top:10px;background:var(--fill);border-radius:12px;padding:var(--space-base)">
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-2xs)">受限金額（鎖住，不計入可用餘額）</div>
           <input data-el="restrictedAmount" type="number" min="0" step="0.01" class="field mono" style="margin-bottom:10px" placeholder="0">
-          <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">用途</div>
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-2xs)">用途</div>
           <input data-el="restrictedNote" class="field" placeholder="如：學費代收">
         </div>
       </div>
-      <div style="margin:6px 18px 0;display:flex;align-items:center;gap:10px">
+      <div style="margin:var(--space-2xs) 18px 0;display:flex;align-items:center;gap:10px">
         <div style="flex:1;display:flex;align-items:center;gap:9px;background:var(--fill);border-radius:12px;padding:11px 13px">
           <i class="ti ti-pencil" style="color:var(--muted2)"></i>
           <input data-el="note" placeholder="加個備註…" style="border:none;background:none;outline:none;font-size:14px;color:var(--text);width:100%">
@@ -536,7 +536,7 @@ function buildMobile() {
         <span style="font-size:13px;color:var(--accent)">編輯</span>
       </div>
     </div>
-    <div style="background:var(--surface);border-top:1px solid var(--border);padding:12px 14px 18px;flex-shrink:0">
+    <div style="background:var(--surface);border-top:1px solid var(--border);padding:var(--space-base) var(--space-emphasis) 18px;flex-shrink:0">
       <div class="keypad">${keypadHtml()}</div>
     </div>`;
   host.querySelector('[data-el="date"]').addEventListener('change', (e) => { date = e.target.value || todayStr(); });
@@ -554,48 +554,48 @@ function buildDesktop() {
   host.style.zIndex = '70';
   host.innerHTML = `
     <div style="width:820px;max-width:94vw;max-height:90vh;background:var(--surface);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow)">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-lg) var(--space-xl);border-bottom:1px solid var(--border);flex-shrink:0">
         <span style="font-weight:600;font-size:17px;color:var(--text)">記一筆</span>
         <button class="icon-btn" data-el="cancel"><i class="ti ti-x"></i></button>
       </div>
       <div style="display:grid;grid-template-columns:1.35fr 1fr;min-height:0;flex:1">
         <!-- 左欄 -->
-        <div class="noscroll" style="overflow-y:auto;padding:20px;border-right:1px solid var(--border)">
-          <div class="segment" style="margin-bottom:16px"><button data-el="expBtn" class="active">支出</button><button data-el="incBtn">收入</button></div>
-          <div style="display:flex;align-items:center;gap:10px;background:var(--fill);border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px">
+        <div class="noscroll" style="overflow-y:auto;padding:var(--space-xl);border-right:1px solid var(--border)">
+          <div class="segment" style="margin-bottom:var(--space-lg)"><button data-el="expBtn" class="active">支出</button><button data-el="incBtn">收入</button></div>
+          <div style="display:flex;align-items:center;gap:10px;background:var(--fill);border:2px solid var(--border);border-radius:14px;padding:var(--space-emphasis) var(--space-lg);margin-bottom:var(--space-xs)">
             <span data-el="sign" style="font-size:26px;font-weight:600;color:var(--expense)">−</span>
             <span style="font-size:13px;color:var(--muted2)">NT$</span>
             <input data-el="amountInput" type="number" min="0" step="0.01" placeholder="0" class="mono" style="flex:1;border:none;background:none;outline:none;font-size:32px;font-weight:500;color:var(--text);width:100%;letter-spacing:-1px">
             <button data-el="calcToggle" class="icon-btn" title="計算機"><i class="ti ti-calculator"></i></button>
           </div>
-          <div data-el="keypadPanel" class="keypad hidden" style="margin-bottom:16px">${keypadHtml()}</div>
-          <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">分類</div>
+          <div data-el="keypadPanel" class="keypad hidden" style="margin-bottom:var(--space-lg)">${keypadHtml()}</div>
+          <div style="font-size:13px;color:var(--muted2);margin:var(--space-base) 0 var(--space-xs)">分類</div>
           <div data-el="catArea"></div>
-          <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">錢包</div>
-          <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
-          <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">照片</div>
-          <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
+          <div style="font-size:13px;color:var(--muted2);margin:var(--space-base) 0 var(--space-xs)">錢包</div>
+          <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin-bottom:var(--space-2xs)"></div>
+          <div style="font-size:13px;color:var(--muted2);margin:var(--space-base) 0 var(--space-xs)">照片</div>
+          <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin-bottom:var(--space-2xs)"></div>
           <div data-el="locationWrap" class="hidden">
-            <div style="font-size:13px;color:var(--muted2);margin:12px 0 8px">位置</div>
-            <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px"></div>
+            <div style="font-size:13px;color:var(--muted2);margin:var(--space-base) 0 var(--space-xs)">位置</div>
+            <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin-bottom:var(--space-2xs)"></div>
           </div>
-          <div data-el="splitWrap" class="hidden" style="margin-top:8px">
-            <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:2px 0">
+          <div data-el="splitWrap" class="hidden" style="margin-top:var(--space-xs)">
+            <button data-el="splitToggle" type="button" style="border:none;background:none;color:var(--muted2);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:var(--space-3xs);padding:2px 0">
               <i class="ti ti-chevron-right" data-el="splitChevron" style="transition:transform .15s"></i>這筆包含要轉交的錢？
             </button>
-            <div data-el="splitFields" class="hidden" style="margin-top:8px;background:var(--fill);border-radius:12px;padding:12px;display:flex;gap:10px">
+            <div data-el="splitFields" class="hidden" style="margin-top:var(--space-xs);background:var(--fill);border-radius:12px;padding:var(--space-base);display:flex;gap:10px">
               <div style="flex:1">
-                <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">受限金額（鎖住）</div>
+                <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-2xs)">受限金額（鎖住）</div>
                 <input data-el="restrictedAmount" type="number" min="0" step="0.01" class="field mono" placeholder="0">
               </div>
               <div style="flex:1">
-                <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">用途</div>
+                <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-2xs)">用途</div>
                 <input data-el="restrictedNote" class="field" placeholder="如：學費代收">
               </div>
             </div>
           </div>
-          <div style="font-size:13px;color:var(--muted2);margin:6px 0 8px">備註 / 日期</div>
-          <div style="display:flex;gap:10px;margin-bottom:14px">
+          <div style="font-size:13px;color:var(--muted2);margin:var(--space-2xs) 0 var(--space-xs)">備註 / 日期</div>
+          <div style="display:flex;gap:10px;margin-bottom:var(--space-emphasis)">
             <input data-el="note" class="field" placeholder="加個備註…" style="flex:1">
             <input data-el="date" type="date" class="field" style="width:160px" value="${date}">
           </div>
@@ -609,19 +609,19 @@ function buildDesktop() {
           </div>
         </div>
         <!-- 右欄：發票入口 -->
-        <div class="noscroll" style="overflow-y:auto;padding:20px;background:var(--bg)">
-          <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:4px"><i class="ti ti-qrcode" style="color:var(--accent);margin-right:6px"></i>電子發票</div>
-          <div style="font-size:12px;color:var(--muted2);margin-bottom:14px">輸入號碼或上傳圖片查詢，自動帶入金額與明細</div>
+        <div class="noscroll" style="overflow-y:auto;padding:var(--space-xl);background:var(--bg)">
+          <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:var(--space-3xs)"><i class="ti ti-qrcode" style="color:var(--accent);margin-right:var(--space-2xs)"></i>電子發票</div>
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:var(--space-emphasis)">輸入號碼或上傳圖片查詢，自動帶入金額與明細</div>
           <input data-el="invNo" class="field" placeholder="發票號碼（如 AB-12345678）" style="margin-bottom:10px">
-          <label style="display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--border-strong);border-radius:12px;padding:16px;cursor:pointer;color:var(--muted);margin-bottom:10px">
+          <label style="display:flex;align-items:center;justify-content:center;gap:var(--space-xs);border:1px dashed var(--border-strong);border-radius:12px;padding:var(--space-lg);cursor:pointer;color:var(--muted);margin-bottom:10px">
             <i class="ti ti-photo-up" style="font-size:20px"></i>上傳發票圖片
             <input type="file" accept="image/*" style="display:none" data-el="invFile">
           </label>
           <button data-el="invoice" class="btn-primary" style="width:100%"><i class="ti ti-search"></i> 查詢並帶入</button>
-          <div style="font-size:12px;color:var(--faint);margin-top:12px;line-height:1.6">※ 品項明細示範用途；正式串接財政部電子發票平台 API 後可帶入實際明細。</div>
+          <div style="font-size:12px;color:var(--faint);margin-top:var(--space-base);line-height:1.6">※ 品項明細示範用途；正式串接財政部電子發票平台 API 後可帶入實際明細。</div>
         </div>
       </div>
-      <div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">
+      <div style="padding:var(--space-emphasis) var(--space-xl);border-top:1px solid var(--border);flex-shrink:0">
         <button data-el="save" data-save="1" class="btn-primary" style="width:100%">儲存</button>
       </div>
     </div>`;

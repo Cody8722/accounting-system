@@ -26,8 +26,8 @@ export function donutCard(stats) {
   const wrap = document.createElement('div');
   wrap.className = 'card';
   wrap.style.cssText = 'padding:18px';
-  wrap.innerHTML = `<div style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:12px">分類佔比</div>
-    <div style="display:flex;justify-content:center;position:relative;margin-bottom:6px">
+  wrap.innerHTML = `<div style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:var(--space-base)">分類佔比</div>
+    <div style="display:flex;justify-content:center;position:relative;margin-bottom:var(--space-2xs)">
       <div data-el="donut"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
         <div data-el="cLabel" style="font-size:12px;color:var(--muted2)">本月支出</div>
@@ -35,7 +35,7 @@ export function donutCard(stats) {
         <div data-el="cSub" style="font-size:11px;color:var(--faint)">${cats.length} 個分類</div>
       </div>
     </div>
-    <div data-el="legend" style="display:flex;flex-direction:column;gap:9px;margin-top:14px"></div>`;
+    <div data-el="legend" style="display:flex;flex-direction:column;gap:9px;margin-top:var(--space-emphasis)"></div>`;
   const dEl = wrap.querySelector('[data-el="donut"]');
   const setCenter = (item) => {
     wrap.querySelector('[data-el="cLabel"]').textContent = item ? item.label : '本月支出';
@@ -59,9 +59,9 @@ function barsCard(trends) {
   const wrap = document.createElement('div');
   wrap.className = 'card';
   wrap.style.cssText = 'padding:18px';
-  wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-base)">
       <span style="font-weight:600;font-size:15px;color:var(--text)">月度收支比較</span>
-      <span style="font-size:12px;color:var(--muted2)"><span style="color:var(--income)">■</span> 收 <span style="color:var(--expense);margin-left:6px">■</span> 支</span>
+      <span style="font-size:12px;color:var(--muted2)"><span style="color:var(--income)">■</span> 收 <span style="color:var(--expense);margin-left:var(--space-2xs)">■</span> 支</span>
     </div><div data-el="bars" style="height:200px"></div>`;
   requestAnimationFrame(() => bars(wrap.querySelector('[data-el="bars"]'), rows));
   return wrap;
@@ -72,7 +72,7 @@ export function lineCard(trends) {
   const wrap = document.createElement('div');
   wrap.className = 'card';
   wrap.style.cssText = 'padding:18px';
-  wrap.innerHTML = `<div style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:12px">支出趨勢</div><div data-el="line" style="height:190px"></div>`;
+  wrap.innerHTML = `<div style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:var(--space-base)">支出趨勢</div><div data-el="line" style="height:190px"></div>`;
   requestAnimationFrame(() => line(wrap.querySelector('[data-el="line"]'), pts, { color: 'var(--expense)' }));
   return wrap;
 }
@@ -80,15 +80,15 @@ export function lineCard(trends) {
 async function render(container, mode) {
   container.innerHTML = mode === 'desktop'
     ? '<div class="page"><div class="page-title">統計</div><div class="page-sub">載入中…</div></div>'
-    : '<div style="padding:6px 20px 0"><span style="font-weight:700;font-size:22px;color:var(--text)">統計</span></div><div style="padding:40px;text-align:center;color:var(--muted2)">載入中…</div>';
+    : '<div style="padding:var(--space-2xs) var(--space-xl) 0"><span style="font-weight:700;font-size:22px;color:var(--text)">統計</span></div><div style="padding:var(--space-empty-state);text-align:center;color:var(--muted2)">載入中…</div>';
   let data;
   try { data = await fetchData(); } catch (e) {
-    container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--expense)">${escapeHtml(e.message)}</div>`; return;
+    container.innerHTML = `<div style="padding:var(--space-empty-state);text-align:center;color:var(--expense)">${escapeHtml(e.message)}</div>`; return;
   }
   if (mode === 'desktop') {
     const page = document.createElement('div');
     page.className = 'page';
-    page.innerHTML = '<div class="page-title" style="margin-bottom:20px">統計</div>';
+    page.innerHTML = '<div class="page-title" style="margin-bottom:var(--space-xl)">統計</div>';
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:18px';
     grid.append(donutCard(data.stats), barsCard(data.trends));
@@ -97,11 +97,11 @@ async function render(container, mode) {
     page.appendChild(grid);
     container.innerHTML = ''; container.appendChild(page);
   } else {
-    container.innerHTML = `<div style="padding:6px 20px 0;flex-shrink:0">${lockBadgeHtml()}<span style="font-weight:700;font-size:22px;color:var(--text)">統計</span></div>`;
+    container.innerHTML = `<div style="padding:var(--space-2xs) var(--space-xl) 0;flex-shrink:0">${lockBadgeHtml()}<span style="font-weight:700;font-size:22px;color:var(--text)">統計</span></div>`;
     bindLockBadge(container);
     const scroll = document.createElement('div');
     scroll.className = 'noscroll';
-    scroll.style.cssText = 'flex:1;overflow-y:auto;padding:16px 20px 100px;display:flex;flex-direction:column;gap:16px';
+    scroll.style.cssText = 'flex:1;overflow-y:auto;padding:var(--space-lg) var(--space-xl) 100px;display:flex;flex-direction:column;gap:var(--space-lg)';
     scroll.append(donutCard(data.stats), barsCard(data.trends), lineCard(data.trends));
     container.appendChild(scroll);
   }

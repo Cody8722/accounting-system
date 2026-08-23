@@ -63,9 +63,9 @@ function setOfflineBadge(offline) {
     el.style.cssText = [
       'position:fixed', 'left:50%', 'top:calc(10px + env(safe-area-inset-top))',
       'transform:translateX(-50%)', 'z-index:99990',
-      'padding:6px 14px', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
+      'padding:var(--space-2xs) var(--space-emphasis)', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
       'color:#fff', 'background:#6b7280', 'box-shadow:0 4px 14px rgba(0,0,0,.2)',
-      'display:none', 'align-items:center', 'gap:6px', 'pointer-events:none',
+      'display:none', 'align-items:center', 'gap:var(--space-2xs)', 'pointer-events:none',
     ].join(';');
     document.body.appendChild(el);
   }
@@ -85,7 +85,7 @@ async function updatePendingBadge() {
       'transform:translateX(-50%)', 'z-index:99989',
       'padding:5px 13px', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
       'color:#fff', 'background:var(--accent, #4f7fff)', 'box-shadow:0 4px 14px rgba(0,0,0,.2)',
-      'display:none', 'align-items:center', 'gap:6px', 'pointer-events:none',
+      'display:none', 'align-items:center', 'gap:var(--space-2xs)', 'pointer-events:none',
     ].join(';');
     document.body.appendChild(el);
   }
