@@ -44,6 +44,28 @@
   --cat-shopping:#e05fa0; --cat-medical:#e05f5f; --cat-entertainment:#9b5fe0;
   --cat-subscription:#5fb0e0; --cat-education:#5fbf8a; --cat-family:#e0a94f;
   --cat-other:#8a8a94;
+
+  /* 字級 scale。既有程式碼裡的字級（現況見盤點文件）陸續會改用這組 token，
+     替換工作分階段進行，這裡先只加定義，不代表所有消費端都已改用。
+     40px（結餘卡）／44px／30px／26px／32px 這類「等寬大字體顯示金額」的 hero
+     數字，刻意不納入這個 scale，維持各自字面值。 */
+  --text-base:12px; --text-emphasis:14px; --text-lg:16px;
+  --text-xl:20px; --text-2xl:24px; --text-3xl:28px;
+
+  /* 間距 scale（gap/padding/margin 共用同一組數值）。--space-3xs/2xs/xs 是
+     12px 以下的小間距（圖示與文字的緊湊間隙等），--space-empty-state 是
+     「載入中／錯誤訊息」置中容器的固定內距，屬於既有的一致模式而非隨機值，
+     獨立於線性 scale 之外。頁面級外距（.page 等）與底部導覽列安全捲動空間
+     （100px）維持字面值，不歸進這組 token。 */
+  --space-3xs:4px; --space-2xs:6px; --space-xs:8px;
+  --space-base:12px; --space-emphasis:14px; --space-lg:16px;
+  --space-xl:20px; --space-2xl:24px; --space-3xl:28px;
+  --space-empty-state:40px;
+
+  /* 圓角 scale。--radius-2xl 給結餘卡／登入卡這類「大卡片」專用，
+     999px（pill）／50%（圓形）維持字面值，不受此 scale 約束。 */
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px;
+  --radius-xl:20px; --radius-2xl:24px;
 }
 
 * { box-sizing:border-box; margin:0; padding:0; }
