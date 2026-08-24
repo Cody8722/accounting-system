@@ -3,7 +3,7 @@
  */
 
 import { initTheme } from './theme.js';
-import { verifyToken, renderAuth } from './auth.js';
+import { verifyToken, renderAuth, renderForcedPasswordChange, getUserData } from './auth.js';
 import { removeAuthToken } from './api.js';
 import { initRouter } from './router.js';
 import { backendUrl, isDevelopment } from './config.js';
@@ -19,8 +19,19 @@ function startApp() {
   initRouter(root);
 }
 
+// 登入成功／既有 session 驗證通過後的共用入口：requires_password_change 為 true
+// 時擋在強制改密碼畫面，改完才放行進 App，兩個入口（剛登入 / 既有 session 在
+// verify 時才發現被標記）都要經過這道閘門，不能只擋登入當下那一次。
+function enterApp(user) {
+  if (user && user.requires_password_change) {
+    renderForcedPasswordChange(root, () => startApp());
+    return;
+  }
+  startApp();
+}
+
 function showAuth() {
-  renderAuth(root, () => startApp());
+  renderAuth(root, (user) => enterApp(user));
 }
 
 // 偵測到新版本並自動重整後，跳出「已更新」Toast 說明本次更新內容。
@@ -48,13 +59,13 @@ function setOfflineBadge(offline) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'offline-badge';
-    el.innerHTML = '<i class="ti ti-wifi-off" style="font-size:14px"></i><span>離線模式</span>';
+    el.innerHTML = '<i class="ti ti-wifi-off" style="font-size:var(--text-emphasis)"></i><span>離線模式</span>';
     el.style.cssText = [
       'position:fixed', 'left:50%', 'top:calc(10px + env(safe-area-inset-top))',
       'transform:translateX(-50%)', 'z-index:99990',
-      'padding:6px 14px', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
+      'padding:var(--space-2xs) var(--space-emphasis)', 'border-radius:999px', 'font-size:var(--text-base)', 'font-weight:600',
       'color:#fff', 'background:#6b7280', 'box-shadow:0 4px 14px rgba(0,0,0,.2)',
-      'display:none', 'align-items:center', 'gap:6px', 'pointer-events:none',
+      'display:none', 'align-items:center', 'gap:var(--space-2xs)', 'pointer-events:none',
     ].join(';');
     document.body.appendChild(el);
   }
@@ -68,13 +79,13 @@ async function updatePendingBadge() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'pending-badge';
-    el.innerHTML = '<i class="ti ti-cloud-upload" style="font-size:14px"></i><span data-el="n"></span>';
+    el.innerHTML = '<i class="ti ti-cloud-upload" style="font-size:var(--text-emphasis)"></i><span data-el="n"></span>';
     el.style.cssText = [
       'position:fixed', 'left:50%', 'top:calc(46px + env(safe-area-inset-top))',
       'transform:translateX(-50%)', 'z-index:99989',
-      'padding:5px 13px', 'border-radius:999px', 'font-size:12px', 'font-weight:600',
+      'padding:5px 13px', 'border-radius:999px', 'font-size:var(--text-base)', 'font-weight:600',
       'color:#fff', 'background:var(--accent, #4f7fff)', 'box-shadow:0 4px 14px rgba(0,0,0,.2)',
-      'display:none', 'align-items:center', 'gap:6px', 'pointer-events:none',
+      'display:none', 'align-items:center', 'gap:var(--space-2xs)', 'pointer-events:none',
     ].join(';');
     document.body.appendChild(el);
   }
@@ -109,7 +120,7 @@ async function boot() {
   const status = await verifyToken();
   if (status === 'valid' || status === 'offline-trusted') {
     if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
-    startApp();
+    enterApp(getUserData());
     updatePendingBadge();
     if (status === 'valid') flushOutbox(); // 進場即嘗試把離線佇列送出
   } else {

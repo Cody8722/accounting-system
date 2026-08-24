@@ -58,7 +58,7 @@ function pendingBadge(r) {
   if (!r._pending) return '';
   const isErr = r._status === 'error';
   const color = isErr ? 'var(--expense)' : 'var(--muted2)';
-  return `<span style="font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid ${color};color:${color};margin-left:6px">${isErr ? '需處理' : '待同步'}</span>`;
+  return `<span style="font-size:10px;padding:1px var(--space-2xs);border-radius:999px;border:1px solid ${color};color:${color};margin-left:var(--space-2xs)">${isErr ? '需處理' : '待同步'}</span>`;
 }
 
 function catIconHtml(leaf, size = 38) {
@@ -83,47 +83,47 @@ function restrictedIconHtml(size = 38) {
 
 /* ============ 手機：帳本 ============ */
 export async function renderLedgerMobile(container) {
-  container.innerHTML = `<div style="padding:6px 20px 0;flex-shrink:0" data-el="head"></div>
-    <div class="noscroll" data-el="list" style="flex:1;overflow-y:auto;padding:18px 20px 100px"></div>`;
+  container.innerHTML = `<div style="padding:var(--space-2xs) var(--space-xl) 0;flex-shrink:0" data-el="head"></div>
+    <div class="noscroll" data-el="list" style="flex:1;overflow-y:auto;padding:18px var(--space-xl) 100px"></div>`;
   const head = container.querySelector('[data-el="head"]');
   const list = container.querySelector('[data-el="list"]');
-  list.innerHTML = '<div style="text-align:center;color:var(--muted2);padding:40px 0">載入中…</div>';
+  list.innerHTML = '<div style="text-align:center;color:var(--muted2);padding:var(--space-empty-state) 0">載入中…</div>';
   let items, walletStrip;
   try {
     [items, walletStrip] = await Promise.all([load(), walletBalanceStripHtml()]);
-  } catch (e) { list.innerHTML = `<div style="text-align:center;color:var(--expense);padding:40px 0">${escapeHtml(e.message)}</div>`; return; }
+  } catch (e) { list.innerHTML = `<div style="text-align:center;color:var(--expense);padding:var(--space-empty-state) 0">${escapeHtml(e.message)}</div>`; return; }
   const t = totals(items);
   const { label } = monthRange();
   head.innerHTML = `
     ${lockBadgeHtml()}
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-emphasis)">
       <span style="font-weight:700;font-size:22px;color:var(--text)">帳本</span>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:var(--space-xs)">
         <button class="icon-btn" data-el="lock" title="鎖定篩選"><i class="ti ti-lock-open"></i></button>
         <button class="icon-btn" data-el="theme"><i class="ti ti-moon"></i></button>
       </div>
     </div>
     ${walletStrip}
     <div class="balance-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;color:var(--muted2)">${label} · 結餘</span>
-        <div style="display:flex;gap:8px;color:var(--faint)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2xs)">
+        <span style="font-size:13px;color:rgba(255,255,255,.85)">${label} · 結餘</span>
+        <div style="display:flex;gap:var(--space-xs);color:rgba(255,255,255,.85)">
           <button data-el="prev" style="border:none;background:none;color:inherit;cursor:pointer"><i class="ti ti-chevron-left"></i></button>
           <button data-el="next" style="border:none;background:none;color:inherit;cursor:pointer"><i class="ti ti-chevron-right"></i></button>
         </div>
       </div>
-      <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:18px">
-        <span style="font-size:15px;color:var(--faint);margin-bottom:5px">NT$</span>
+      <div style="display:flex;align-items:flex-end;gap:var(--space-2xs);margin-bottom:18px">
+        <span style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:5px">NT$</span>
         <span class="balance-amt">${fmtMoney(t.balance)}</span>
       </div>
       <div style="display:flex;gap:10px">
         <div style="flex:1;background:rgba(255,255,255,.08);border-radius:13px;padding:10px 13px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted2);margin-bottom:3px"><i class="ti ti-arrow-down-left" style="color:#5fb98a"></i>收入</div>
-          <div class="mono" style="font-size:16px;color:#7fd0a3">${fmtMoney(t.income)}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:var(--text-base);color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-down-left" style="color:#C0F2DA"></i>收入</div>
+          <div class="mono" style="font-size:var(--text-lg);color:#C0F2DA">${fmtMoney(t.income)}</div>
         </div>
         <div style="flex:1;background:rgba(255,255,255,.08);border-radius:13px;padding:10px 13px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted2);margin-bottom:3px"><i class="ti ti-arrow-up-right" style="color:#e08a85"></i>支出</div>
-          <div class="mono" style="font-size:16px;color:#eaa19c">${fmtMoney(t.expense)}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:var(--text-base);color:rgba(255,255,255,.85);margin-bottom:3px"><i class="ti ti-arrow-up-right" style="color:#FBE0DD"></i>支出</div>
+          <div class="mono" style="font-size:var(--text-lg);color:#FBE0DD">${fmtMoney(t.expense)}</div>
         </div>
       </div>
     </div>`;
@@ -133,7 +133,7 @@ export async function renderLedgerMobile(container) {
   head.querySelector('[data-el="lock"]').onclick = () => openLockPicker();
   bindLockBadge(head);
 
-  if (!items.length) { list.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:50px 0"><i class="ti ti-notebook" style="font-size:40px;color:var(--faint)"></i><div style="margin-top:10px;font-size:14px">本月尚無記錄</div></div>`; return; }
+  if (!items.length) { list.innerHTML = `<div style="text-align:center;color:var(--muted2);padding:50px 0"><i class="ti ti-notebook" style="font-size:40px;color:var(--faint)"></i><div style="margin-top:10px;font-size:var(--text-emphasis)">本月尚無記錄</div></div>`; return; }
 
   const groups = {};
   for (const r of items) (groups[r.date] = groups[r.date] || []).push(r);
@@ -142,17 +142,17 @@ export async function renderLedgerMobile(container) {
     const rows = groups[d];
     // 內部轉移不計入當日收支小計
     const sum = rows.reduce((s, r) => s + (r.type === 'income' ? r.amount : r.type === 'expense' ? -r.amount : 0), 0);
-    return `<div style="margin-bottom:20px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:0 2px">
+    return `<div style="margin-bottom:var(--space-xl)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-xs);padding:0 2px">
         <span style="font-weight:600;font-size:13px;color:var(--text3)">${d.slice(5)}</span>
-        <span class="mono" style="font-size:12px;color:var(--muted2)">${sum >= 0 ? '+' : '−'}${fmtMoney(Math.abs(sum))}</span>
+        <span class="mono" style="font-size:var(--text-base);color:var(--muted2)">${sum >= 0 ? '+' : '−'}${fmtMoney(Math.abs(sum))}</span>
       </div>
       <div class="card">${rows.map((r) => r.type === 'transfer' ? `
         <div class="list-row" data-id="${rid(r)}" style="cursor:pointer">
           ${transferIconHtml()}
           <div style="flex:1;min-width:0">
             <div style="font-weight:500;font-size:15px;color:var(--text)">內部轉移</div>
-            <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || transferLabel(r))}</div>
+            <div style="font-size:var(--text-base);color:var(--muted2)">${escapeHtml(r.description || transferLabel(r))}</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${transferLabel(r)}</span>
         </div>` : r.type === 'restricted' ? `
@@ -160,7 +160,7 @@ export async function renderLedgerMobile(container) {
           ${restrictedIconHtml()}
           <div style="flex:1;min-width:0">
             <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.description || '受限資金')}</div>
-            <div style="font-size:12px;color:var(--muted2)">已鎖住，不計入可用餘額</div>
+            <div style="font-size:var(--text-base);color:var(--muted2)">已鎖住，不計入可用餘額</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:var(--muted2)">${fmtMoney(r.amount)}</span>
         </div>` : `
@@ -168,7 +168,7 @@ export async function renderLedgerMobile(container) {
           ${catIconHtml(r.category)}
           <div style="flex:1;min-width:0">
             <div style="font-weight:500;font-size:15px;color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</div>
-            <div style="font-size:12px;color:var(--muted2)">${escapeHtml(r.description || categoryMeta(r.category).group)}</div>
+            <div style="font-size:var(--text-base);color:var(--muted2)">${escapeHtml(r.description || categoryMeta(r.category).group)}</div>
           </div>
           <span class="mono" style="font-weight:500;font-size:15px;color:${r.type === 'income' ? 'var(--income)' : 'var(--text)'}">${r.type === 'income' ? '+' : '−'}${fmtMoney(r.amount)}</span>
         </div>`).join('')}</div>
@@ -181,9 +181,9 @@ export async function renderLedgerMobile(container) {
 
 /* ============ 電腦：明細表格 ============ */
 export async function renderLedgerDesktop(container) {
-  container.innerHTML = `<div class="page" data-el="page"><div style="text-align:center;color:var(--muted2);padding:40px">載入中…</div></div>`;
+  container.innerHTML = `<div class="page" data-el="page"><div style="text-align:center;color:var(--muted2);padding:var(--space-empty-state)">載入中…</div></div>`;
   let items;
-  try { items = await load(); } catch (e) { container.querySelector('[data-el="page"]').innerHTML = `<div style="color:var(--expense);padding:40px">${escapeHtml(e.message)}</div>`; return; }
+  try { items = await load(); } catch (e) { container.querySelector('[data-el="page"]').innerHTML = `<div style="color:var(--expense);padding:var(--space-empty-state)">${escapeHtml(e.message)}</div>`; return; }
   const { label } = monthRange();
   const page = container.querySelector('[data-el="page"]');
 
@@ -209,29 +209,29 @@ export async function renderLedgerDesktop(container) {
     const arrow = (col) => table.sortBy === col ? (table.sortOrder === 'asc' ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector';
     const hasFilter = table.type !== 'all' || table.category || table.query;
     page.innerHTML = `
-      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:var(--space-2xl)">
         <div><div class="page-title">明細</div><div class="page-sub">${label} · 共 ${list.length} 筆</div></div>
         <div style="display:flex;gap:10px;align-items:center">
           <div style="display:flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:3px">
             <button class="icon-btn" data-el="prev" style="background:none"><i class="ti ti-chevron-left"></i></button>
-            <span class="mono" style="min-width:64px;text-align:center;font-size:14px;color:var(--text)">${label}</span>
+            <span class="mono" style="min-width:64px;text-align:center;font-size:var(--text-emphasis);color:var(--text)">${label}</span>
             <button class="icon-btn" data-el="next" style="background:none"><i class="ti ti-chevron-right"></i></button>
           </div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:var(--space-base);margin-bottom:18px;flex-wrap:wrap">
         <div class="segment" style="background:var(--surface);border:1px solid var(--border)">
-          ${['all', 'expense', 'income', 'transfer'].map((v) => `<button data-type="${v}" class="${table.type === v ? 'active' : ''}" style="padding:6px 16px">${v === 'all' ? '全部' : v === 'expense' ? '支出' : v === 'income' ? '收入' : '轉帳'}</button>`).join('')}
+          ${['all', 'expense', 'income', 'transfer'].map((v) => `<button data-type="${v}" class="${table.type === v ? 'active' : ''}" style="padding:var(--space-2xs) var(--space-lg)">${v === 'all' ? '全部' : v === 'expense' ? '支出' : v === 'income' ? '收入' : '轉帳'}</button>`).join('')}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;background:var(--surface);border:1px solid var(--border);border-radius:11px">
+        <div style="display:flex;align-items:center;gap:var(--space-xs);height:42px;padding:0 var(--space-base);background:var(--surface);border:1px solid var(--border);border-radius:11px">
           <i class="ti ti-category" style="color:var(--muted2)"></i>
-          <select data-el="cat" style="border:none;background:none;outline:none;font-size:14px;color:var(--text2);cursor:pointer">
+          <select data-el="cat" style="border:none;background:none;outline:none;font-size:var(--text-emphasis);color:var(--text2);cursor:pointer">
             ${catOpts.map((c) => `<option value="${escapeHtml(c)}" ${table.category === c ? 'selected' : ''}>${c || '全部分類'}</option>`).join('')}
           </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 13px;background:var(--surface);border:1px solid var(--border);border-radius:11px;flex:1;min-width:200px;max-width:320px">
+        <div style="display:flex;align-items:center;gap:var(--space-xs);height:42px;padding:0 13px;background:var(--surface);border:1px solid var(--border);border-radius:11px;flex:1;min-width:200px;max-width:320px">
           <i class="ti ti-search" style="color:var(--muted2)"></i>
-          <input data-el="q" value="${escapeHtml(table.query)}" placeholder="搜尋備註或分類…" style="border:none;background:none;outline:none;font-size:14px;color:var(--text);width:100%">
+          <input data-el="q" value="${escapeHtml(table.query)}" placeholder="搜尋備註或分類…" style="border:none;background:none;outline:none;font-size:var(--text-emphasis);color:var(--text);width:100%">
         </div>
         ${hasFilter ? '<button data-el="clear" class="link" style="color:var(--muted)"><i class="ti ti-x"></i> 清除</button>' : ''}
         <div style="margin-left:auto;display:flex;gap:18px;font-size:13px;color:var(--muted2)">
@@ -240,35 +240,35 @@ export async function renderLedgerDesktop(container) {
         </div>
       </div>
       <div class="card" style="overflow:hidden">
-        <div style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border);background:var(--fill)">
-          <button data-sort="date" style="display:flex;align-items:center;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:12px;color:var(--muted)">日期<i class="ti ${arrow('date')}"></i></button>
-          <span style="font-weight:600;font-size:12px;color:var(--muted)">分類</span>
-          <span style="font-weight:600;font-size:12px;color:var(--muted)">備註</span>
-          <span style="font-weight:600;font-size:12px;color:var(--muted)">類型</span>
-          <button data-sort="amount" style="display:flex;align-items:center;justify-content:flex-end;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:12px;color:var(--muted)">金額<i class="ti ${arrow('amount')}"></i></button>
+        <div style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:var(--space-lg);align-items:center;padding:13px var(--space-xl);border-bottom:1px solid var(--border);background:var(--fill)">
+          <button data-sort="date" style="display:flex;align-items:center;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:var(--text-base);color:var(--muted)">日期<i class="ti ${arrow('date')}"></i></button>
+          <span style="font-weight:600;font-size:var(--text-base);color:var(--muted)">分類</span>
+          <span style="font-weight:600;font-size:var(--text-base);color:var(--muted)">備註</span>
+          <span style="font-weight:600;font-size:var(--text-base);color:var(--muted)">類型</span>
+          <button data-sort="amount" style="display:flex;align-items:center;justify-content:flex-end;gap:5px;border:none;background:none;cursor:pointer;font-weight:600;font-size:var(--text-base);color:var(--muted)">金額<i class="ti ${arrow('amount')}"></i></button>
         </div>
         ${list.length ? list.map((r) => r.type === 'transfer' ? `
-          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
+          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:var(--space-lg);cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${transferIconHtml(30)}<span style="font-size:14px;color:var(--text)">${transferLabel(r)}</span></div>
-            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
-            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">轉帳</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${transferIconHtml(30)}<span style="font-size:var(--text-emphasis);color:var(--text)">${transferLabel(r)}</span></div>
+            <div style="font-size:var(--text-emphasis);color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
+            <div><span style="font-size:var(--text-base);padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">轉帳</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
           </div>` : r.type === 'restricted' ? `
-          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
+          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:var(--space-lg);cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${restrictedIconHtml(30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.description || '受限資金')}</span></div>
-            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">已鎖住，不計入可用餘額</div>
-            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">受限</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${restrictedIconHtml(30)}<span style="font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(r.description || '受限資金')}</span></div>
+            <div style="font-size:var(--text-emphasis);color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">已鎖住，不計入可用餘額</div>
+            <div><span style="font-size:var(--text-base);padding:2px 9px;border-radius:999px;background:var(--fill);color:var(--muted2)">受限</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:var(--muted2)">${fmtMoney(r.amount)}</div>
           </div>` : `
-          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:16px;cursor:pointer">
+          <div class="list-row" data-id="${rid(r)}" style="display:grid;grid-template-columns:130px 180px 1fr 90px 150px;gap:var(--space-lg);cursor:pointer">
             <div class="mono" style="font-size:13px;color:var(--text2)">${r.date}</div>
-            <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:14px;color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</span></div>
-            <div style="font-size:14px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
-            <div><span style="font-size:12px;padding:2px 9px;border-radius:999px;background:${r.type === 'income' ? 'var(--income-soft)' : 'var(--expense-soft)'};color:${r.type === 'income' ? 'var(--income)' : 'var(--expense)'}">${r.type === 'income' ? '收入' : '支出'}</span></div>
+            <div style="display:flex;align-items:center;gap:10px">${catIconHtml(r.category, 30)}<span style="font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(r.category)}${pendingBadge(r)}</span></div>
+            <div style="font-size:var(--text-emphasis);color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.description || '')}</div>
+            <div><span style="font-size:var(--text-base);padding:2px 9px;border-radius:999px;background:${r.type === 'income' ? 'var(--income-soft)' : 'var(--expense-soft)'};color:${r.type === 'income' ? 'var(--income)' : 'var(--expense)'}">${r.type === 'income' ? '收入' : '支出'}</span></div>
             <div class="mono" style="text-align:right;font-weight:500;color:${r.type === 'income' ? 'var(--income)' : 'var(--text)'}">${r.type === 'income' ? '+' : '−'}${fmtMoney(r.amount)}</div>
-          </div>`).join('') : '<div style="text-align:center;color:var(--muted2);padding:40px">沒有符合條件的記錄</div>'}
+          </div>`).join('') : '<div style="text-align:center;color:var(--muted2);padding:var(--space-empty-state)">沒有符合條件的記錄</div>'}
       </div>`;
 
     page.querySelector('[data-el="prev"]').onclick = () => shiftMonth(-1);
@@ -304,30 +304,30 @@ function openEditIncomeExpense(record) {
   const initialLocation = record.location || null;
   ov.innerHTML = `
     <div class="sheet">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
         <span style="font-weight:600;font-size:17px;color:var(--text)">編輯記錄</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
-      <div class="segment" data-el="type" style="margin-bottom:14px">
+      <div class="segment" data-el="type" style="margin-bottom:var(--space-emphasis)">
         <button data-t="expense" class="${record.type === 'expense' ? 'active' : ''}">支出</button>
         <button data-t="income" class="${record.type === 'income' ? 'active' : ''}">收入</button>
       </div>
       <label style="font-size:13px;color:var(--muted2)">金額</label>
-      <input data-el="amount" type="number" class="field mono" style="margin:6px 0 14px;font-size:18px" value="${record.amount}">
+      <input data-el="amount" type="number" class="field mono" style="margin:var(--space-2xs) 0 var(--space-emphasis);font-size:18px" value="${record.amount}">
       <label style="font-size:13px;color:var(--muted2)">分類</label>
-      <select data-el="category" class="field" style="margin:6px 0 14px">${leaves.map((l) => `<option ${l === record.category ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>
+      <select data-el="category" class="field" style="margin:var(--space-2xs) 0 var(--space-emphasis)">${leaves.map((l) => `<option ${l === record.category ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>
       <label style="font-size:13px;color:var(--muted2)">錢包</label>
-      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletChipsHtml(record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id)}</div>
+      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-emphasis)">${walletChipsHtml(record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id)}</div>
       <div data-el="locationWrap" class="${record.type === 'income' ? '' : 'hidden'}">
         <label style="font-size:13px;color:var(--muted2)">位置</label>
-        <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${locationChipsHtml(initialLocation)}</div>
+        <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-emphasis)">${locationChipsHtml(initialLocation)}</div>
       </div>
       <label style="font-size:13px;color:var(--muted2)">日期</label>
-      <input data-el="date" type="date" class="field" style="margin:6px 0 14px" value="${record.date}">
+      <input data-el="date" type="date" class="field" style="margin:var(--space-2xs) 0 var(--space-emphasis)" value="${record.date}">
       <label style="font-size:13px;color:var(--muted2)">備註</label>
-      <input data-el="note" class="field" style="margin:6px 0 18px" value="${escapeHtml(record.description || '')}">
+      <input data-el="note" class="field" style="margin:var(--space-2xs) 0 18px" value="${escapeHtml(record.description || '')}">
       <label style="font-size:13px;color:var(--muted2)">照片</label>
-      <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px"></div>
+      <div data-el="photoArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 18px"></div>
       <div style="display:flex;gap:10px">
         <button data-el="del" class="btn-primary" style="flex-shrink:0;background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-trash"></i></button>
         <button data-el="save" class="btn-primary" style="flex:1">儲存</button>
@@ -345,11 +345,11 @@ function openEditIncomeExpense(record) {
   let photos = record._pending ? [] : (record.photos || []).map((p) => ({ ...p, url: null }));
   function cleanupPhotoUrls() { photos.forEach((p) => { if (p.url) URL.revokeObjectURL(p.url); }); }
   function photoAreaHtml() {
-    if (record._pending) return '<div style="font-size:12px;color:var(--faint)">待同步後才能管理照片</div>';
+    if (record._pending) return '<div style="font-size:var(--text-base);color:var(--faint)">待同步後才能管理照片</div>';
     const thumbs = photos.map((p) => {
       const canRemove = p._pending || isOnline();
       const removeBtn = canRemove
-        ? `<button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:12px"></i></button>`
+        ? `<button data-photo-remove="${p.id}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:var(--text-base)"></i></button>`
         : '';
       const badge = p._pending
         ? `<span style="position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:9px;line-height:14px;background:rgba(0,0,0,.55);color:#fff">待同步</span>`
@@ -363,7 +363,7 @@ function openEditIncomeExpense(record) {
     }).join('');
     // 新增一律開放（離線會排隊，不是被擋下）；只有刪除受限於是否連線。
     const addBtn = `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
-          <i class="ti ti-camera-plus" style="font-size:20px"></i>
+          <i class="ti ti-camera-plus" style="font-size:var(--text-xl)"></i>
           <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
         </label>`;
     return thumbs + addBtn;
@@ -522,23 +522,23 @@ function openEditTransfer(record) {
   const initialWalletId = record.wallet_id && record.wallet_id.$oid ? record.wallet_id.$oid : record.wallet_id;
   ov.innerHTML = `
     <div class="sheet">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
         <span style="font-weight:600;font-size:17px;color:var(--text)">編輯內部轉移</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:12px;padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
+      <div style="display:flex;align-items:center;gap:var(--space-xs);background:var(--fill);border-radius:var(--radius-md);padding:11px 13px;margin-bottom:var(--space-lg);color:var(--muted2);font-size:13px">
         <i class="ti ti-lock"></i> 轉移方向建立後無法修改，如需更改請刪除後重新記錄
       </div>
       <label style="font-size:13px;color:var(--muted2)">方向</label>
-      <div style="margin:6px 0 14px;font-weight:600;font-size:15px;color:var(--text)">${transferLabel(record)}</div>
+      <div style="margin:var(--space-2xs) 0 var(--space-emphasis);font-weight:600;font-size:15px;color:var(--text)">${transferLabel(record)}</div>
       <label style="font-size:13px;color:var(--muted2)">帳戶</label>
-      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletOnlyChipsHtml(initialWalletId)}</div>
+      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-emphasis)">${walletOnlyChipsHtml(initialWalletId)}</div>
       <label style="font-size:13px;color:var(--muted2)">金額</label>
-      <input data-el="amount" type="number" class="field mono" style="margin:6px 0 14px;font-size:18px" value="${record.amount}">
+      <input data-el="amount" type="number" class="field mono" style="margin:var(--space-2xs) 0 var(--space-emphasis);font-size:18px" value="${record.amount}">
       <label style="font-size:13px;color:var(--muted2)">日期</label>
-      <input data-el="date" type="date" class="field" style="margin:6px 0 14px" value="${record.date}">
+      <input data-el="date" type="date" class="field" style="margin:var(--space-2xs) 0 var(--space-emphasis)" value="${record.date}">
       <label style="font-size:13px;color:var(--muted2)">備註</label>
-      <input data-el="note" class="field" style="margin:6px 0 18px" value="${escapeHtml(record.description || '')}">
+      <input data-el="note" class="field" style="margin:var(--space-2xs) 0 18px" value="${escapeHtml(record.description || '')}">
       <div style="display:flex;gap:10px">
         <button data-el="del" class="btn-primary" style="flex-shrink:0;background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-trash"></i></button>
         <button data-el="save" class="btn-primary" style="flex:1">儲存</button>
@@ -587,21 +587,21 @@ function openEditRestricted(record) {
   const initialLocation = record.location || null;
   ov.innerHTML = `
     <div class="sheet">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-lock" style="margin-right:6px;color:var(--muted2)"></i>受限資金</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-lg)">
+        <span style="font-weight:600;font-size:17px;color:var(--text)"><i class="ti ti-lock" style="margin-right:var(--space-2xs);color:var(--muted2)"></i>受限資金</span>
         <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:12px;padding:11px 13px;margin-bottom:16px;color:var(--muted2);font-size:13px">
+      <div style="display:flex;align-items:center;gap:var(--space-xs);background:var(--fill);border-radius:var(--radius-md);padding:11px 13px;margin-bottom:var(--space-lg);color:var(--muted2);font-size:13px">
         <i class="ti ti-info-circle"></i> 已鎖住，不計入可用餘額；解鎖請至「設定 → 錢包管理」操作
       </div>
       <label style="font-size:13px;color:var(--muted2)">金額</label>
-      <input data-el="amount" type="number" class="field mono" style="margin:6px 0 14px;font-size:18px" value="${record.amount}">
+      <input data-el="amount" type="number" class="field mono" style="margin:var(--space-2xs) 0 var(--space-emphasis);font-size:18px" value="${record.amount}">
       <label style="font-size:13px;color:var(--muted2)">帳戶</label>
-      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${walletChipsHtml(initialWalletId)}</div>
+      <div data-el="walletArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-emphasis)">${walletChipsHtml(initialWalletId)}</div>
       <label style="font-size:13px;color:var(--muted2)">位置</label>
-      <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px">${locationChipsHtml(initialLocation)}</div>
+      <div data-el="locationArea" style="display:flex;flex-wrap:wrap;gap:var(--space-xs);margin:var(--space-2xs) 0 var(--space-emphasis)">${locationChipsHtml(initialLocation)}</div>
       <label style="font-size:13px;color:var(--muted2)">用途</label>
-      <input data-el="note" class="field" style="margin:6px 0 18px" value="${escapeHtml(record.description || '')}">
+      <input data-el="note" class="field" style="margin:var(--space-2xs) 0 18px" value="${escapeHtml(record.description || '')}">
       <div style="display:flex;gap:10px">
         <button data-el="del" class="btn-primary" style="flex-shrink:0;background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-trash"></i></button>
         <button data-el="save" class="btn-primary" style="flex:1">儲存</button>

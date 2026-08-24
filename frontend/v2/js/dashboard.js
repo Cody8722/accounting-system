@@ -64,7 +64,7 @@ function sparkInner(pts, labels) {
 }
 
 function txRowsInner(records) {
-  if (!records.length) return '<div style="text-align:center;color:var(--muted2);padding:24px 0">本月尚無記錄</div>';
+  if (!records.length) return '<div style="text-align:center;color:var(--muted2);padding:var(--space-2xl) 0">本月尚無記錄</div>';
   return records.slice(0, 5).map((r, i) => {
     const sub = `${escapeHtml(r.date)}${r.description ? ' · ' + escapeHtml(r.description) : ''}`;
     if (r.type === 'transfer') {
@@ -100,7 +100,7 @@ function budgetInner(budget, spentMap, totalExpense) {
   const totalHtml = `<div class="bud-total"><span class="big mono">${fmtMoney(totalSpent)} <span style="font-size:13px;color:var(--faint)">/ ${fmtMoney(totalBudget)}</span></span><span style="font-size:12.5px;color:${left >= 0 ? 'var(--muted2)' : 'var(--expense)'}">${totalBudget === 0 ? '未設定' : (left >= 0 ? `剩 ${fmtMoney(left)}` : `超支 ${fmtMoney(-left)}`)}</span></div>
     <div class="track"><i style="width:${pct}%;background:${left >= 0 ? 'var(--accent)' : 'var(--expense)'}"></i></div>`;
   const rowsHtml = totalBudget === 0
-    ? '<div id="budRows" class="thumb-hide" style="text-align:center;color:var(--muted2);padding:16px 0">尚未設定預算</div>'
+    ? '<div id="budRows" class="thumb-hide" style="text-align:center;color:var(--muted2);padding:var(--space-lg) 0">尚未設定預算</div>'
     : `<div id="budRows" class="thumb-hide">${top.map((x) => budRow(x.c, x.b, x.s)).join('')}</div>`;
   return totalHtml + rowsHtml;
 }
@@ -199,7 +199,7 @@ export async function renderDashboardDesktop(container) {
   try {
     data = await fetchAll();
   } catch (e) {
-    container.innerHTML = `<div class="pindash"><div class="top"><div><h1>概覽</h1></div></div><div style="padding:40px;color:var(--expense)">${escapeHtml(e.message)}</div></div>`;
+    container.innerHTML = `<div class="pindash"><div class="top"><div><h1>概覽</h1></div></div><div style="padding:var(--space-empty-state);color:var(--expense)">${escapeHtml(e.message)}</div></div>`;
     return;
   }
 

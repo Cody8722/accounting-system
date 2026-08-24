@@ -6,6 +6,37 @@
 
 ---
 
+## [1.0.0] - 2026-08-22
+
+> ⚠️ **版號規則變更**：`[1.7.1]` 以前的版號對應的是舊版前端（`frontend/js-refactored/`）自己的 `CACHE_NAME`/`APP_VERSION`，每次前端改動就升版一次。舊版前端已在這之後整個換成 `frontend/v2/`，前端版號另外走 `frontend/v2/js/version.js` 的 `APP_VERSION`（目前 1.13.0+，只給使用者看「已更新」提示，不對應這份 CHANGELOG）。**從這個版本開始，這份 CHANGELOG 改為記錄專案整體的 `release` 分支發版**，版號對應 Git tag（`v1.0.0` 起），只在 `develop → release` 合併時才會新增一筆——這是版號「跳號」（1.7.1 之後直接是 1.0.0）的原因，不是打錯。
+
+前端從 `js-refactored/` 整個重構為 `frontend/v2/`（單頁殼層 + ES Modules，手機/電腦響應式），並在其上新增以下主要功能，一路累積到這次正式發版：
+
+### ✨ Added
+
+- **電腦版儀表板**：概覽釘選式互動、預算桌面版雙欄
+- **資金錢包分離**：帳目與錢包餘額脫鉤，新增 `wallets` 集合；擴充帳戶×位置（銀行/現金）雙維度、流動性（受限資金）維度、內部轉移、資金流向樹視覺化
+- **PWA 離線功能**：離線登入與瀏覽（Phase 1）、離線寫入佇列與回連自動同步（Phase 2，含 `client_id` 冪等去重）
+- **輕量更新檢查**：`GET /admin/api/accounting/data-version` 資料版本簽章端點 + 前端閘門，避免多裝置間顯示過期資料
+- **記帳照片**：拍照/選圖上傳（前端壓縮）、記一筆附加、明細事後補充與刪除、離線相片佇列同步、跨記錄照片瀏覽介面
+- **新版本提示**：Service Worker 更新後跳出「已更新」說明 Toast
+
+### 🔄 Changed
+
+- 前端整體架構由 `frontend/js-refactored/`（多模組、`<script>` 標籤序列載入）改為 `frontend/v2/`（ES Modules，`import` 為主，無 build step）
+- E2E 測試套件同步改版：`frontend/tests/e2e/` 下新增 `v2/` 子目錄，舊版 `records.spec.js`/`budget-stats.spec.js`/`settings.spec.js` 由 `auth.spec.js`/`core.spec.js`/`dataVersion.spec.js`/`offline.spec.js` 取代
+- 前端單元測試改用 Node 內建 `node --test`（非 Jest）
+
+### 🐛 Fixed
+
+- `/health` 端點豁免全域限速，避免監控輪詢被誤判
+- 錢包餘額端點對舊資料的 `KeyError` 500 錯誤
+- CORS 未帶 Origin 時不再 fallback 到清單內任一網址
+- 登出未清除離線佇列/快取，避免同裝置換帳號時資料互相污染；匯出端點 CORS 政策統一
+- 刪除記帳記錄時，附加照片檔案未從磁碟一併清除，留下孤兒檔案
+
+---
+
 ## [1.7.1] - 2026-03-15
 
 ### ✨ Added

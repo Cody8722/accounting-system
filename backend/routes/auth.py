@@ -264,6 +264,9 @@ def login():
                             if user.get("created_at")
                             else None
                         ),
+                        "requires_password_change": user.get(
+                            "requires_password_change", False
+                        ),
                     },
                 }
             ),
@@ -295,6 +298,9 @@ def verify_token():
                         "id": str(user["_id"]),
                         "email": user["email"],
                         "name": user.get("name", ""),
+                        "requires_password_change": user.get(
+                            "requires_password_change", False
+                        ),
                     },
                 }
             ),
