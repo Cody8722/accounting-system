@@ -172,7 +172,7 @@ input, select, textarea { font-family:inherit; }
 }
 .desktop-main { flex:1; overflow-y:auto; }
 .page { padding:30px 36px; max-width:1120px; margin:0 auto; }
-.page-title { font-family:var(--font-heading); font-weight:700; font-size:27px; color:var(--text); }
+.page-title { font-weight:700; font-size:27px; color:var(--text); }
 .page-sub { font-size:13px; color:var(--muted2); margin-top:3px; }
 
 /* ===== 電腦版概覽儀表板（釘選式，Claude Design 打磨定案）=====
@@ -180,7 +180,7 @@ input, select, textarea { font-family:inherit; }
    動畫邏輯見 js/pin.js；原型見 prototypes/pin-dashboard-prototype.html。 */
 .pindash { height:100%; max-width:1180px; margin:0 auto; padding:var(--space-lg) 30px 18px; display:flex; flex-direction:column; }
 .pindash .top { display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-lg); flex-shrink:0; margin-bottom:13px; }
-.pindash h1 { font-family:var(--font-heading); font-size:21px; font-weight:700; margin:0; letter-spacing:-.4px; color:var(--text); }
+.pindash h1 { font-size:21px; font-weight:700; margin:0; letter-spacing:-.4px; color:var(--text); }
 .pindash .sub { color:var(--muted2); font-size:12.5px; margin-top:3px; max-height:40px; opacity:1; overflow:hidden; }
 .pindash .sub b { color:var(--accent); font-weight:500; }
 .pindash.compact .top { margin-bottom:var(--space-2xs); }
@@ -387,7 +387,7 @@ input, select, textarea { font-family:inherit; }
 /* 登入 */
 .auth-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:var(--space-xl); background:var(--bg); }
 .auth-card { width:100%; max-width:380px; background:var(--surface); border:2px solid var(--border); border-radius:22px; padding:var(--space-3xl) var(--space-2xl); }
-.auth-title { font-family:var(--font-heading); font-weight:700; font-size:22px; color:var(--text); text-align:center; margin-bottom:var(--space-3xs); }
+.auth-title { font-weight:700; font-size:22px; color:var(--text); text-align:center; margin-bottom:var(--space-3xs); }
 .auth-sub { font-size:13px; color:var(--muted2); text-align:center; margin-bottom:22px; }
 .auth-field { width:100%; height:46px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--fill); padding:0 var(--space-emphasis); font-size:15px; color:var(--text); outline:none; margin-bottom:var(--space-base); }
 .auth-field:focus { border-color:var(--accent); }
