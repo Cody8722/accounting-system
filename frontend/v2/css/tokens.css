@@ -34,7 +34,7 @@
   --accent:#1f6feb; --income:#3f8f66; --expense:#b15c58;
   --font:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
   --font-heading:'Noto Serif TC',serif;
-  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --mono:'Source Serif 4',serif;
   /* Cody Design System：有機感 ease-out 曲線，動畫統一用這個（140-320ms） */
   --ease-organic:cubic-bezier(0.22,1,0.36,1);
 
@@ -80,7 +80,7 @@ body {
 [data-theme] * { transition:background-color .25s ease, border-color .25s ease, color .25s ease; }
 button { font-family:inherit; }
 input, select, textarea { font-family:inherit; }
-.mono { font-family:var(--mono); }
+.mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
 .noscroll::-webkit-scrollbar { display:none; }
 .noscroll { scrollbar-width:none; }
 .hidden { display:none !important; }
@@ -312,7 +312,7 @@ input, select, textarea { font-family:inherit; }
 
 /* 大金額卡（帳本結餘） */
 .balance-card { background:var(--balance-bg); border-radius:22px; padding:var(--space-xl) 22px; color:#fff; }
-.balance-amt { font-family:var(--mono); font-weight:500; font-size:40px; letter-spacing:-1px; line-height:1; }
+.balance-amt { font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:500; font-size:40px; letter-spacing:-1px; line-height:1; }
 
 /* 錢包餘額摘要條（帳本頁，橫向捲動） */
 .wallet-strip { display:flex; gap:10px; overflow-x:auto; padding:2px 2px var(--space-3xs); }
@@ -361,7 +361,7 @@ input, select, textarea { font-family:inherit; }
 .keypad { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-xs); }
 .keypad button {
   height:52px; border:none; border-radius:13px; background:var(--fill); color:var(--text);
-  font-family:var(--mono); font-size:var(--text-xl); font-weight:500; cursor:pointer;
+  font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:var(--text-xl); font-weight:500; cursor:pointer;
 }
 .keypad button.op { color:var(--accent); }
 .keypad button.save { background:var(--accent); color:#fff; grid-row:span 2; height:auto; font-family:var(--font); font-weight:600; }
@@ -382,7 +382,7 @@ input, select, textarea { font-family:inherit; }
 .field:focus { border-color:var(--accent); }
 .stepper { display:flex; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
 .stepper button { width:40px; height:42px; border:none; background:var(--fill); cursor:pointer; color:var(--text3); display:flex; align-items:center; justify-content:center; }
-.stepper .val { font-family:var(--mono); font-weight:500; font-size:17px; min-width:36px; text-align:center; color:var(--text); }
+.stepper .val { font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:500; font-size:17px; min-width:36px; text-align:center; color:var(--text); }
 
 /* 登入 */
 .auth-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:var(--space-xl); background:var(--bg); }

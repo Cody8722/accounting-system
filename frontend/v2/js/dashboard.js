@@ -54,7 +54,7 @@ function sparkInner(pts, labels) {
   const ys = pts.map((v) => 12 + plotH - v / max * plotH);
   let d = ''; xs.forEach((x, i) => { d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${ys[i].toFixed(1)} `; });
   const area = `${d} L${xs[xs.length - 1].toFixed(1)} ${12 + plotH} L${xs[0].toFixed(1)} ${12 + plotH} Z`;
-  const lab = xs.map((x, i) => `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--muted2)" font-family="var(--mono)">${escapeHtml((labels[i] || '').slice(-2))}</text>`).join('');
+  const lab = xs.map((x, i) => `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--muted2)" font-family="var(--mono)" font-variant-numeric="tabular-nums">${escapeHtml((labels[i] || '').slice(-2))}</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <path d="${area}" fill="var(--expense)" opacity="0.10"/>
     <path d="${d}" fill="none" stroke="var(--expense)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
