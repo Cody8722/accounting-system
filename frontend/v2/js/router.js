@@ -6,6 +6,7 @@
 
 import { state, on, emit } from './store.js';
 import { getUserData } from './api.js';
+import { DESKTOP_BREAKPOINT } from './config.js';
 import { escapeHtml } from './utils.js';
 import { themeToggleIcon, cycleTheme } from './theme.js';
 import { openAdd, closeAdd } from './add.js';
@@ -28,7 +29,7 @@ const NAV = [
 let root = null;
 let mode = null; // 'mobile' | 'desktop'
 
-function currentMode() { return window.innerWidth >= 900 ? 'desktop' : 'mobile'; }
+function currentMode() { return window.innerWidth >= DESKTOP_BREAKPOINT ? 'desktop' : 'mobile'; }
 
 const RENDERERS = {
   mobile: { ledger: renderLedgerMobile, stats: renderStatsMobile, budget: renderBudgetMobile, settings: renderSettingsMobile },
