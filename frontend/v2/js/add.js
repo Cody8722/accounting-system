@@ -10,7 +10,7 @@
  */
 
 import { apiJson } from './api.js';
-import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta } from './config.js';
+import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta, DESKTOP_BREAKPOINT } from './config.js';
 import { showToast, showConfirm, todayStr, escapeHtml } from './utils.js';
 import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
@@ -640,7 +640,7 @@ function buildDesktop() {
 /** 開啟記一筆（依視窗寬度選外殼） */
 export function openAdd(initialType = 'expense') {
   if (host) return;
-  mode = window.innerWidth >= 900 ? 'desktop' : 'mobile';
+  mode = window.innerWidth >= DESKTOP_BREAKPOINT ? 'desktop' : 'mobile';
   type = initialType; category = ''; walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
   splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
   acc = null; op = null; buf = '';

@@ -138,7 +138,7 @@ function donutCardHtml(segs, totalExp) {
   const legend = segs.slice(0, 5).map((s) => `<div class="row"><span class="dot" style="background:${s.color}"></span><span class="n">${escapeHtml(s.label)}</span><span class="v mono">${Math.round(s.pct)}%</span></div>`).join('')
     || '<div class="row" style="color:var(--muted2)">本月尚無支出</div>';
   return `<article class="card" data-id="donut" tabindex="0" role="button" aria-pressed="false">
-    ${cheadHtml('var(--c1, #7d6fe0)', '分類佔比')}
+    ${cheadHtml('var(--cat-housing)', '分類佔比')}
     <div class="cbody">
       <div class="donut-wrap skel-target">
         <div class="donut">${donutInner(segs, totalExp)}</div>

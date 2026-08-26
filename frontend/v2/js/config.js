@@ -59,6 +59,13 @@ export function isDevelopment() {
 }
 
 /**
+ * 手機/電腦版外殼切換的響應式斷點（px），router.js/add.js 共用同一份。
+ * CSS 端 tokens.css 的 `@media (min-width:900px)`（桌面版彈窗置中）需與此保持一致——
+ * 專案無 build step，CSS 媒體查詢無法讀取 JS 常數，兩邊只能手動同步，改動時留意。
+ */
+export const DESKTOP_BREAKPOINT = 900;
+
+/**
  * 分類代表色——數值需與 frontend/v2/css/tokens.css 的 --cat-* 變數保持一致（同一份色票，
  * 兩處各存一份）。無法讓這裡直接讀 CSS 變數：CATEGORY_TREE 是模組載入當下同步建構的頂層
  * 常數，而 config.js 需要能在 Node 單元測試（無 DOM、無 window/document）環境下安全
