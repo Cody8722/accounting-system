@@ -6,6 +6,21 @@
 
 ---
 
+## [1.0.1] - 2026-08-24
+
+### 🔄 Changed
+
+- 帳本結餘卡背景改用專屬 `--balance-bg` token（新藍底），取代語意不一致的 `--ink`，並重新核算文字色 WCAG 對比
+- 10 個分類代表色從純 JS 常數升級為 `tokens.css` 的 `--cat-*` CSS 變數（`config.js` 保留具名常數並以註解交叉標註）
+- 新增圓角／字級／間距 scale token 定義，並將程式碼中「完全命中」新 scale 的既有字面值改用 `var(--token)`（Phase 1+2，純內部重構，無視覺變化）
+- 全面更新說明文件，反映 v2 前端與資金錢包/照片/流向樹等現況
+
+### 🐛 Fixed
+
+- `requires_password_change` 旗標未真正串接進執行路徑，修改密碼強制流程可被繞過
+
+---
+
 ## [1.0.0] - 2026-08-22
 
 > ⚠️ **版號規則變更**：`[1.7.1]` 以前的版號對應的是舊版前端（`frontend/js-refactored/`）自己的 `CACHE_NAME`/`APP_VERSION`，每次前端改動就升版一次。舊版前端已在這之後整個換成 `frontend/v2/`，前端版號另外走 `frontend/v2/js/version.js` 的 `APP_VERSION`（目前 1.13.0+，只給使用者看「已更新」提示，不對應這份 CHANGELOG）。**從這個版本開始，這份 CHANGELOG 改為記錄專案整體的 `release` 分支發版**，版號對應 Git tag（`v1.0.0` 起），只在 `develop → release` 合併時才會新增一筆——這是版號「跳號」（1.7.1 之後直接是 1.0.0）的原因，不是打錯。

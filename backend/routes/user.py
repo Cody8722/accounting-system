@@ -134,8 +134,11 @@ def change_password():
         if not user:
             return jsonify({"error": "用戶不存在"}), 404
 
+        # 故意回 400 而非 401：前端 api.js 對「任何」401 一律當成 JWT 過期，
+        # 會清掉 token 並強制登出。舊密碼打錯是驗證失敗、不是憑證過期，混用
+        # 401 會讓使用者只是打錯一次舊密碼就被無預警登出。
         if not auth.verify_password(old_password, user["password_hash"]):
-            return jsonify({"error": "舊密碼錯誤"}), 401
+            return jsonify({"error": "舊密碼錯誤"}), 400
 
         is_valid, message = auth.validate_password_strength(
             new_password, email=user.get("email", ""), name=user.get("name", "")

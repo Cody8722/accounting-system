@@ -33,7 +33,8 @@
 :root {
   --accent:#1f6feb; --income:#3f8f66; --expense:#b15c58;
   --font:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;
-  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --font-heading:'Noto Serif TC',serif;
+  --mono:'Source Serif 4',serif;
   /* Cody Design System：有機感 ease-out 曲線，動畫統一用這個（140-320ms） */
   --ease-organic:cubic-bezier(0.22,1,0.36,1);
 
@@ -79,7 +80,7 @@ body {
 [data-theme] * { transition:background-color .25s ease, border-color .25s ease, color .25s ease; }
 button { font-family:inherit; }
 input, select, textarea { font-family:inherit; }
-.mono { font-family:var(--mono); }
+.mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
 .noscroll::-webkit-scrollbar { display:none; }
 .noscroll { scrollbar-width:none; }
 .hidden { display:none !important; }
@@ -145,7 +146,7 @@ input, select, textarea { font-family:inherit; }
   display:flex; align-items:center; justify-content:center;
 }
 .sidebar .brand-badge i { font-size:21px; }
-.sidebar .brand-name { font-weight:700; font-size:19px; color:var(--text); }
+.sidebar .brand-name { font-family:var(--font-heading); font-weight:700; font-size:19px; color:var(--text); }
 .btn-primary {
   display:flex; align-items:center; justify-content:center; gap:var(--space-xs);
   height:46px; border:none; border-radius:13px; background:var(--accent); color:#fff;
@@ -311,7 +312,7 @@ input, select, textarea { font-family:inherit; }
 
 /* 大金額卡（帳本結餘） */
 .balance-card { background:var(--balance-bg); border-radius:22px; padding:var(--space-xl) 22px; color:#fff; }
-.balance-amt { font-family:var(--mono); font-weight:500; font-size:40px; letter-spacing:-1px; line-height:1; }
+.balance-amt { font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:500; font-size:40px; letter-spacing:-1px; line-height:1; }
 
 /* 錢包餘額摘要條（帳本頁，橫向捲動） */
 .wallet-strip { display:flex; gap:10px; overflow-x:auto; padding:2px 2px var(--space-3xs); }
@@ -323,14 +324,6 @@ input, select, textarea { font-family:inherit; }
 /* 進度條 */
 .track { height:8px; border-radius:5px; background:var(--fill); overflow:hidden; }
 .track .bar { height:100%; border-radius:5px; background:var(--accent); }
-
-/* toast（沿用 utils showToast，另備 App 內底部 toast） */
-.app-toast {
-  position:absolute; left:50%; bottom:110px; transform:translateX(-50%);
-  background:var(--ink); color:#fff; font-size:13px; padding:9px var(--space-lg); border-radius:999px;
-  white-space:nowrap; box-shadow:0 6px 22px rgba(0,0,0,.28);
-  display:flex; align-items:center; gap:7px; z-index:60;
-}
 
 /* modal / bottom sheet */
 .overlay {
@@ -345,7 +338,9 @@ input, select, textarea { font-family:inherit; }
 .sheet.dialog { border-radius:var(--radius-xl); max-width:420px; }
 /* 桌面：彈窗/子面板改為「置中對話框」，不再是手機貼底窄版 sheet。
    涵蓋所有共用 .overlay/.sheet 的次層 UI：設定各面板、分類選擇、編輯記錄、
-   預算設定、發票掃描、定期排程、確認框等。桌面版記一筆用獨立 820px 彈窗，不受影響。 */
+   預算設定、發票掃描、定期排程、確認框等。桌面版記一筆用獨立 820px 彈窗，不受影響。
+   此斷點需與 js/config.js 的 DESKTOP_BREAKPOINT 保持一致（CSS 媒體查詢無法讀取
+   JS 常數，兩邊手動同步）。 */
 @media (min-width:900px) {
   .overlay { align-items:center; padding:var(--space-xl); }
   .sheet { border-radius:var(--radius-xl); max-width:520px; max-height:82vh; }
@@ -360,7 +355,7 @@ input, select, textarea { font-family:inherit; }
 .keypad { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-xs); }
 .keypad button {
   height:52px; border:none; border-radius:13px; background:var(--fill); color:var(--text);
-  font-family:var(--mono); font-size:var(--text-xl); font-weight:500; cursor:pointer;
+  font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:var(--text-xl); font-weight:500; cursor:pointer;
 }
 .keypad button.op { color:var(--accent); }
 .keypad button.save { background:var(--accent); color:#fff; grid-row:span 2; height:auto; font-family:var(--font); font-weight:600; }
@@ -381,7 +376,7 @@ input, select, textarea { font-family:inherit; }
 .field:focus { border-color:var(--accent); }
 .stepper { display:flex; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:11px; overflow:hidden; }
 .stepper button { width:40px; height:42px; border:none; background:var(--fill); cursor:pointer; color:var(--text3); display:flex; align-items:center; justify-content:center; }
-.stepper .val { font-family:var(--mono); font-weight:500; font-size:17px; min-width:36px; text-align:center; color:var(--text); }
+.stepper .val { font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:500; font-size:17px; min-width:36px; text-align:center; color:var(--text); }
 
 /* 登入 */
 .auth-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:var(--space-xl); background:var(--bg); }

@@ -119,7 +119,7 @@ export function openInvoiceScan(onSingle) {
     stage.querySelector('[data-el="back"]').onclick = renderHome;
     stage.querySelector('[data-el="ok"]').onclick = async () => {
       const amt = parseFloat(stage.querySelector('[data-el="amt"]').value);
-      if (!amt || amt <= 0) { showToast('請輸入金額', 'warning'); return; }
+      if (!amt || amt <= 0) { showToast(amt < 0 ? '金額不可為負數' : '請輸入金額', 'warning'); return; }
       const num = stage.querySelector('[data-el="num"]').value.trim().toUpperCase();
       const date = stage.querySelector('[data-el="date"]').value || todayStr();
       if (num && await isDuplicate(num)) showToast('提醒：此發票號碼先前已記過', 'warning');

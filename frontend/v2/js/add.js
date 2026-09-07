@@ -10,13 +10,13 @@
  */
 
 import { apiJson } from './api.js';
-import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta } from './config.js';
+import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta, DESKTOP_BREAKPOINT } from './config.js';
 import { showToast, showConfirm, todayStr, escapeHtml } from './utils.js';
 import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
 import { fetchWallets, walletChipsHtml, locationChipsHtml } from './wallet.js';
 import { isOnline, enqueueOutbox, genClientId } from './offline.js';
-import { compressImage, uploadPhotos } from './photos.js';
+import { compressImage, uploadPhotos, openPhotoLightbox } from './photos.js';
 
 let host = null;          // 掛載容器（覆蓋層）
 let mode = 'mobile';      // mobile | desktop
@@ -138,7 +138,7 @@ function highlightLocation() {
 function photoAreaHtml() {
   const online = isOnline();
   const thumbs = pendingPhotos.map((p, i) => `
-    <div style="position:relative;width:56px;height:56px;flex-shrink:0">
+    <div data-photo-view="${i}" style="position:relative;width:56px;height:56px;flex-shrink:0;cursor:pointer">
       <img src="${p.url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)">
       <button data-photo-remove="${i}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:var(--text-base)"></i></button>
     </div>`).join('');
@@ -369,7 +369,7 @@ async function save() {
   const restrictedAmount = parseFloat(restrictedAmountStr);
   const hasSplit = type === 'income' && splitOpen && restrictedAmount > 0;
 
-  if (!hasSplit && (!amount || amount <= 0)) { showToast('請輸入金額', 'warning'); return; }
+  if (!hasSplit && (!amount || amount <= 0)) { showToast(amount < 0 ? '金額不可為負數' : '請輸入金額', 'warning'); return; }
   if (!category) { showToast('請選擇分類', 'warning'); return; }
   if (type === 'income' && !location) { showToast('請選擇位置', 'warning'); return; }
 
@@ -458,6 +458,7 @@ function onHostClick(e) {
   const wb = t.closest('[data-wallet]'); if (wb) { walletId = wb.dataset.wallet || null; highlightWallet(); return; }
   const lb = t.closest('[data-location]'); if (lb) { location = lb.dataset.location; highlightLocation(); return; }
   const pr = t.closest('[data-photo-remove]'); if (pr) return removePhotoAt(Number(pr.dataset.photoRemove));
+  const pv = t.closest('[data-photo-view]'); if (pv) { const p = pendingPhotos[Number(pv.dataset.photoView)]; if (p) openPhotoLightbox(p.url); return; }
   const dg = t.closest('[data-digit]'); if (dg) return pressDigit(dg.dataset.digit);
   const opb = t.closest('[data-op]'); if (opb) return pressOp(opb.dataset.op);
   if (t.closest('[data-back]')) return backspace();
@@ -640,7 +641,7 @@ function buildDesktop() {
 /** 開啟記一筆（依視窗寬度選外殼） */
 export function openAdd(initialType = 'expense') {
   if (host) return;
-  mode = window.innerWidth >= 900 ? 'desktop' : 'mobile';
+  mode = window.innerWidth >= DESKTOP_BREAKPOINT ? 'desktop' : 'mobile';
   type = initialType; category = ''; walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
   splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
   acc = null; op = null; buf = '';

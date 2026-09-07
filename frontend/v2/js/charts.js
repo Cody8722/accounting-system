@@ -107,7 +107,7 @@ export function bars(container, rows, { height = 200 } = {}) {
     const inc = svgEl('rect', { x: cxg - bw - 2, y: plot - (r.income / max) * plot, width: bw, height: (r.income / max) * plot, rx: 3, fill: 'var(--income)', style: 'transition:opacity .18s' });
     const exp = svgEl('rect', { x: cxg + 2, y: plot - (r.expense / max) * plot, width: bw, height: (r.expense / max) * plot, rx: 3, fill: 'var(--expense)', style: 'transition:opacity .18s' });
     const hit = svgEl('rect', { x: i * gw, y: 0, width: gw, height, fill: 'transparent', style: 'cursor:pointer' });
-    const lbl = svgEl('text', { x: cxg, y: height - 8, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted2)', 'font-family': 'IBM Plex Mono' });
+    const lbl = svgEl('text', { x: cxg, y: height - 8, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted2)', 'font-family': 'var(--mono)', 'font-variant-numeric': 'tabular-nums' });
     lbl.textContent = r.label.slice(-2);
     hit.addEventListener('mousemove', (e) => {
       svg.querySelectorAll('rect').forEach((el) => { if (el !== inc && el !== exp && el.getAttribute('fill') !== 'transparent') el.style.opacity = '.2'; });
@@ -146,7 +146,7 @@ export function line(container, points, { height = 190, color = 'var(--accent)' 
   const dot = svgEl('circle', { r: 4, fill: color, stroke: 'var(--surface)', 'stroke-width': 2, style: 'display:none' });
   svg.append(cross, dot);
   points.forEach((p, i) => {
-    const lbl = svgEl('text', { x: xs[i], y: height - 6, 'text-anchor': 'middle', 'font-size': 10, fill: 'var(--muted2)', 'font-family': 'IBM Plex Mono' });
+    const lbl = svgEl('text', { x: xs[i], y: height - 6, 'text-anchor': 'middle', 'font-size': 10, fill: 'var(--muted2)', 'font-family': 'var(--mono)', 'font-variant-numeric': 'tabular-nums' });
     lbl.textContent = p.label.slice(-2);
     svg.appendChild(lbl);
   });
@@ -243,7 +243,7 @@ export function flowTree(container, data) {
         'font-weight': l.kind === 'amount' ? 600 : l.kind === 'sub' ? 500 : 400,
         fill: l.color,
       };
-      if (l.kind === 'amount') attrs['font-family'] = 'IBM Plex Mono';
+      if (l.kind === 'amount') { attrs['font-family'] = 'var(--mono)'; attrs['font-variant-numeric'] = 'tabular-nums'; }
       const t = svgEl('text', attrs);
       t.textContent = l.text;
       g.appendChild(t);

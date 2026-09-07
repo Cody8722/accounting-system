@@ -54,7 +54,7 @@ function sparkInner(pts, labels) {
   const ys = pts.map((v) => 12 + plotH - v / max * plotH);
   let d = ''; xs.forEach((x, i) => { d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${ys[i].toFixed(1)} `; });
   const area = `${d} L${xs[xs.length - 1].toFixed(1)} ${12 + plotH} L${xs[0].toFixed(1)} ${12 + plotH} Z`;
-  const lab = xs.map((x, i) => `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--muted2)" font-family="var(--mono)">${escapeHtml((labels[i] || '').slice(-2))}</text>`).join('');
+  const lab = xs.map((x, i) => `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--muted2)" font-family="var(--mono)" font-variant-numeric="tabular-nums">${escapeHtml((labels[i] || '').slice(-2))}</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <path d="${area}" fill="var(--expense)" opacity="0.10"/>
     <path d="${d}" fill="none" stroke="var(--expense)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
@@ -138,7 +138,7 @@ function donutCardHtml(segs, totalExp) {
   const legend = segs.slice(0, 5).map((s) => `<div class="row"><span class="dot" style="background:${s.color}"></span><span class="n">${escapeHtml(s.label)}</span><span class="v mono">${Math.round(s.pct)}%</span></div>`).join('')
     || '<div class="row" style="color:var(--muted2)">本月尚無支出</div>';
   return `<article class="card" data-id="donut" tabindex="0" role="button" aria-pressed="false">
-    ${cheadHtml('var(--c1, #7d6fe0)', '分類佔比')}
+    ${cheadHtml('var(--cat-housing)', '分類佔比')}
     <div class="cbody">
       <div class="donut-wrap skel-target">
         <div class="donut">${donutInner(segs, totalExp)}</div>
