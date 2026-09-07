@@ -192,12 +192,13 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 
 ## release 發版必做事項
 
-每次 `develop → release` 合併後，**必須**同步做兩件事，不可只合併 PR 就結束：
+每次 `develop → release` 合併後，**必須**同步做三件事，不可只合併 PR 就結束：
 
 1. 在合併後的 `release` HEAD 打新的 SemVer git tag（`vX.Y.Z`，規則同上：Bug 修復 → PATCH+1；新功能 → MINOR+1；重大變更 → MAJOR+1）
-2. 在 `CHANGELOG.md` 新增對應版號的條目（`## [Unreleased]` 下方、上一版之上），依這次合併內容分類到 `### ✨ Added` / `### 🔄 Changed` / `### 🐛 Fixed` 等區塊
+2. 用 `gh release create vX.Y.Z --notes-file <path>` 建立對應的 **GitHub Release**（不是只有 git tag！tag 只是底層 ref，GitHub Releases 頁面是另一個獨立功能，`gh release list` 看不到 tag、只看得到 Release）。內容格式比照既有的 `v1.0.0`/`v0.9.0` Release：`## vX.Y.Z` 標題、一行摘要、`### 新功能`/`### 修正`等區塊（附對應 PR 編號）、結尾 `Full Changelog` compare 連結
+3. 在 `CHANGELOG.md` 新增對應版號的條目（`## [Unreleased]` 下方、上一版之上），依這次合併內容分類到 `### ✨ Added` / `### 🔄 Changed` / `### 🐛 Fixed` 等區塊
 
-`CHANGELOG.md` 只在 `develop → release` 合併時才新增條目（見檔案開頭說明），漏打 tag 或漏寫條目會讓版號與 `release` 實際內容對不上。
+`CHANGELOG.md` 只在 `develop → release` 合併時才新增條目（見檔案開頭說明），漏打 tag、漏建 Release 或漏寫條目都會讓版號與 `release` 實際內容對不上。
 
 ---
 
