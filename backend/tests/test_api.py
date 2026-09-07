@@ -1804,7 +1804,7 @@ class TestErrorPaths:
         assert r.status_code == 400
 
     def test_change_password_wrong_old_password(self, client, auth_headers):
-        """舊密碼錯誤 → 401（使用 mock 確保 DB 有用戶）"""
+        """舊密碼錯誤 → 400（使用 mock 確保 DB 有用戶；非 401，避免被前端誤判成 JWT 過期）"""
         if not auth_headers:
             pytest.skip("需要認證")
         import db as db_module
@@ -1827,7 +1827,7 @@ class TestErrorPaths:
                 json={"old_password": "WrongOld!!", "new_password": "NewPass2026!Xy"},
                 headers=auth_headers,
             )
-        assert r.status_code == 401
+        assert r.status_code == 400
 
     def test_change_password_empty_fields(self, client, auth_headers):
         """空密碼欄位 → 400"""

@@ -443,14 +443,14 @@ class TestChangePassword:
         assert response.status_code in [404, 500]
 
     def test_change_password_wrong_old_password(self, client, registered_user):
-        """舊密碼錯誤應回傳 401"""
+        """舊密碼錯誤應回傳 400（非 401，避免被前端誤判成 JWT 過期而強制登出）"""
         headers, email, password = registered_user
         response = client.post(
             "/api/user/change-password",
             json={"old_password": "WrongOld!P@ss999", "new_password": "NewP@ss2026!Xy"},
             headers=headers,
         )
-        assert response.status_code == 401
+        assert response.status_code == 400
 
     def test_change_password_weak_new_password(self, client, registered_user):
         """新密碼太弱應回傳 400"""
