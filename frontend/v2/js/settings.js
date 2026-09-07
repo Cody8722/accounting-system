@@ -11,7 +11,7 @@ import { logout, changePassword } from './auth.js';
 import { monthRange, emit } from './store.js';
 import { openWalletManager } from './wallet.js';
 import { isOnline } from './offline.js';
-import { fetchPhotoGallery, fetchPhotoUrl } from './photos.js';
+import { fetchPhotoGallery, fetchPhotoUrl, openPhotoLightbox } from './photos.js';
 import { openEditById } from './ledger.js';
 
 function sheet(title, bodyHtml) {
@@ -155,7 +155,8 @@ function openExport() {
 }
 
 /** 照片瀏覽介面（功能性版本，視覺細節之後再調整）：跨記錄縮圖網格，分頁
- * 用「載入更多」，點縮圖跳轉到對應記帳記錄的編輯視窗。 */
+ * 用「載入更多」，點縮圖先全螢幕放大看圖，放大檢視裡再點「查看記錄」才跳轉
+ * 到對應記帳記錄的編輯視窗。 */
 function openPhotoGallery() {
   const ov = sheet('照片', '<div style="text-align:center;color:var(--muted2);padding:var(--space-xl)">載入中…</div>');
   const PAGE_SIZE = 30;
@@ -203,17 +204,20 @@ function openPhotoGallery() {
   }
 
   function cleanup() { objectUrls.forEach((u) => URL.revokeObjectURL(u)); }
-  // 點縮圖跳轉：只掛一次在 ov 上（loadPage 會重繪內容多次，掛在會被整批替換
-  // 的節點上會累積重複監聽）
+  // 點縮圖先放大看圖：只掛一次在 ov 上（loadPage 會重繪內容多次，掛在會被
+  // 整批替換的節點上會累積重複監聽）
   ov.addEventListener('click', (e) => {
     const cell = e.target.closest('[data-photo-idx]');
     if (cell) {
       const it = items[Number(cell.dataset.photoIdx)];
-      if (!it) return;
-      cleanup();
-      ov.remove();
-      emit('nav', 'ledger');
-      openEditById(it.record_id);
+      const img = cell.querySelector('img');
+      if (!it || !img) return; // 縮圖還沒載完，先不放大
+      openPhotoLightbox(img.src, () => {
+        cleanup();
+        ov.remove();
+        emit('nav', 'ledger');
+        openEditById(it.record_id);
+      });
       return;
     }
     if (e.target === ov || e.target.closest('[data-close]')) cleanup();
