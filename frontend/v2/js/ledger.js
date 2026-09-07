@@ -14,7 +14,7 @@ import {
   pendingRecords, isOnline, updateOutbox, removeOutbox,
   enqueueOutbox, genClientId, queuedPhotoStats, MAX_QUEUED_PHOTOS, MAX_QUEUED_PHOTO_BYTES,
 } from './offline.js';
-import { compressImage, uploadPhotos, deletePhoto, fetchPhotoUrl } from './photos.js';
+import { compressImage, uploadPhotos, deletePhoto, fetchPhotoUrl, openPhotoLightbox } from './photos.js';
 
 let cache = [];              // 當月記錄
 let table = { type: 'all', category: '', query: '', sortBy: 'date', sortOrder: 'desc' };
@@ -355,7 +355,7 @@ function openEditIncomeExpense(record) {
         ? `<span style="position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:9px;line-height:14px;background:rgba(0,0,0,.55);color:#fff">待同步</span>`
         : '';
       return `
-      <div style="position:relative;width:56px;height:56px;flex-shrink:0;background:var(--fill);border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+      <div ${p.url ? `data-photo-view="${p.id}"` : ''} style="position:relative;width:56px;height:56px;flex-shrink:0;background:var(--fill);border-radius:10px;overflow:hidden;border:1px solid var(--border)${p.url ? ';cursor:pointer' : ''}">
         ${p.url ? `<img src="${p.url}" style="width:100%;height:100%;object-fit:cover">` : ''}
         ${removeBtn}
         ${badge}
@@ -510,6 +510,8 @@ function openEditIncomeExpense(record) {
   ov.addEventListener('click', (e) => {
     if (e.target === ov || e.target.closest('[data-close]')) { cleanupPhotoUrls(); ov.remove(); return; }
     const pr = e.target.closest('[data-photo-remove]'); if (pr) return handleRemovePhoto(pr.dataset.photoRemove);
+    const pv = e.target.closest('[data-photo-view]');
+    if (pv) { const p = photos.find((x) => x.id === pv.dataset.photoView); if (p && p.url) openPhotoLightbox(p.url); }
   });
   document.body.appendChild(ov);
 }

@@ -90,3 +90,23 @@ export async function fetchPhotoGallery(page = 1, limit = 30) {
   if (!res.ok) throw new Error(data.error || `取得照片清單失敗 (${res.status})`);
   return data;
 }
+
+/** 全螢幕檢視單張照片（點縮圖先放大這個共用行為）。點背景或關閉鈕即關閉；
+ * 帶 onViewRecord 時額外顯示「查看記錄」，由呼叫端決定按下後要做什麼
+ * （如照片瀏覽網格：先放大看圖，要看是哪筆記錄再另外點進去）。 */
+export function openPhotoLightbox(url, onViewRecord) {
+  const ov = document.createElement('div');
+  ov.className = 'overlay center';
+  ov.style.cssText = 'z-index:500;background:rgba(0,0,0,.85)';
+  ov.innerHTML = `
+    <button data-close="1" style="position:absolute;top:var(--space-lg);right:var(--space-lg);width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ti ti-x" style="font-size:22px"></i></button>
+    <img src="${url}" style="max-width:100%;max-height:80vh;object-fit:contain;border-radius:12px">
+    ${onViewRecord ? '<button data-el="viewRecord" class="btn-primary" style="position:absolute;bottom:var(--space-2xl);left:50%;transform:translateX(-50%);width:auto;padding:0 var(--space-2xl)">查看記錄</button>' : ''}`;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('[data-close]')) ov.remove();
+  });
+  if (onViewRecord) {
+    ov.querySelector('[data-el="viewRecord"]').onclick = () => { ov.remove(); onViewRecord(); };
+  }
+  document.body.appendChild(ov);
+}
