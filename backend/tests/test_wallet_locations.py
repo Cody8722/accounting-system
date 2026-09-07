@@ -84,8 +84,10 @@ def _expense(amount, wallet_id, category="測試", confirm=False):
     return payload
 
 
-def _transfer(wallet_id, from_location, to_location, amount, description=""):
-    return {
+def _transfer(
+    wallet_id, from_location, to_location, amount, description="", confirm=False
+):
+    payload = {
         "wallet_id": wallet_id,
         "from_location": from_location,
         "to_location": to_location,
@@ -93,6 +95,9 @@ def _transfer(wallet_id, from_location, to_location, amount, description=""):
         "date": _today(),
         "description": description,
     }
+    if confirm:
+        payload["confirm_negative"] = True
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +272,7 @@ class TestTransferEndpoint:
     def test_manual_transfer_succeeds(self, client, auth_headers, wallet_a):
         r = client.post(
             "/admin/api/accounting/records/transfer",
-            json=_transfer(wallet_a, "bank", "cash", 500, "領現金"),
+            json=_transfer(wallet_a, "bank", "cash", 500, "領現金", confirm=True),
             headers=auth_headers,
         )
         assert r.status_code == 201
@@ -277,6 +282,76 @@ class TestTransferEndpoint:
         )
         assert transfer["auto_generated"] is False
         assert transfer["type"] == "transfer"
+
+    def test_transfer_with_sufficient_balance_succeeds_without_confirm(
+        self, client, auth_headers, wallet_a
+    ):
+        client.post(
+            "/admin/api/accounting/records",
+            json=_income(1000, wallet_a, location="bank"),
+            headers=auth_headers,
+        )
+        r = client.post(
+            "/admin/api/accounting/records/transfer",
+            json=_transfer(wallet_a, "bank", "cash", 500),
+            headers=auth_headers,
+        )
+        assert r.status_code == 201
+
+    def test_transfer_exact_balance_succeeds_without_confirm(
+        self, client, auth_headers, wallet_a
+    ):
+        """current_balance == amount 是合法邊界（不足才擋，用 < 不是 <=）"""
+        client.post(
+            "/admin/api/accounting/records",
+            json=_income(500, wallet_a, location="bank"),
+            headers=auth_headers,
+        )
+        r = client.post(
+            "/admin/api/accounting/records/transfer",
+            json=_transfer(wallet_a, "bank", "cash", 500),
+            headers=auth_headers,
+        )
+        assert r.status_code == 201
+
+    def test_transfer_insufficient_balance_rejected_without_confirm(
+        self, client, auth_headers, wallet_a
+    ):
+        r = client.post(
+            "/admin/api/accounting/records/transfer",
+            json=_transfer(wallet_a, "bank", "cash", 500),
+            headers=auth_headers,
+        )
+        assert r.status_code == 409
+        body = r.get_json()
+        assert body["error"] == "insufficient_balance"
+        assert body["current_balance"] == 0
+        assert body["deficit"] == 500
+        # 沒有 confirm，不應該寫入任何轉帳記錄
+        count = db_module.accounting_records_collection.count_documents(
+            {"wallet_id": ObjectId(wallet_a), "type": "transfer"}
+        )
+        assert count == 0
+
+    def test_transfer_insufficient_balance_succeeds_with_confirm(
+        self, client, auth_headers, wallet_a
+    ):
+        r = client.post(
+            "/admin/api/accounting/records/transfer",
+            json=_transfer(wallet_a, "bank", "cash", 500, confirm=True),
+            headers=auth_headers,
+        )
+        assert r.status_code == 201
+        transfer_id = r.get_json()["id"]
+        transfer = db_module.accounting_records_collection.find_one(
+            {"_id": ObjectId(transfer_id)}
+        )
+        assert transfer["amount"] == 500
+        # 確認轉出位置餘額真的變負，不是靜默擋成別的數字
+        from routes.records import _get_location_balance
+
+        balance = _get_location_balance(transfer["user_id"], ObjectId(wallet_a), "bank")
+        assert balance == -500
 
     def test_same_location_rejected(self, client, auth_headers, wallet_a):
         r = client.post(
@@ -406,7 +481,7 @@ class TestEditRestrictions:
     def test_cannot_edit_transfer_locations(self, client, auth_headers, wallet_a):
         r = client.post(
             "/admin/api/accounting/records/transfer",
-            json=_transfer(wallet_a, "bank", "cash", 500),
+            json=_transfer(wallet_a, "bank", "cash", 500, confirm=True),
             headers=auth_headers,
         )
         transfer_id = r.get_json()["id"]
@@ -420,7 +495,7 @@ class TestEditRestrictions:
     def test_can_edit_transfer_amount(self, client, auth_headers, wallet_a):
         r = client.post(
             "/admin/api/accounting/records/transfer",
-            json=_transfer(wallet_a, "bank", "cash", 500),
+            json=_transfer(wallet_a, "bank", "cash", 500, confirm=True),
             headers=auth_headers,
         )
         transfer_id = r.get_json()["id"]
@@ -646,7 +721,7 @@ class TestExportLabelsTransfer:
     def test_csv_export_labels_transfer_correctly(self, client, auth_headers, wallet_a):
         client.post(
             "/admin/api/accounting/records/transfer",
-            json=_transfer(wallet_a, "bank", "cash", 500, "提領現金"),
+            json=_transfer(wallet_a, "bank", "cash", 500, "提領現金", confirm=True),
             headers=auth_headers,
         )
         r = client.get("/admin/api/accounting/export?format=csv", headers=auth_headers)
