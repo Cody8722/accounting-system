@@ -381,25 +381,42 @@ export function openTransferForm(onSaved) {
   });
   ov.querySelector('[data-save="1"]').onclick = async () => {
     const amount = parseFloat(ov.querySelector('[data-el="amount"]').value);
-    if (!amount || amount <= 0) { showToast('請輸入金額', 'warning'); return; }
+    if (!amount || amount <= 0) { showToast(amount < 0 ? '金額不可為負數' : '請輸入金額', 'warning'); return; }
     const toLocation = fromLocation === 'bank' ? 'cash' : 'bank';
+    const payload = {
+      wallet_id: walletId,
+      from_location: fromLocation,
+      to_location: toLocation,
+      amount,
+      date: todayStr(),
+      description: ov.querySelector('[data-el="note"]').value,
+    };
     try {
-      await apiJson('/admin/api/accounting/records/transfer', {
-        method: 'POST',
-        body: JSON.stringify({
-          wallet_id: walletId,
-          from_location: fromLocation,
-          to_location: toLocation,
-          amount,
-          date: todayStr(),
-          description: ov.querySelector('[data-el="note"]').value,
-        }),
-      });
+      await apiJson('/admin/api/accounting/records/transfer', { method: 'POST', body: JSON.stringify(payload) });
       showToast('已記錄轉移', 'success');
       ov.remove();
       emit('records:changed');
       if (onSaved) onSaved();
-    } catch (e) { showToast(e.message, 'error'); }
+    } catch (e) {
+      // 轉出位置餘額不足：後端回 409 附帶差額試算，跳確認框，確認後帶
+      // confirm_negative 重送（允許轉成負餘額，非靜默放行）
+      if (e.status === 409 && e.body && e.body.error === 'insufficient_balance') {
+        const ok = await showConfirm(e.body.message, { confirmText: '確定轉出', danger: true });
+        if (!ok) return;
+        try {
+          await apiJson('/admin/api/accounting/records/transfer', {
+            method: 'POST',
+            body: JSON.stringify({ ...payload, confirm_negative: true }),
+          });
+          showToast('已記錄轉移', 'success');
+          ov.remove();
+          emit('records:changed');
+          if (onSaved) onSaved();
+        } catch (e2) { showToast(e2.message, 'error'); }
+        return;
+      }
+      showToast(e.message, 'error');
+    }
   };
   ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('[data-close]')) ov.remove(); });
   document.body.appendChild(ov);

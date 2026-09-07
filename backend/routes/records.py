@@ -729,6 +729,31 @@ def add_transfer_record():
             return jsonify({"error": result}), 400
         amount = result
 
+        # 轉出位置餘額不足：跟支出的 cash_insufficient 用同一套 409 + 確認機制，
+        # 差別是這裡沒有「自動補齊」可做（轉帳只有兩個位置，沒有第三方可抽）——
+        # 使用者明確確認後才允許轉成負餘額，不是靜默放行。
+        current_balance = _get_location_balance(user_oid, wallet_id, from_location)
+        if current_balance < amount and not data.get("confirm_negative"):
+            location_label = {"bank": "銀行", "cash": "現金"}.get(
+                from_location, from_location
+            )
+            deficit = amount - current_balance
+            return (
+                jsonify(
+                    {
+                        "error": "insufficient_balance",
+                        "message": (
+                            f"{location_label}餘額只有 NT$ {current_balance:,.0f}，"
+                            f"轉出 NT$ {amount:,.0f} 會短少 NT$ {deficit:,.0f}，"
+                            "確定要繼續嗎？"
+                        ),
+                        "current_balance": current_balance,
+                        "deficit": deficit,
+                    }
+                ),
+                409,
+            )
+
         valid, result = validate_date(data["date"])
         if not valid:
             return jsonify({"error": result}), 400

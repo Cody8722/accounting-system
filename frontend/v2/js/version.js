@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.16.1';
-export const RELEASE_NOTE = '內部調整：清除死代碼、統一響應式斷點來源、修正未定義變數，畫面顯示無變化';
+export const APP_VERSION = '1.16.2';
+export const RELEASE_NOTE = '修正：內部轉移現在會檢查餘額是否足夠，金額欄位負數錯誤訊息更明確';

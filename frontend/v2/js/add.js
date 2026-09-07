@@ -369,7 +369,7 @@ async function save() {
   const restrictedAmount = parseFloat(restrictedAmountStr);
   const hasSplit = type === 'income' && splitOpen && restrictedAmount > 0;
 
-  if (!hasSplit && (!amount || amount <= 0)) { showToast('請輸入金額', 'warning'); return; }
+  if (!hasSplit && (!amount || amount <= 0)) { showToast(amount < 0 ? '金額不可為負數' : '請輸入金額', 'warning'); return; }
   if (!category) { showToast('請選擇分類', 'warning'); return; }
   if (type === 'income' && !location) { showToast('請選擇位置', 'warning'); return; }
 

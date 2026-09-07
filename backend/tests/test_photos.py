@@ -398,6 +398,7 @@ class TestRecordCreationIncludesPhotosField:
                 "to_location": "cash",
                 "amount": 100,
                 "date": datetime.now().strftime("%Y-%m-%d"),
+                "confirm_negative": True,
             },
             headers=auth_headers,
         )
