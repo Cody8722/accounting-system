@@ -8,7 +8,7 @@ import { CATEGORY_TREE, categoryMeta } from './config.js';
 import { fmtMoney, escapeHtml, showToast, showConfirm, todayStr } from './utils.js';
 import { state, monthRange, shiftMonth, emit, on } from './store.js';
 import { openAdd } from './add.js';
-import { walletBalanceStripHtml, walletChipsHtml, walletOnlyChipsHtml, locationChipsHtml, LOCATION_META, walletMeta } from './wallet.js';
+import { walletBalanceStripHtml, walletChipsHtml, walletOnlyChipsHtml, locationChipsHtml, LOCATION_META, walletMeta, fetchWallets } from './wallet.js';
 import { lockQueryParams, lockBadgeHtml, bindLockBadge, openLockPicker } from './lock.js';
 import {
   pendingRecords, isOnline, updateOutbox, removeOutbox,
@@ -461,6 +461,12 @@ function openEditIncomeExpense(record) {
     curWalletId = b.dataset.wallet || null;
     ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
   });
+  // 錢包清單快取可能尚未載入過（明細頁本身不會觸發抓取，只有開過記一筆/鎖定
+  // 模式才會）；抓回後重繪一次 chips，避免只顯示「未分類」
+  fetchWallets().then(() => {
+    const area = ov.querySelector('[data-el="walletArea"]');
+    if (area) area.innerHTML = walletChipsHtml(curWalletId);
+  }).catch(() => {});
   ov.querySelector('[data-el="locationArea"]').addEventListener('click', (e) => {
     const b = e.target.closest('[data-location]'); if (!b) return;
     curLocation = b.dataset.location;
@@ -552,6 +558,12 @@ function openEditTransfer(record) {
     curWalletId = b.dataset.wallet;
     ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
   });
+  // 錢包清單快取可能尚未載入過（明細頁本身不會觸發抓取，只有開過記一筆/鎖定
+  // 模式才會）；抓回後重繪一次 chips，避免整條空白選不到帳戶
+  fetchWallets().then(() => {
+    const area = ov.querySelector('[data-el="walletArea"]');
+    if (area) area.innerHTML = walletOnlyChipsHtml(curWalletId);
+  }).catch(() => {});
   ov.querySelector('[data-el="save"]').onclick = async () => {
     const body = {
       amount: parseFloat(ov.querySelector('[data-el="amount"]').value),
@@ -616,6 +628,12 @@ function openEditRestricted(record) {
     curWalletId = b.dataset.wallet || null;
     ov.querySelectorAll('[data-el="walletArea"] [data-wallet]').forEach((x) => x.classList.toggle('active', x === b));
   });
+  // 錢包清單快取可能尚未載入過（明細頁本身不會觸發抓取，只有開過記一筆/鎖定
+  // 模式才會）；抓回後重繪一次 chips，避免只顯示「未分類」
+  fetchWallets().then(() => {
+    const area = ov.querySelector('[data-el="walletArea"]');
+    if (area) area.innerHTML = walletChipsHtml(curWalletId);
+  }).catch(() => {});
   ov.querySelector('[data-el="locationArea"]').addEventListener('click', (e) => {
     const b = e.target.closest('[data-location]'); if (!b) return;
     curLocation = b.dataset.location;
