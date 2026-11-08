@@ -10,7 +10,7 @@ jobs:
   # ==================== 完整測試套件 ====================
   full-test-suite:
     name: Full Test Suite (包含慢速測試)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     services:
@@ -54,7 +54,7 @@ jobs:
   # ==================== 性能測試 ====================
   performance-tests:
     name: Performance & Load Testing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     continue-on-error: true  # 性能測試失敗不影響整體
 
@@ -124,7 +124,7 @@ jobs:
   # ==================== 前端性能測試 (Lighthouse) ====================
   lighthouse-tests:
     name: Frontend Performance (Lighthouse)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     continue-on-error: true
 
@@ -194,7 +194,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-24.04]
         browser: [chromium, firefox, webkit]
 
     services:
@@ -269,7 +269,7 @@ jobs:
   # ==================== 安全掃描進階版 ====================
   advanced-security-scan:
     name: Advanced Security Scanning
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -321,7 +321,7 @@ jobs:
   # ==================== 資料庫性能測試 ====================
   database-performance:
     name: Database Performance Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     continue-on-error: true
 
@@ -372,7 +372,7 @@ jobs:
   # ==================== 測試覆蓋率趨勢追蹤 ====================
   coverage-trend:
     name: Coverage Trend Tracking
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [full-test-suite]
 
     services:
@@ -424,7 +424,7 @@ jobs:
   # ==================== 夜間測試總結 ====================
   nightly-summary:
     name: Nightly Test Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       [
         full-test-suite,
