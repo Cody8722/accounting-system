@@ -425,7 +425,8 @@ Token 有效期：**7 天**。過期後需重新登入。
 
 | 方法 | 路徑 | 說明 | 需 Token | 速率限制 |
 |------|------|------|:--------:|---------|
-| `POST` | `/api/auth/register` | 註冊新帳號 | | 每 IP 每小時 5 次 |
+| `GET` | `/api/auth/registration-config` | 取得註冊模式（open / invite / closed） | | 一般限制 |
+| `POST` | `/api/auth/register` | 註冊新帳號（邀請制時需 `invite_code`） | | 每 IP 每小時 5 次 |
 | `POST` | `/api/auth/login` | 登入，回傳 JWT token | | 一般限制 |
 | `POST` | `/api/auth/validate-password` | 檢查密碼是否符合強度規則 | | 一般限制 |
 | `GET` | `/api/auth/password-config` | 取得目前密碼規則設定 | | 一般限制 |

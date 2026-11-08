@@ -29,6 +29,7 @@ users_collection = None
 recurring_collection = None
 debts_collection = None
 wallets_collection = None
+invites_collection = None
 
 
 def init_db():
@@ -44,6 +45,7 @@ def init_db():
     global recurring_collection
     global debts_collection
     global wallets_collection
+    global invites_collection
 
     MONGO_URI = os.getenv("MONGO_URI")
 
@@ -78,6 +80,7 @@ def init_db():
         recurring_collection = accounting_db["recurring"]
         debts_collection = accounting_db["debts"]
         wallets_collection = accounting_db["wallets"]
+        invites_collection = accounting_db["invites"]
 
         _create_indexes()
         logger.info("✅ 已連接到記帳資料庫")
@@ -191,6 +194,11 @@ def _create_indexes():
         )
         wallets_collection.create_index(
             [("user_id", ASCENDING), ("updated_at", ASCENDING)], background=True
+        )
+
+        # 邀請制註冊：邀請碼雜湊唯一（查詢也走這條索引）
+        invites_collection.create_index(
+            [("code_hash", ASCENDING)], unique=True, background=True
         )
 
         logger.info("✅ 資料庫索引已建立（背景執行）")

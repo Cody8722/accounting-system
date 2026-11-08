@@ -2,7 +2,8 @@
  * auth.js — 登入 / 註冊 / 驗證 / 登出 / 改密碼（v2 精簡版，自帶 DOM）。
  * 端點契約與現行後端一致：
  *   POST /api/auth/login {email,password} -> {token,user}（user.requires_password_change 為 true 時擋強制改密碼）
- *   POST /api/auth/register {name,email,password}
+ *   GET  /api/auth/registration-config → {mode: 'open'|'invite'|'closed'}
+ *   POST /api/auth/register {name,email,password[,invite_code]}
  *   GET  /api/auth/verify -> {user}（同樣帶 requires_password_change，涵蓋既有 session 期間才被標記的情況）
  *   POST /api/auth/logout
  *   POST /api/user/change-password {old_password,new_password}（成功後後端會清除 requires_password_change）
@@ -132,10 +133,11 @@ export function renderAuth(container, onSuccess) {
           <input class="auth-field" data-el="name" type="text" placeholder="顯示名稱" autocomplete="name" style="display:none">
           <input class="auth-field" data-el="email" type="email" placeholder="Email" autocomplete="email" required>
           <input class="auth-field" data-el="password" type="password" placeholder="密碼" autocomplete="current-password" required>
+          <input class="auth-field" data-el="invite" type="text" placeholder="邀請碼" autocomplete="off" autocapitalize="off" spellcheck="false" style="display:none">
           <div class="err hidden" data-el="err"></div>
           <button class="btn-primary" data-el="submit" type="submit" style="width:100%;margin-top:var(--space-2xs)">登入</button>
         </form>
-        <div style="text-align:center;margin-top:var(--space-lg);font-size:13px;color:var(--muted2)">
+        <div data-el="switchRow" style="text-align:center;margin-top:var(--space-lg);font-size:13px;color:var(--muted2)">
           <span data-el="switchText">還沒有帳號？</span>
           <button class="link" data-el="switch" type="button">註冊</button>
         </div>
@@ -145,11 +147,18 @@ export function renderAuth(container, onSuccess) {
   const q = (s) => container.querySelector(`[data-el="${s}"]`);
   const form = q('form'), err = q('err'), submit = q('submit');
 
+  // 註冊模式由後端決定：'open' 開放 / 'invite' 邀請制（多一欄邀請碼）/ 'closed' 關閉（隱藏註冊入口）。
+  // 取不到時維持 'open'，實際是否放行仍以後端為準。
+  let regMode = 'open';
+
   function setMode(m) {
     mode = m;
     const isReg = m === 'register';
     q('name').style.display = isReg ? '' : 'none';
     q('name').required = isReg;
+    const needInvite = isReg && regMode === 'invite';
+    q('invite').style.display = needInvite ? '' : 'none';
+    q('invite').required = needInvite;
     q('title').textContent = isReg ? '建立帳號' : '歡迎回來';
     q('sub').textContent = isReg ? '開始你的記帳生活' : '登入以繼續記帳';
     submit.textContent = isReg ? '註冊' : '登入';
@@ -169,12 +178,15 @@ export function renderAuth(container, onSuccess) {
     const name = q('name').value.trim();
     try {
       if (mode === 'register') {
-        const res = await apiCall('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+        const payload = { name, email, password };
+        if (regMode === 'invite') payload.invite_code = q('invite').value.trim();
+        const res = await apiCall('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || '註冊失敗');
         showToast('註冊成功，請登入', 'success');
         setMode('login');
         q('password').value = '';
+        q('invite').value = '';
         return;
       }
       const res = await apiCall('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
@@ -193,4 +205,15 @@ export function renderAuth(container, onSuccess) {
   });
 
   setMode('login');
+
+  // 非同步取得註冊模式後再調整畫面（登入畫面先顯示，不被這個請求卡住）
+  apiCall('/api/auth/registration-config')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((cfg) => {
+      if (!cfg || !['open', 'invite', 'closed'].includes(cfg.mode)) return;
+      regMode = cfg.mode;
+      q('switchRow').style.display = regMode === 'closed' ? 'none' : '';
+      setMode(mode);
+    })
+    .catch(() => {});
 }
