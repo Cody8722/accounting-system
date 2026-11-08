@@ -69,10 +69,29 @@ def get_rate_limit_key():
                 return f"user:{payload.get('user_id', 'unknown')}"
         except Exception:
             pass
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return get_remote_address()
+    return client_ip_from_forwarded_for(
+        request.headers.get("X-Forwarded-For", ""), get_remote_address()
+    )
+
+
+def client_ip_from_forwarded_for(forwarded_for: str, remote_addr: str) -> str:
+    """從 X-Forwarded-For 取出客戶端 IP，不信任客戶端自己填的部分。
+
+    X-Forwarded-For 的格式是「client, proxy1, proxy2…」，每一層代理會把它看到的
+    對端 IP 附加在最右邊（nginx 的 $proxy_add_x_forwarded_for）。最左邊那段可以由
+    客戶端任意偽造，拿來當限速 key 的話，每次換個值就能繞過限速。
+    因此只信任「自己的代理」附加的部分：由右往左數 TRUSTED_PROXY_COUNT 筆
+    （預設 1 = 只有 nginx 一層；若前面另有一層代理就設 2）。
+    標頭筆數不足時退回 remote_addr。
+    """
+    try:
+        trusted = max(1, int(os.getenv("TRUSTED_PROXY_COUNT", "1")))
+    except ValueError:
+        trusted = 1
+    parts = [p.strip() for p in forwarded_for.split(",") if p.strip()]
+    if len(parts) >= trusted:
+        return parts[-trusted]
+    return remote_addr
 
 
 # ==================== Limiter（Application Factory 模式） ====================

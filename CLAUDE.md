@@ -216,6 +216,7 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 | `SMTP_FROM_EMAIL` | | 寄件者 Email |
 | `PASSWORD_MIN_LENGTH` | | 最小密碼長度（預設 12） |
 | `PASSWORD_MIN_ENTROPY` | | 最小熵值（預設 50 bits） |
+| `TRUSTED_PROXY_COUNT` | | 限速取客戶端 IP 時信任幾層代理（`X-Forwarded-For` 由右往左數第 N 筆，預設 1 = 只有 nginx） |
 
 測試用最小設定：`MONGO_URI=mongodb://localhost:27017/` + `JWT_SECRET=any-local-secret`
 
