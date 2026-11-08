@@ -2,11 +2,15 @@
  * utils.js — 通用工具（v2）。由 js-refactored/utils.js 移植，icon 改用 Tabler。
  */
 
+/**
+ * 跳脫 HTML 特殊字元。同時用在元素內容與屬性值（如 value="${escapeHtml(x)}"），
+ * 所以必須連引號一起跳脫——舊版只靠 textContent→innerHTML，不會跳脫 " 和 '，
+ * 放進屬性時使用者資料可以用引號跳出屬性、注入事件處理器。
+ */
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export function escapeHtml(text) {
   if (text === null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
+  return String(text).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
 /** 千分位金額字串（無小數，四捨五入） */

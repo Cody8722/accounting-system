@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.17.1';
-export const RELEASE_NOTE = '修正：明細頁編輯記錄時，錢包選項可能顯示不完整（只有未分類）';
+export const APP_VERSION = '1.17.2';
+export const RELEASE_NOTE = '安全性修正：強化文字欄位（備註、名稱）的特殊字元處理';
