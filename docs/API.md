@@ -26,7 +26,7 @@
 
 **端點**: `POST /api/auth/register`
 
-**描述**: 註冊新用戶
+**描述**: 註冊新用戶。是否開放、是否需要邀請碼由後端環境變數 `REGISTRATION_MODE` 決定（見下方「註冊模式」）。
 
 **請求標頭**: 無需認證
 
@@ -35,8 +35,19 @@
 {
   "email": "user@example.com",
   "password": "MyS3cur3P@ssw0rd!XyZ",
-  "name": "張三"
+  "name": "張三",
+  "invite_code": "xxxxxxxxxxxx"
 }
+```
+
+`invite_code` 只在 `REGISTRATION_MODE=invite` 時需要（一次性，使用後失效）；`open` 模式會忽略它。
+
+**邀請制／關閉時的錯誤回應 (403)**:
+```json
+{ "error": "邀請碼無效、已使用或已過期" }
+```
+```json
+{ "error": "目前未開放註冊" }
 ```
 
 **回應 (200)**:
@@ -65,6 +76,25 @@
 - 不能包含常見密碼
 - 不能包含 Email 或姓名
 - 熵值需 >= 3.0
+
+---
+
+### 註冊模式
+
+**端點**: `GET /api/auth/registration-config`（無需認證）
+
+**回應 (200)**:
+```json
+{ "mode": "invite" }
+```
+
+| mode | 行為 |
+|------|------|
+| `open` | 開放註冊（預設，`REGISTRATION_MODE` 未設定時） |
+| `invite` | 註冊需帶有效的一次性 `invite_code` |
+| `closed` | 一律拒絕註冊（設了無法辨識的值也視為 `closed`） |
+
+邀請碼用 `python backend/manage_invites.py create|list|revoke` 管理，資料庫只存雜湊，明文只在建立時顯示一次。
 
 ---
 

@@ -48,8 +48,9 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **`auth.py`**：獨立認證模組，處理密碼強度驗證（多層規則、熵值計算）、bcrypt 雜湊、JWT 簽發
 - **`extensions.py`**：共用工具：`require_auth` JWT 驗證 decorator、Flask-Limiter 實例、輸入驗證函式（`validate_amount`、`validate_category` 等）
 - **`db.py`**：MongoDB 連線初始化，暴露各 collection 物件
+- **`invites.py`**：邀請制註冊——`REGISTRATION_MODE` 判斷與一次性邀請碼（建立／原子消耗／還回）；管理用 CLI 是 `manage_invites.py`（`create`／`list`／`revoke`）
 - **`routes/`**：各功能 Blueprint
-  - `auth.py` — 登入、註冊、驗證、忘記/重設密碼、密碼強度檢查
+  - `auth.py` — 登入、註冊（含邀請制／關閉註冊與 `registration-config`）、驗證、忘記/重設密碼、密碼強度檢查
   - `user.py` — 個人資料、修改密碼
   - `records.py` — 記帳記錄 CRUD、內部轉移（`transfer`）、受限資金解鎖（`unlock`）、輕量更新檢查（`data-version`）
   - `stats.py` — 統計、趨勢、期間比較、整合概覽
@@ -91,7 +92,7 @@ PWA 相關：`frontend/v2/service-worker.js`（快取策略、版本號控制）
 
 ### 資料庫（MongoDB `accounting_db`）
 
-六個集合：`users`、`records`、`budget`、`recurring`、`debts`、`wallets`。詳細 schema 見 `README.md`。
+七個集合：`users`、`records`、`budget`、`recurring`、`debts`、`wallets`、`invites`（邀請制註冊的一次性邀請碼，只存 SHA-256 雜湊）。詳細 schema 見 `README.md`。
 
 ### 測試架構
 
@@ -209,6 +210,7 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 | `MONGO_URI` | ✅ | MongoDB 連線字串 |
 | `JWT_SECRET` | ✅ | JWT 簽名金鑰（32 字元以上） |
 | `FRONTEND_URLS` | | 允許 CORS 的前端網址（逗號分隔，預設含 8080/8081） |
+| `REGISTRATION_MODE` | | 註冊模式：`open`（預設，開放）/ `invite`（需一次性邀請碼，用 `backend/manage_invites.py` 管理）/ `closed`（關閉）；無法辨識的值視為 `closed` |
 | `SMTP_HOST` | | Gmail SMTP 伺服器（預設 smtp.gmail.com） |
 | `SMTP_PORT` | | SMTP 埠號（587=TLS） |
 | `SMTP_USERNAME` | | Gmail 帳號 |
