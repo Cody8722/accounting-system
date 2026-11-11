@@ -134,7 +134,9 @@ pytest --cov=. --cov-report=term-missing   # 含覆蓋率
 - 使用 Email + 密碼註冊 / 登入
 - **資料完全隔離**：每位用戶只能看到自己的記帳資料
 - JWT Token 認證，Token 有效期 7 天
-- **註冊目前為開放制**：任何人知道網址即可自行註冊帳號（無邀請碼機制）
+- **註冊模式可設定**（`REGISTRATION_MODE`）：`open` 開放（預設，任何人知道網址即可註冊）、`invite` 需一次性邀請碼（用 `backend/manage_invites.py` 管理）、`closed` 關閉註冊
+- 修改密碼或重設密碼後，舊裝置的登入會立即失效，需重新登入
+- 登入失敗鎖定：同一來源 IP 對同一 Email 連續失敗 5 次，鎖定 15 分鐘
 - API 速率限制：每用戶每日 200 次、每小時 50 次；註冊端點限制每小時 5 次
 
 ### 主題設定
@@ -188,6 +190,8 @@ FRONTEND_URLS=http://localhost:8080
 | `MONGO_URI` | ✅ | 無 | MongoDB 連線字串。本地測試可用 `mongodb://localhost:27017/accounting_db` |
 | `JWT_SECRET` | ✅ | 無 | JWT 簽名金鑰。使用下方指令產生：`python -c "import secrets; print(secrets.token_hex(32))"` |
 | `FRONTEND_URLS` | | `http://localhost:8080` | 允許跨域的前端網址（逗號分隔）。本地開發使用預設值即可；正式環境請明確設定為實際部署網域 |
+| `REGISTRATION_MODE` | | `open` | 註冊模式：`open` 開放 / `invite` 需一次性邀請碼 / `closed` 關閉；無法辨識的值視為 `closed`。正式環境請依需求明確設定 |
+| `TRUSTED_PROXY_COUNT` | | `1` | 限速與登入鎖定取客戶端 IP 時，信任幾層反向代理（`X-Forwarded-For` 由右往左數第 N 筆）。只有 nginx 一層用預設值；前面另有一層代理就設 `2`。設錯會讓限速把不同使用者當成同一個 IP |
 
 > **注意**：`.env` 檔案不應提交到 Git。請確認 `.gitignore` 已包含 `.env`。
 
@@ -427,14 +431,14 @@ Token 有效期：**7 天**。過期後需重新登入。
 |------|------|------|:--------:|---------|
 | `GET` | `/api/auth/registration-config` | 取得註冊模式（open / invite / closed） | | 一般限制 |
 | `POST` | `/api/auth/register` | 註冊新帳號（邀請制時需 `invite_code`） | | 每 IP 每小時 5 次 |
-| `POST` | `/api/auth/login` | 登入，回傳 JWT token | | 一般限制 |
-| `POST` | `/api/auth/validate-password` | 檢查密碼是否符合強度規則 | | 一般限制 |
-| `GET` | `/api/auth/password-config` | 取得目前密碼規則設定 | | 一般限制 |
+| `POST` | `/api/auth/login` | 登入，回傳 JWT token | | 每分鐘 10 次；連續失敗 5 次鎖 15 分鐘 |
+| `POST` | `/api/auth/validate-password` | 檢查密碼是否符合強度規則 | | 每分鐘 60 次 |
+| `GET` | `/api/auth/password-config` | 取得目前密碼規則設定 | | 每分鐘 60 次 |
 | `GET` | `/api/auth/verify` | 驗證目前 token 是否有效 | ✅ | 一般限制 |
 | `POST` | `/api/auth/logout` | 登出 | ✅ | 一般限制 |
 | `GET` | `/api/user/profile` | 取得個人資料 | ✅ | 一般限制 |
 | `PUT` | `/api/user/profile` | 更新個人資料 | ✅ | 一般限制 |
-| `POST` | `/api/user/change-password` | 修改密碼 | ✅ | 一般限制 |
+| `POST` | `/api/user/change-password` | 修改密碼（成功後舊 token 失效） | ✅ | 每小時 5 次 |
 | `GET` | `/status` | 系統健康檢查，確認後端與資料庫狀態 | ✅ | 每分鐘 10 次 |
 
 > 一般速率限制：每用戶每日 200 次、每小時 50 次（以 JWT user_id 識別；未認證請求以 IP 計算）

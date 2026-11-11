@@ -24,6 +24,9 @@ proxy（`accounting-proxy`）獨立長駐，前後端經外部 `edge` 網路互�
   cd ~/accounting-system-test && git checkout develop && git pull
   ```
 - 各自的 `backend/.env`（提供 `JWT_SECRET` / SMTP / 密碼政策）。可兩邊相同；若想更嚴格隔離，測試 checkout 用不同的 `JWT_SECRET`（選用）。
+  - `REGISTRATION_MODE`：不設就是 `open`（任何人知道網址都能註冊）。正式環境建議設 `invite` 或 `closed`；邀請碼在後端容器內用 `python manage_invites.py create|list|revoke` 管理。
+  - `TRUSTED_PROXY_COUNT`：限速與登入鎖定依客戶端 IP 計算（取 `X-Forwarded-For` 由右往左第 N 筆）。API 請求由 nginx-gateway 直接轉給後端（`nginx-https.conf` 的 `/api/`、`/admin/api/`、`/test/api/`，不經前端 nginx），後端看到的最右一筆就是閘道附加的客戶端 IP，所以預設 `1` 即正確；只有閘道前面另外還有一層代理（例如 Cloudflare、另一台 nginx）時才改成 `2`。設錯的症狀：設太小會讓所有人共用同一個 IP 的額度，設太大則限速可被偽造標頭繞過。
+- 前端 nginx（`nginx.conf`）會對靜態頁面加上 CSP 與基本安全標頭；改動後需重建前端容器（`up -d --build --force-recreate`）才會生效。
 - 各自的根目錄 `.env`（gitignore，內含 `MONGO_URI`）：
   - `~/accounting-system-prod/.env` → `MONGO_URI=mongodb://<正式帳號>:<正式密碼>@mongodb:27017/accounting_db?authSource=accounting_db`
   - `~/accounting-system-test/.env` → `MONGO_URI=mongodb://accounting_test_user:<密碼>@mongodb:27017/accounting_db_test?authSource=accounting_db_test`
