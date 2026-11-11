@@ -25,6 +25,7 @@ from extensions import (
     _clear_login_failures,
     _is_locked_out,
     _record_login_failure,
+    get_client_ip,
     limiter,
     require_auth,
 )
@@ -108,6 +109,7 @@ def status():
 
 
 @bp.route("/api/auth/validate-password", methods=["POST"])
+@limiter.limit("60 per minute")
 def validate_password():
     """即時密碼強度驗證"""
     try:
@@ -128,6 +130,7 @@ def validate_password():
 
 
 @bp.route("/api/auth/password-config", methods=["GET"])
+@limiter.limit("60 per minute")
 def get_password_config():
     """獲取密碼規則配置"""
     try:
@@ -258,23 +261,24 @@ def login():
         if not email or not password:
             return jsonify({"error": "Email 和密碼不能為空"}), 400
 
-        if _is_locked_out(email):
-            logger.warning(f"登入鎖定: {email}")
+        client_ip = get_client_ip()
+        if _is_locked_out(email, client_ip):
+            logger.warning(f"登入鎖定: {email} (ip: {client_ip})")
             return jsonify({"error": "登入失敗次數過多，請 15 分鐘後再試"}), 429
 
         user = db.users_collection.find_one({"email": email})
         if not user:
-            _record_login_failure(email)
+            _record_login_failure(email, client_ip)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
 
         if not user.get("is_active", True):
             return jsonify({"error": "帳號已被停用"}), 403
 
         if not auth.verify_password(password, user["password_hash"]):
-            _record_login_failure(email)
+            _record_login_failure(email, client_ip)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
 
-        _clear_login_failures(email)
+        _clear_login_failures(email, client_ip)
 
         db.users_collection.update_one(
             {"_id": user["_id"]}, {"$set": {"last_login": datetime.now()}}
