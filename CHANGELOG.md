@@ -6,6 +6,33 @@
 
 ---
 
+## [1.2.0] - 2026-11-11
+
+### ✨ Added
+
+- **註冊可改為邀請制或關閉**：新增 `REGISTRATION_MODE`（`open` 預設／`invite`／`closed`，無法辨識的值視為 `closed`）。邀請制使用一次性邀請碼，資料庫只存 SHA-256 雜湊並以原子操作消耗，用 `backend/manage_invites.py create|list|revoke` 管理；新增 `GET /api/auth/registration-config` 讓前端決定是否顯示邀請碼欄位（#65）
+- 新增 `TRUSTED_PROXY_COUNT`（預設 1），限速取客戶端 IP 時信任幾層反向代理（#64）
+
+### 🔒 Security
+
+- escapeHtml 補上屬性注入防護（跳脫 `"`、`'`）（#64）
+- 限速不再能靠偽造 `X-Forwarded-For` 繞過：由右往左取第 N 筆，而非信任最左邊（#64）
+- 匯入匯出強化：匯入後清統計快取；CSV 以 `= + - @ \t \r` 開頭的字串加單引號前綴、Excel 的 `=` 開頭字串標成文字，防公式注入；分類只收字串並存去頭尾空白後的值；單次匯入上限 20,000 筆；非物件項目算「無效」而非整批 500（#67）
+- 修改密碼或重設密碼後，舊 token 立即失效（記錄 `password_changed_at`，簽發時間早於它的 token 回 401）；從未改過密碼的帳號不受影響，不會強制全員重新登入（#68）
+- 登入失敗鎖定改以「來源 IP + Email」為鍵，別人無法再把本人鎖在外面；鎖定表上限 10,000 筆且查詢不再為任意 Email 建立記錄；`validate-password`、`password-config` 補上每分鐘 60 次限速（#69）
+- 前端頁面（`nginx.conf`）加上 CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`；`script-src`／`style-src` 仍保留 `'unsafe-inline'`（頁面有大量 `onclick=` 與行內樣式）（#70）
+
+### 🐛 Fixed
+
+- 明細頁編輯記錄時，錢包清單快取可能尚未載入（#63）
+
+### 🔄 Changed
+
+- CI runner 由 `ubuntu-latest` 固定為 `ubuntu-24.04`（Playwright 不支援 26.04）（#66）
+- README 精簡為亮點／安裝／注意事項，詳細內容搬到 `docs/SETUP.md`、`docs/FEATURES.md`、`docs/DATABASE.md`、`docs/API_ENDPOINTS.md`；`docs/ROADMAP_v2.md` 補上開發順序；修正文件中寫錯的內容（改密碼路徑、登入限速、前端啟動指令等）
+
+---
+
 ## [1.1.0] - 2026-09-07
 
 ### ✨ Added
