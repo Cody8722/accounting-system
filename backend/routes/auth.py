@@ -469,7 +469,12 @@ def reset_password():
         db.users_collection.update_one(
             {"_id": user["_id"]},
             {
-                "$set": {"password_hash": new_hash, "updated_at": datetime.now()},
+                "$set": {
+                    "password_hash": new_hash,
+                    "updated_at": datetime.now(),
+                    # 此時間之前簽發的 token 一律失效（見 extensions._token_still_valid）
+                    "password_changed_at": datetime.utcnow(),
+                },
                 "$unset": {"password_reset_token": "", "password_reset_expires": ""},
             },
         )
