@@ -17,8 +17,8 @@
 | [`frontend/UPDATE_CHECKLIST.md`](frontend/UPDATE_CHECKLIST.md) | 每次更新前端的必做清單 |
 | [`backend/PASSWORD_POLICY.md`](backend/PASSWORD_POLICY.md) | 密碼強度規則與環境變數設定 |
 | [`backend/tests/README.md`](backend/tests/README.md) | 後端測試說明 |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 專案發展藍圖（短期/中期/長期目標） |
-| [`docs/ROADMAP_v2.md`](docs/ROADMAP_v2.md) | v2 發展藍圖（UX 優先） |
+| [`docs/ROADMAP_v2.md`](docs/ROADMAP_v2.md) | **現行**發展藍圖與開發順序（UX 優先） |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 舊版藍圖（歷史參考，不代表目前待辦） |
 | [`docs/DEPLOY_TWO_ENV.md`](docs/DEPLOY_TWO_ENV.md) | NAS 同域雙環境部署操作手冊（正式 `/` + 測試 `/test/`） |
 | [`docs/E2E_TESTING_GUIDE.md`](docs/E2E_TESTING_GUIDE.md) | Playwright E2E 測試完整指南 |
 | [`docs/FRONTEND_TESTING.md`](docs/FRONTEND_TESTING.md) | 前端測試實施指南 |

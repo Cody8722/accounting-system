@@ -245,7 +245,8 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 |------|------|
 | [`docs/API.md`](docs/API.md) | 完整 API 端點文件（請求/回應範例） |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 開發環境設定、提交規範 |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 專案發展藍圖（短期/中期/長期目標） |
+| [`docs/ROADMAP_v2.md`](docs/ROADMAP_v2.md) | **現行**發展藍圖與開發順序（UX 優先；「開發順序」章節為目前排程） |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | 舊版藍圖（歷史參考，不代表目前待辦） |
 | [`docs/E2E_TESTING_GUIDE.md`](docs/E2E_TESTING_GUIDE.md) | Playwright E2E 測試完整指南 |
 | [`docs/FRONTEND_TESTING.md`](docs/FRONTEND_TESTING.md) | 前端測試實施指南 |
 | [`docs/TESTING_BEST_PRACTICES.md`](docs/TESTING_BEST_PRACTICES.md) | 測試最佳實踐指南 |
