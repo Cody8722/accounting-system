@@ -3,7 +3,8 @@ routes/auth.py — 認證 API + 系統狀態
 
 POST /api/auth/validate-password  即時密碼強度驗證
 GET  /api/auth/password-config    取得密碼規則
-POST /api/auth/register           用戶註冊
+GET  /api/auth/registration-config 註冊模式（open / invite / closed），前端據此決定註冊表單
+POST /api/auth/register           用戶註冊（invite 模式需帶 invite_code）
 POST /api/auth/login              用戶登入
 GET  /api/auth/verify             驗證 token
 POST /api/auth/logout             登出
@@ -18,11 +19,13 @@ from datetime import datetime, timedelta
 
 import auth
 import db
+import invites
 from bson import ObjectId
 from extensions import (
     _clear_login_failures,
     _is_locked_out,
     _record_login_failure,
+    get_client_ip,
     limiter,
     require_auth,
 )
@@ -106,6 +109,7 @@ def status():
 
 
 @bp.route("/api/auth/validate-password", methods=["POST"])
+@limiter.limit("60 per minute")
 def validate_password():
     """即時密碼強度驗證"""
     try:
@@ -126,6 +130,7 @@ def validate_password():
 
 
 @bp.route("/api/auth/password-config", methods=["GET"])
+@limiter.limit("60 per minute")
 def get_password_config():
     """獲取密碼規則配置"""
     try:
@@ -145,17 +150,34 @@ def get_password_config():
         return jsonify({"error": "獲取配置失敗"}), 500
 
 
+@bp.route("/api/auth/registration-config", methods=["GET"])
+def registration_config():
+    """公開：目前的註冊模式。只回模式，不洩漏任何邀請碼資訊。"""
+    return jsonify({"mode": invites.get_registration_mode()}), 200
+
+
 @bp.route("/api/auth/register", methods=["POST"])
 @limiter.limit("5 per hour")
 def register():
-    """用戶註冊"""
+    """用戶註冊（依 REGISTRATION_MODE：open 開放 / invite 需邀請碼 / closed 關閉）"""
     if db.users_collection is None:
         return jsonify({"error": "資料庫未連線"}), 500
+
+    registration_mode = invites.get_registration_mode()
+    if registration_mode == invites.MODE_CLOSED:
+        return jsonify({"error": "目前未開放註冊"}), 403
 
     try:
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
+
+        # 邀請制：先唯讀檢查，邀請碼無效就直接擋下（在任何 Email 重複等檢查之前，
+        # 避免沒有邀請碼的人能探測哪些 Email 已註冊）。真正消耗在寫入使用者之前。
+        invite_code = data.get("invite_code", "")
+        if registration_mode == invites.MODE_INVITE:
+            if not invites.is_invite_available(invite_code):
+                return jsonify({"error": "邀請碼無效、已使用或已過期"}), 403
 
         email = data.get("email", "").strip()
         password = data.get("password", "")
@@ -183,6 +205,13 @@ def register():
 
         password_hash = auth.hash_password(password)
 
+        # 原子性消耗邀請碼：與上面的唯讀檢查之間若被別人搶先用掉，這裡會失敗
+        claimed_invite = None
+        if registration_mode == invites.MODE_INVITE:
+            claimed_invite = invites.claim_invite(invite_code)
+            if not claimed_invite:
+                return jsonify({"error": "邀請碼無效、已使用或已過期"}), 403
+
         user = {
             "email": email,
             "password_hash": password_hash,
@@ -195,8 +224,16 @@ def register():
             "requires_password_change": False,
         }
 
-        result = db.users_collection.insert_one(user)
+        try:
+            result = db.users_collection.insert_one(user)
+        except Exception:
+            # 寫入失敗（如 Email 唯一索引競態）：把邀請碼還回去，別讓人白白燒掉一組
+            if claimed_invite:
+                invites.release_invite(claimed_invite["_id"])
+            raise
         user_id = str(result.inserted_id)
+        if claimed_invite:
+            invites.attach_invite_user(claimed_invite["_id"], result.inserted_id)
 
         logger.info(f"新用戶註冊: {email}")
         return jsonify({"message": "註冊成功", "user_id": user_id}), 201
@@ -224,23 +261,24 @@ def login():
         if not email or not password:
             return jsonify({"error": "Email 和密碼不能為空"}), 400
 
-        if _is_locked_out(email):
-            logger.warning(f"登入鎖定: {email}")
+        client_ip = get_client_ip()
+        if _is_locked_out(email, client_ip):
+            logger.warning(f"登入鎖定: {email} (ip: {client_ip})")
             return jsonify({"error": "登入失敗次數過多，請 15 分鐘後再試"}), 429
 
         user = db.users_collection.find_one({"email": email})
         if not user:
-            _record_login_failure(email)
+            _record_login_failure(email, client_ip)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
 
         if not user.get("is_active", True):
             return jsonify({"error": "帳號已被停用"}), 403
 
         if not auth.verify_password(password, user["password_hash"]):
-            _record_login_failure(email)
+            _record_login_failure(email, client_ip)
             return jsonify({"error": "Email 或密碼錯誤"}), 401
 
-        _clear_login_failures(email)
+        _clear_login_failures(email, client_ip)
 
         db.users_collection.update_one(
             {"_id": user["_id"]}, {"$set": {"last_login": datetime.now()}}
@@ -435,7 +473,12 @@ def reset_password():
         db.users_collection.update_one(
             {"_id": user["_id"]},
             {
-                "$set": {"password_hash": new_hash, "updated_at": datetime.now()},
+                "$set": {
+                    "password_hash": new_hash,
+                    "updated_at": datetime.now(),
+                    # 此時間之前簽發的 token 一律失效（見 extensions._token_still_valid）
+                    "password_changed_at": datetime.utcnow(),
+                },
                 "$unset": {"password_reset_token": "", "password_reset_expires": ""},
             },
         )

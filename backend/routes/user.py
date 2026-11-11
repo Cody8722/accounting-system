@@ -153,6 +153,8 @@ def change_password():
                 "$set": {
                     "password_hash": new_password_hash,
                     "updated_at": datetime.now(),
+                    # 此時間之前簽發的 token 一律失效（見 extensions._token_still_valid）
+                    "password_changed_at": datetime.utcnow(),
                     "requires_password_change": False,
                 }
             },

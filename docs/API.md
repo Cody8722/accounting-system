@@ -26,7 +26,7 @@
 
 **端點**: `POST /api/auth/register`
 
-**描述**: 註冊新用戶
+**描述**: 註冊新用戶。是否開放、是否需要邀請碼由後端環境變數 `REGISTRATION_MODE` 決定（見下方「註冊模式」）。
 
 **請求標頭**: 無需認證
 
@@ -35,8 +35,19 @@
 {
   "email": "user@example.com",
   "password": "MyS3cur3P@ssw0rd!XyZ",
-  "name": "張三"
+  "name": "張三",
+  "invite_code": "xxxxxxxxxxxx"
 }
+```
+
+`invite_code` 只在 `REGISTRATION_MODE=invite` 時需要（一次性，使用後失效）；`open` 模式會忽略它。
+
+**邀請制／關閉時的錯誤回應 (403)**:
+```json
+{ "error": "邀請碼無效、已使用或已過期" }
+```
+```json
+{ "error": "目前未開放註冊" }
 ```
 
 **回應 (200)**:
@@ -68,6 +79,25 @@
 
 ---
 
+### 註冊模式
+
+**端點**: `GET /api/auth/registration-config`（無需認證）
+
+**回應 (200)**:
+```json
+{ "mode": "invite" }
+```
+
+| mode | 行為 |
+|------|------|
+| `open` | 開放註冊（預設，`REGISTRATION_MODE` 未設定時） |
+| `invite` | 註冊需帶有效的一次性 `invite_code` |
+| `closed` | 一律拒絕註冊（設了無法辨識的值也視為 `closed`） |
+
+邀請碼用 `python backend/manage_invites.py create|list|revoke` 管理，資料庫只存雜湊，明文只在建立時顯示一次。
+
+---
+
 ### 登入
 
 **端點**: `POST /api/auth/login`
@@ -92,12 +122,20 @@
 }
 ```
 
-**錯誤回應 (401)**:
+**錯誤回應 (401)**（Email 不存在與密碼錯誤使用同一則訊息，不洩漏帳號是否存在）:
 ```json
 {
-  "error": "密碼錯誤"
+  "error": "Email 或密碼錯誤"
 }
 ```
+
+**登入失敗鎖定 (429)**: 同一個來源 IP 對同一個 Email 連續失敗 5 次，鎖定 15 分鐘：
+```json
+{
+  "error": "登入失敗次數過多，請 15 分鐘後再試"
+}
+```
+鎖定以「來源 IP + Email」計算，別人從其他 IP 亂試密碼不會鎖到你。鎖定記錄存在後端記憶體，重啟後清空。IP 取法見 `TRUSTED_PROXY_COUNT`。
 
 ---
 
@@ -144,7 +182,7 @@
 
 ### 修改密碼
 
-**端點**: `POST /api/auth/change-password`
+**端點**: `POST /api/user/change-password`
 
 **認證**: 需要 JWT Token
 
@@ -1560,11 +1598,17 @@ GET /admin/api/accounting/export?format=json
 - `type`：須通過與新增記帳記錄相同的類型驗證（`income`/`expense`/`transfer`/`restricted`）
 - `amount`：須通過金額驗證（> 0，最大 10,000,000）
 - `date`：須為合法 YYYY-MM-DD 日期
-- `category`：不可為空
+- `category`：須為非空字串（最多 50 字元），存入時會去掉頭尾空白；數字、物件等非字串視為無效
 - `description`：可選，最多 500 字元
 - `expense_type`：可選，須為 `fixed`/`variable`/`onetime`，其餘值一律視為未設定
 
 **去重邏輯**: 逐筆比對 `user_id + date + type + amount + category + description` 完全相同的既有記錄，命中即視為重複、不重複匯入（計入 `duplicates`）。匯入的記錄一律不會帶 `wallet_id`／`location`（視為「未分類」），也不會帶 `client_id`。
+
+**其他規則**:
+- `records` 內不是物件的項目（例如字串、數字）計入 `invalid`，不影響其他筆。
+- 單次最多 20,000 筆，超過回 400，請分批匯入。
+- 有新增時會清除該用戶的統計快取，匯入後統計頁立即反映新資料。
+- CSV 匯出：備註、分類若以 `=`、`+`、`-`、`@` 開頭，會加上單引號前綴，避免被試算表當公式執行；Excel 匯出則將這類字串標為文字；JSON 備份維持原值。
 
 **回應 (200)**:
 ```json
@@ -1711,6 +1755,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### Token 有效期
 - 預設 7 天
 - 過期後需要重新登入
+- 修改密碼或重設密碼後，在那之前簽發的 Token 會立即失效（回 401），所有舊裝置需重新登入；修改密碼之後重新登入取得的新 Token 不受影響。從未改過密碼的帳號不受影響
 
 ### 錯誤回應
 未認證或 Token 無效時：
@@ -1730,8 +1775,12 @@ HTTP 狀態碼: 401
 | 端點類別 | 限制 |
 |---------|------|
 | 註冊 | 5 次/小時 |
-| 登入 | 10 次/小時 |
+| 登入 | 10 次/分鐘（另有失敗鎖定，見「登入」） |
+| 忘記密碼 | 5 次/小時 |
+| 重設密碼 | 10 次/小時 |
+| 密碼強度檢查／密碼規則（`validate-password`、`password-config`） | 60 次/分鐘 |
 | 資料匯出 | 10 次/小時 |
+| 資料匯入 | 5 次/小時 |
 | 修改密碼 | 5 次/小時 |
 | 一般 API | 100 次/分鐘 |
 

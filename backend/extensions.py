@@ -5,6 +5,7 @@ extensions.py — 共用工具模組
 所有 Blueprint 均從此模組 import，不直接依賴 main.py。
 """
 
+import calendar
 import os
 import re
 import time
@@ -69,10 +70,29 @@ def get_rate_limit_key():
                 return f"user:{payload.get('user_id', 'unknown')}"
         except Exception:
             pass
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return get_remote_address()
+    return client_ip_from_forwarded_for(
+        request.headers.get("X-Forwarded-For", ""), get_remote_address()
+    )
+
+
+def client_ip_from_forwarded_for(forwarded_for: str, remote_addr: str) -> str:
+    """從 X-Forwarded-For 取出客戶端 IP，不信任客戶端自己填的部分。
+
+    X-Forwarded-For 的格式是「client, proxy1, proxy2…」，每一層代理會把它看到的
+    對端 IP 附加在最右邊（nginx 的 $proxy_add_x_forwarded_for）。最左邊那段可以由
+    客戶端任意偽造，拿來當限速 key 的話，每次換個值就能繞過限速。
+    因此只信任「自己的代理」附加的部分：由右往左數 TRUSTED_PROXY_COUNT 筆
+    （預設 1 = 只有 nginx 一層；若前面另有一層代理就設 2）。
+    標頭筆數不足時退回 remote_addr。
+    """
+    try:
+        trusted = max(1, int(os.getenv("TRUSTED_PROXY_COUNT", "1")))
+    except ValueError:
+        trusted = 1
+    parts = [p.strip() for p in forwarded_for.split(",") if p.strip()]
+    if len(parts) >= trusted:
+        return parts[-trusted]
+    return remote_addr
 
 
 # ==================== Limiter（Application Factory 模式） ====================
@@ -86,6 +106,35 @@ limiter = Limiter(
 )
 
 # ==================== require_auth 裝飾器 ====================
+
+
+def _token_still_valid(payload: dict) -> bool:
+    """
+    檢查 token 是否在最近一次改密碼之前簽發（是就視為已撤銷）。
+
+    - 使用者沒有 password_changed_at（舊帳號、從未改過密碼）→ 有效，不強制重新登入
+    - token 沒有 iat、或 iat 早於密碼變更時間 → 無效
+    資料庫沒連上（users_collection 為 None）時略過檢查，由各路由自己回錯誤。
+    """
+    import db  # 延遲載入：db.py 本身會 import 本模組
+
+    if db.users_collection is None:
+        return True
+    try:
+        user = db.users_collection.find_one(
+            {"_id": ObjectId(payload.get("user_id"))},
+            {"password_changed_at": 1},
+        )
+    except (InvalidId, TypeError):
+        return False
+    # 使用者不存在時不在這裡擋（各路由自己回 404），避免改變既有行為
+    changed_at = user.get("password_changed_at") if user else None
+    if changed_at is None:
+        return True
+    iat = payload.get("iat")
+    if not isinstance(iat, (int, float)):
+        return False
+    return iat >= calendar.timegm(changed_at.utctimetuple())
 
 
 def require_auth(f):
@@ -103,6 +152,9 @@ def require_auth(f):
             if len(parts) == 2:
                 token = parts[1]
                 payload = auth.verify_jwt(token)
+
+                if payload and not _token_still_valid(payload):
+                    return jsonify({"error": "Token 無效或已過期"}), 401
 
                 if payload:
                     request.user_id = payload.get("user_id")
@@ -284,24 +336,58 @@ def _cache_invalidate_user(user_id: str) -> None:
 
 # ==================== 登入失敗鎖定 ====================
 
+# 以「來源 IP + email」為鍵：若只用 email，任何人都能對別人的帳號亂試 5 次
+# 就把本人鎖在外面 15 分鐘。這份表存在記憶體，重啟即清空。
 _login_failures: dict = defaultdict(list)
 LOCKOUT_THRESHOLD = 5
 LOCKOUT_DURATION = 15 * 60  # 15 分鐘
+MAX_TRACKED_LOGIN_KEYS = 10000  # 表的上限，避免被大量不同 email 灌爆記憶體
 
 
-def _is_locked_out(email: str) -> bool:
+def get_client_ip() -> str:
+    """目前請求的客戶端 IP（與限速使用相同的 X-Forwarded-For 規則）。"""
+    return client_ip_from_forwarded_for(
+        request.headers.get("X-Forwarded-For", ""), get_remote_address()
+    )
+
+
+def _lockout_key(email: str, ip: str) -> str:
+    return f"{ip}|{email}"
+
+
+def _is_locked_out(email: str, ip: str) -> bool:
     if os.getenv("TESTING", "false").lower() == "true":
         return False
+    key = _lockout_key(email, ip)
+    attempts = _login_failures.get(key)
+    if not attempts:
+        return False
     now = time.time()
-    _login_failures[email] = [
-        t for t in _login_failures[email] if now - t < LOCKOUT_DURATION
-    ]
-    return len(_login_failures[email]) >= LOCKOUT_THRESHOLD
+    recent = [t for t in attempts if now - t < LOCKOUT_DURATION]
+    if recent:
+        _login_failures[key] = recent
+    else:
+        _login_failures.pop(key, None)
+    return len(recent) >= LOCKOUT_THRESHOLD
 
 
-def _record_login_failure(email: str) -> None:
-    _login_failures[email].append(time.time())
+def _prune_login_failures() -> None:
+    """表超過上限時先清掉過期的；還是太大就丟掉最舊的一半。"""
+    now = time.time()
+    for key in list(_login_failures):
+        if all(now - t >= LOCKOUT_DURATION for t in _login_failures[key]):
+            _login_failures.pop(key, None)
+    if len(_login_failures) > MAX_TRACKED_LOGIN_KEYS:
+        by_age = sorted(_login_failures, key=lambda k: _login_failures[k][-1])
+        for key in by_age[: len(by_age) // 2]:
+            _login_failures.pop(key, None)
 
 
-def _clear_login_failures(email: str) -> None:
-    _login_failures.pop(email, None)
+def _record_login_failure(email: str, ip: str) -> None:
+    _login_failures[_lockout_key(email, ip)].append(time.time())
+    if len(_login_failures) > MAX_TRACKED_LOGIN_KEYS:
+        _prune_login_failures()
+
+
+def _clear_login_failures(email: str, ip: str) -> None:
+    _login_failures.pop(_lockout_key(email, ip), None)
