@@ -56,6 +56,20 @@ check_ctype() {
   fi
 }
 
+# 斷言：回應標頭 <name> 含指定字串（用於確認前端安全標頭沒有被代理層吃掉）
+check_header() {
+  local desc="$1" url="$2" name="$3" want="$4" val
+  val="$(curl -sk -I --max-time 15 "$url" 2>/dev/null \
+    | tr -d '\r' \
+    | awk -v n="$name" -F': ' 'tolower($1)==tolower(n){print $2}' || true)"
+  if printf '%s' "$val" | grep -qi "$want"; then
+    echo "  ✓ $desc — $url → $name 含 '$want'"
+  else
+    echo "  ✗ $desc — $url → $name 期望含 '$want'，實得 '${val:-<空>}'"
+    fail=1
+  fi
+}
+
 echo "=== nginx 整合冒煙測試（BASE=$BASE）==="
 
 echo "▶ 正式環境（/）"
@@ -63,7 +77,10 @@ check_code  "正式前端首頁"           "$BASE/"                     200
 check_code  "正式後端健康檢查"       "$BASE/health"               200
 check_code  "正式 /api 轉發後端"     "$BASE/api/auth/verify"      401
 
+check_header "正式前端帶 CSP"       "$BASE/"                     Content-Security-Policy "frame-ancestors 'none'"
+
 echo "▶ 測試環境（/test/）"
+check_header "測試前端帶 CSP"       "$BASE/test/"                Content-Security-Policy "frame-ancestors 'none'"
 check_code  "測試前端首頁"           "$BASE/test/"                200
 check_ctype "測試前端前綴剝除"       "$BASE/test/manifest.json"   application/json
 # 關鍵回歸：後端須收到剝掉 /test 的 /api/auth/verify（401），而非未剝除的 /test/api/...（404）
