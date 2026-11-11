@@ -30,7 +30,53 @@
 | 記帳照片 | 拍照/選圖上傳、事後補充/刪除、離線相片佇列、跨記錄照片瀏覽 |
 | 測試 | 後端測試增至 582 個；E2E 改用 `frontend/tests/e2e/v2/`（20 個測試）；前端單元測試改用 Node 內建 `node --test` |
 
+### 2026-11（v1.2.0 發版前後）
+
+| 類別 | 完成項目 |
+|------|---------|
+| 註冊 | 邀請制／關閉註冊（`REGISTRATION_MODE`、一次性邀請碼、`manage_invites.py`） |
+| 安全 | escapeHtml 屬性注入防護、限速不可靠偽造 `X-Forwarded-For` 繞過（`TRUSTED_PROXY_COUNT`）、改密碼／重設密碼後舊 token 失效、登入鎖定改以「IP＋email」並設上限、前端頁面 CSP 與基本安全標頭 |
+| 資料管理 | 匯入匯出強化（清統計快取、CSV/Excel 公式注入防護、分類驗證、單次匯入上限 20,000 筆） |
+| CI | runner 固定為 `ubuntu-24.04`（Playwright 不支援 26.04） |
+
 下方「第一優先」「第二優先」清單是 2026-03-21 當時規劃的待辦，其中多數項目已隨 v2 重寫一併完成（逐項標記見下），尚未逐項覆核的請視為需要重新確認現況，不要直接假設仍是待辦。
+
+---
+
+## 🧭 開發順序（2026-11 起）
+
+> 排序原則：先讓已完成的安全修正上線，再收小修；先確認資料算得對、備份能完整還原，再做大改動；原生相機、檔案匯出等交給 APK 階段，不在網頁版重複投資。
+
+### 階段 0：v1.2.0 發版收尾
+1. 測試環境登入後確認 CSP 沒擋到照片、離線同步等功能。
+2. 合併 develop→release、打 tag `v1.2.0`、建立 GitHub Release、補 `CHANGELOG.md`。
+3. 手動部署正式環境：設定 `REGISTRATION_MODE`；若 nginx 前還有另一層代理，設 `TRUSTED_PROXY_COUNT=2`；重建 backend 與 frontend 容器（`nginx.conf` 有變更）。
+
+### 階段 1：v1.2.1 小修
+- 記一筆加「拍照」按鈕（`capture="environment"`，一點直接開後置鏡頭，保留「選照片」）。
+- 小尾巴：`docs/API.md` 改密碼路徑寫錯；`backend/photo_storage/` 加進 `.gitignore`；`dashboard.js` 殘留 `#8a8a94` 色碼；確認「現金不足提領 NT$1,000」是設計如此還是 bug。
+- 快速記帳流程（#11）：記住上次分類、進入時自動聚焦金額欄位。
+
+### 階段 2：v1.3.0 資料正確性
+- 審計尚未看過的區域：`records.py` 邏輯、`wallets.py`、`debts.py`、其餘使用 `innerHTML` 的地方。
+- 完整備份與還原：JSON 備份補上錢包、位置，還原時重新對應轉帳配對、受限資金等 ID；同時決定匯入是否繼續接受 `transfer`／`restricted` 類型。照片是否納入備份需另行決定（檔案會變很大）。
+- 前端分頁 UI（#9）：明細頁目前以日期範圍加 `limit=200` 一次抓齊，單一範圍超過 200 筆會被截斷，需要「載入更多」或翻頁。
+
+### 階段 3：APK 套殼前置整理
+- 把 `onclick=` 改成 JS 綁事件，之後 CSP 才能拿掉 `'unsafe-inline'`，XSS 防護才真正變嚴。
+- 後端網址在 APK 內改為固定值，不再靠網域偵測。
+- 匯出改走原生分享（WebView 預設不處理下載）。
+- 評估 Service Worker 在 WebView 內的離線同步是否需調整。
+
+### 階段 4：APK 套殼
+- 相機改用原生元件；網頁版相機不再投資。
+- 取代下方長期目標的「React Native / Flutter」方向，改為套殼現有網頁。
+
+### 暫不排入
+- 應收／應付頁面（明確決定不做）。
+- 網頁內即時相機（`getUserMedia` 連拍、預覽）：套殼後會被原生相機取代。
+- 純視覺整理（Card 系統推廣、`.field`／`.auth-field` 合併、`btn-primary` 變體）：沒有急迫性，視覺細節交給 Claude Design。
+- 分類管理介面（#10）、手機版 Analytics 斷點覆核（#4）、技術債（前端 ESLint 指向已不存在的 `js-refactored/`、圖片 lazy loading、使用手冊／FAQ）、AI 自然語言記帳、從其他記帳 app 匯入：維持原優先級，視需要再拉進來。
 
 ---
 
@@ -147,7 +193,7 @@
 - [ ] 解析銀行 Email 對帳單
 
 ### 原生 App
-- [ ] React Native / Flutter 開發
+- [ ] ~~React Native / Flutter 開發~~ → 改為「套殼 APK」，沿用現有網頁（見上方開發順序階段 3、4）
 - [ ] 原生系統通知（到期提醒）
 
 ---
