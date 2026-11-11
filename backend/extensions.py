@@ -5,6 +5,7 @@ extensions.py — 共用工具模組
 所有 Blueprint 均從此模組 import，不直接依賴 main.py。
 """
 
+import calendar
 import os
 import re
 import time
@@ -107,6 +108,35 @@ limiter = Limiter(
 # ==================== require_auth 裝飾器 ====================
 
 
+def _token_still_valid(payload: dict) -> bool:
+    """
+    檢查 token 是否在最近一次改密碼之前簽發（是就視為已撤銷）。
+
+    - 使用者沒有 password_changed_at（舊帳號、從未改過密碼）→ 有效，不強制重新登入
+    - token 沒有 iat、或 iat 早於密碼變更時間 → 無效
+    資料庫沒連上（users_collection 為 None）時略過檢查，由各路由自己回錯誤。
+    """
+    import db  # 延遲載入：db.py 本身會 import 本模組
+
+    if db.users_collection is None:
+        return True
+    try:
+        user = db.users_collection.find_one(
+            {"_id": ObjectId(payload.get("user_id"))},
+            {"password_changed_at": 1},
+        )
+    except (InvalidId, TypeError):
+        return False
+    # 使用者不存在時不在這裡擋（各路由自己回 404），避免改變既有行為
+    changed_at = user.get("password_changed_at") if user else None
+    if changed_at is None:
+        return True
+    iat = payload.get("iat")
+    if not isinstance(iat, (int, float)):
+        return False
+    return iat >= calendar.timegm(changed_at.utctimetuple())
+
+
 def require_auth(f):
     """
     認證裝飾器：驗證 JWT token
@@ -122,6 +152,9 @@ def require_auth(f):
             if len(parts) == 2:
                 token = parts[1]
                 payload = auth.verify_jwt(token)
+
+                if payload and not _token_still_valid(payload):
+                    return jsonify({"error": "Token 無效或已過期"}), 401
 
                 if payload:
                     request.user_id = payload.get("user_id")
