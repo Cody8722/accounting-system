@@ -1590,11 +1590,17 @@ GET /admin/api/accounting/export?format=json
 - `type`：須通過與新增記帳記錄相同的類型驗證（`income`/`expense`/`transfer`/`restricted`）
 - `amount`：須通過金額驗證（> 0，最大 10,000,000）
 - `date`：須為合法 YYYY-MM-DD 日期
-- `category`：不可為空
+- `category`：須為非空字串（最多 50 字元），存入時會去掉頭尾空白；數字、物件等非字串視為無效
 - `description`：可選，最多 500 字元
 - `expense_type`：可選，須為 `fixed`/`variable`/`onetime`，其餘值一律視為未設定
 
 **去重邏輯**: 逐筆比對 `user_id + date + type + amount + category + description` 完全相同的既有記錄，命中即視為重複、不重複匯入（計入 `duplicates`）。匯入的記錄一律不會帶 `wallet_id`／`location`（視為「未分類」），也不會帶 `client_id`。
+
+**其他規則**:
+- `records` 內不是物件的項目（例如字串、數字）計入 `invalid`，不影響其他筆。
+- 單次最多 20,000 筆，超過回 400，請分批匯入。
+- 有新增時會清除該用戶的統計快取，匯入後統計頁立即反映新資料。
+- CSV 匯出：備註、分類若以 `=`、`+`、`-`、`@` 開頭，會加上單引號前綴，避免被試算表當公式執行；Excel 匯出則將這類字串標為文字；JSON 備份維持原值。
 
 **回應 (200)**:
 ```json

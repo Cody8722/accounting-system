@@ -19,6 +19,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 
 import db
 from extensions import (
+    _cache_invalidate_user,
     limiter,
     require_auth,
     validate_amount,
@@ -30,6 +31,22 @@ from extensions import (
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("io", __name__)
+
+# 單次匯入的筆數上限（每筆要查重再寫入，過多會長時間卡住後端）
+MAX_IMPORT_RECORDS = 20000
+
+# 試算表會把這些開頭的儲存格當公式執行（\t、\r 是繞過檢查的常見手法）
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def neutralize_formula(value):
+    """匯出 CSV 時，字串若以公式字元開頭就加上單引號，讓試算表當成純文字。
+
+    只處理字串；數字、None 原樣回傳。
+    """
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 @bp.route("/admin/api/accounting/export", methods=["GET"])
@@ -146,6 +163,12 @@ def export_accounting_records():
             for row in rows:
                 ws.append(row)
 
+            # openpyxl 會把「=」開頭的字串寫成公式；明確標成文字，開啟時不會執行
+            for data_row in ws.iter_rows(min_row=2):
+                for cell in data_row:
+                    if isinstance(cell.value, str) and cell.value.startswith("="):
+                        cell.data_type = "s"
+
             ws.freeze_panes = "A2"
 
             col_widths = [12, 8, 12, 10, 30, 12]
@@ -193,7 +216,7 @@ def export_accounting_records():
             writer = csv.writer(output)
             writer.writerow(headers)
             for row in rows:
-                writer.writerow(row)
+                writer.writerow([neutralize_formula(cell) for cell in row])
 
             filename = filename_base + ".csv"
             output.seek(0)
@@ -230,6 +253,13 @@ def import_accounting_records():
         data = request.get_json()
         if not data or "records" not in data or not isinstance(data["records"], list):
             return jsonify({"error": "格式錯誤：需要包含 records 陣列"}), 400
+        if len(data["records"]) > MAX_IMPORT_RECORDS:
+            return (
+                jsonify(
+                    {"error": f"單次最多匯入 {MAX_IMPORT_RECORDS:,} 筆，請分批匯入"}
+                ),
+                400,
+            )
 
         user_oid = ObjectId(request.user_id)
         imported = 0
@@ -237,6 +267,10 @@ def import_accounting_records():
         invalid = 0
 
         for item in data["records"]:
+            if not isinstance(item, dict):
+                invalid += 1
+                continue
+
             record_type = item.get("type", "")
             amount = item.get("amount")
             category = item.get("category", "")
@@ -245,11 +279,13 @@ def import_accounting_records():
             valid_type, _ = validate_record_type(record_type)
             valid_amount, _ = validate_amount(amount)
             valid_date, _ = validate_date(date)
-            valid_category, _ = validate_category(str(category) if category else "")
+            # 分類只收字串，並存整理（去頭尾空白）後的值
+            valid_category, clean_category = validate_category(category)
 
             if not (valid_type and valid_amount and valid_date and valid_category):
                 invalid += 1
                 continue
+            category = clean_category
 
             description = str(item.get("description", "")).strip()[:500]
             expense_type = item.get("expense_type", "")
@@ -284,6 +320,10 @@ def import_accounting_records():
                 }
             )
             imported += 1
+
+        if imported:
+            # 統計有 5 分鐘快取；新增資料後要清掉，否則統計頁看到舊數字
+            _cache_invalidate_user(request.user_id)
 
         total = imported + duplicates + invalid
         logger.info(
