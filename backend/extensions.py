@@ -303,24 +303,58 @@ def _cache_invalidate_user(user_id: str) -> None:
 
 # ==================== 登入失敗鎖定 ====================
 
+# 以「來源 IP + email」為鍵：若只用 email，任何人都能對別人的帳號亂試 5 次
+# 就把本人鎖在外面 15 分鐘。這份表存在記憶體，重啟即清空。
 _login_failures: dict = defaultdict(list)
 LOCKOUT_THRESHOLD = 5
 LOCKOUT_DURATION = 15 * 60  # 15 分鐘
+MAX_TRACKED_LOGIN_KEYS = 10000  # 表的上限，避免被大量不同 email 灌爆記憶體
 
 
-def _is_locked_out(email: str) -> bool:
+def get_client_ip() -> str:
+    """目前請求的客戶端 IP（與限速使用相同的 X-Forwarded-For 規則）。"""
+    return client_ip_from_forwarded_for(
+        request.headers.get("X-Forwarded-For", ""), get_remote_address()
+    )
+
+
+def _lockout_key(email: str, ip: str) -> str:
+    return f"{ip}|{email}"
+
+
+def _is_locked_out(email: str, ip: str) -> bool:
     if os.getenv("TESTING", "false").lower() == "true":
         return False
+    key = _lockout_key(email, ip)
+    attempts = _login_failures.get(key)
+    if not attempts:
+        return False
     now = time.time()
-    _login_failures[email] = [
-        t for t in _login_failures[email] if now - t < LOCKOUT_DURATION
-    ]
-    return len(_login_failures[email]) >= LOCKOUT_THRESHOLD
+    recent = [t for t in attempts if now - t < LOCKOUT_DURATION]
+    if recent:
+        _login_failures[key] = recent
+    else:
+        _login_failures.pop(key, None)
+    return len(recent) >= LOCKOUT_THRESHOLD
 
 
-def _record_login_failure(email: str) -> None:
-    _login_failures[email].append(time.time())
+def _prune_login_failures() -> None:
+    """表超過上限時先清掉過期的；還是太大就丟掉最舊的一半。"""
+    now = time.time()
+    for key in list(_login_failures):
+        if all(now - t >= LOCKOUT_DURATION for t in _login_failures[key]):
+            _login_failures.pop(key, None)
+    if len(_login_failures) > MAX_TRACKED_LOGIN_KEYS:
+        by_age = sorted(_login_failures, key=lambda k: _login_failures[k][-1])
+        for key in by_age[: len(by_age) // 2]:
+            _login_failures.pop(key, None)
 
 
-def _clear_login_failures(email: str) -> None:
-    _login_failures.pop(email, None)
+def _record_login_failure(email: str, ip: str) -> None:
+    _login_failures[_lockout_key(email, ip)].append(time.time())
+    if len(_login_failures) > MAX_TRACKED_LOGIN_KEYS:
+        _prune_login_failures()
+
+
+def _clear_login_failures(email: str, ip: str) -> None:
+    _login_failures.pop(_lockout_key(email, ip), None)
