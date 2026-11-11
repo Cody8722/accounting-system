@@ -61,7 +61,7 @@ check_header() {
   local desc="$1" url="$2" name="$3" want="$4" val
   val="$(curl -sk -I --max-time 15 "$url" 2>/dev/null \
     | tr -d '\r' \
-    | awk -v n="$name" -F': ' 'tolower($1)==tolower(n){print $2}' || true)"
+    | sed -n "s/^${name}: *//Ip" || true)"
   if printf '%s' "$val" | grep -qi "$want"; then
     echo "  ✓ $desc — $url → $name 含 '$want'"
   else
