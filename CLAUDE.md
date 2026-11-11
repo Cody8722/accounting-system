@@ -92,7 +92,7 @@ PWA 相關：`frontend/v2/service-worker.js`（快取策略、版本號控制）
 
 ### 資料庫（MongoDB `accounting_db`）
 
-七個集合：`users`、`records`、`budget`、`recurring`、`debts`、`wallets`、`invites`（邀請制註冊的一次性邀請碼，只存 SHA-256 雜湊）。詳細 schema 見 `README.md`。
+七個集合：`users`、`records`、`budget`、`recurring`、`debts`、`wallets`、`invites`（邀請制註冊的一次性邀請碼，只存 SHA-256 雜湊）。詳細 schema 見 `docs/DATABASE.md`。
 
 ### 測試架構
 
@@ -243,7 +243,11 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 
 | 文件 | 說明 |
 |------|------|
+| [`docs/SETUP.md`](docs/SETUP.md) | 安裝、環境變數、前端設定、測試、部署、安全建議（README 的詳細版） |
 | [`docs/API.md`](docs/API.md) | 完整 API 端點文件（請求/回應範例） |
+| [`docs/API_ENDPOINTS.md`](docs/API_ENDPOINTS.md) | API 端點速查表 |
+| [`docs/DATABASE.md`](docs/DATABASE.md) | 資料庫集合與欄位結構 |
+| [`docs/FEATURES.md`](docs/FEATURES.md) | 完整功能清單 |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | 開發環境設定、提交規範 |
 | [`docs/ROADMAP_v2.md`](docs/ROADMAP_v2.md) | **現行**發展藍圖與開發順序（UX 優先；「開發順序」章節為目前排程） |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | 舊版藍圖（歷史參考，不代表目前待辦） |
