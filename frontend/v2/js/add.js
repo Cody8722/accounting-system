@@ -464,6 +464,11 @@ function close() {
   window.dispatchEvent(new CustomEvent('add:closed'));
 }
 
+/** 記一筆是否開著——供 main.js 在新版接管時延後重整，避免清掉填到一半的內容與已拍的照片 */
+export function isAddOpen() {
+  return host !== null;
+}
+
 /** 靜默關閉（不觸發刷新）——供切換手機/電腦外殼時清掉舊的記帳覆蓋層 */
 export function closeAdd() {
   if (host) { host.remove(); host = null; }

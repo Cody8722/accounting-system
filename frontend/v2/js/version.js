@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.19.1';
-export const RELEASE_NOTE = '新增：記一筆可直接拍照、自動記住上次的分類與錢包（電腦版開啟即可輸入金額）';
+export const APP_VERSION = '1.19.2';
+export const RELEASE_NOTE = '新增：記一筆可直接拍照、自動記住上次的分類與錢包；記一筆時遇到新版不再強制重整';
