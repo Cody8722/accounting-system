@@ -36,6 +36,26 @@ let acc = null, op = null, buf = '';
 // 待上傳照片：{file(壓縮後), url(預覽用 objectURL)}[]；存檔成功、拿到 record id 後才真正上傳
 let pendingPhotos = [];
 
+const LAST_CATEGORY_KEY = 'add:lastCategory';
+
+/** 讀取上次存檔成功的分類（依收入/支出分開記）；分類已不存在就當沒記過。localStorage 不可用時安靜略過 */
+function recallCategory(t) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_CATEGORY_KEY) || '{}')[t];
+    const valid = CATEGORY_TREE[t].some((g) => g.items.includes(saved));
+    return valid ? saved : '';
+  } catch {
+    return '';
+  }
+}
+function rememberCategory() {
+  if (!category) return;
+  try {
+    const all = JSON.parse(localStorage.getItem(LAST_CATEGORY_KEY) || '{}');
+    localStorage.setItem(LAST_CATEGORY_KEY, JSON.stringify({ ...all, [type]: category }));
+  } catch { /* 無痕模式或儲存被封鎖：不影響記帳 */ }
+}
+
 const UNIT_LABEL = { day: '天', week: '週', month: '個月', year: '年' };
 const MAX_PENDING_PHOTOS = 20; // 與後端 MAX_PHOTOS_PER_RECORD 一致，前端先攔一次給即時提示
 
@@ -142,9 +162,15 @@ function photoAreaHtml() {
       <img src="${p.url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)">
       <button data-photo-remove="${i}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--expense);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><i class="ti ti-x" style="font-size:var(--text-base)"></i></button>
     </div>`).join('');
+  const tile = 'width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer';
+  // 拍照：capture 讓手機直接開後置鏡頭（桌機瀏覽器會忽略，退回一般選檔）；選照片：可複選
   const addBtn = online
-    ? `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
-        <i class="ti ti-camera-plus" style="font-size:var(--text-xl)"></i>
+    ? `<label style="${tile}" title="拍照">
+        <i class="ti ti-camera" style="font-size:var(--text-xl)"></i>
+        <input data-el="photoCapture" type="file" accept="image/*" capture="environment" style="display:none">
+      </label>
+      <label style="${tile}" title="選照片">
+        <i class="ti ti-photo-plus" style="font-size:var(--text-xl)"></i>
         <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
       </label>`
     : `<div style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:10px;color:var(--faint)" title="照片需連線上傳"><i class="ti ti-camera-off" style="font-size:18px"></i></div>`;
@@ -155,8 +181,9 @@ function renderPhotoArea() {
   const area = host && host.querySelector('[data-el="photoArea"]');
   if (!area) return;
   area.innerHTML = photoAreaHtml();
-  const input = area.querySelector('[data-el="photoFile"]');
-  if (input) input.addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
+  area.querySelectorAll('[data-el="photoFile"], [data-el="photoCapture"]').forEach((input) => {
+    input.addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
+  });
 }
 
 async function addPhotoFiles(fileList) {
@@ -317,6 +344,7 @@ async function offlineSave(payload, amount) {
   });
   if (!ok) { showToast('離線儲存失敗（瀏覽器儲存不可用）', 'error'); return; }
   showToast('已離線記錄，連線後自動同步', 'success');
+  rememberCategory();
   emit('records:changed');
   // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
   clearCalc();
@@ -352,6 +380,7 @@ async function finishSave(amount, hadSplit = false, recordId = null) {
     }).catch(() => {});
   }
   showToast(hadSplit ? '已記一筆（含受限資金）' : '已記一筆', 'success');
+  rememberCategory();
   emit('records:changed');
   // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
   clearCalc();
@@ -447,8 +476,8 @@ function onHostClick(e) {
   const t = e.target;
   if (t.closest('[data-el="cancel"]')) return close();
   if (t.closest('[data-el="invoice"]')) return openInvoiceScan(invoiceCallback);
-  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = ''; location = null; resetSplit(); renderCatArea(); refresh(); return; }
-  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = ''; location = null; resetSplit(); renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="expBtn"]')) { type = 'expense'; category = recallCategory(type); location = null; resetSplit(); renderCatArea(); refresh(); return; }
+  if (t.closest('[data-el="incBtn"]')) { type = 'income'; category = recallCategory(type); location = null; resetSplit(); renderCatArea(); refresh(); return; }
   if (t.closest('[data-el="splitToggle"]')) return toggleSplit();
   if (t.closest('[data-el="recBtn"]')) { recurring = !recurring; refresh(); if (recurring) openRecurSheet(); return; }
   if (t.closest('[data-el="recRow"]')) return openRecurSheet();
@@ -642,7 +671,7 @@ function buildDesktop() {
 export function openAdd(initialType = 'expense') {
   if (host) return;
   mode = window.innerWidth >= DESKTOP_BREAKPOINT ? 'desktop' : 'mobile';
-  type = initialType; category = ''; walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
+  type = initialType; category = recallCategory(type); walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
   splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
   acc = null; op = null; buf = '';
   pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
@@ -655,4 +684,6 @@ export function openAdd(initialType = 'expense') {
   refresh();
   // 錢包清單快取可能尚未載入過（例如尚未開過設定頁的錢包管理）；抓回後重繪一次 chips
   fetchWallets().then(renderWalletArea).catch(() => {});
+  // 電腦版有實體鍵盤，開啟即聚焦金額欄；手機版用自製鍵盤，聚焦會誤跳系統鍵盤所以不做
+  if (mode === 'desktop') host.querySelector('[data-el="amountInput"]').focus();
 }

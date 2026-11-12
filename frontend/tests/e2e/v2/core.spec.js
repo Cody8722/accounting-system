@@ -60,6 +60,17 @@ test.describe('v2 核心流程', () => {
     await expect(page.locator('.desktop-main')).toContainText('137', { timeout: 10000 });
   });
 
+  test('再開記一筆：記住上次分類並自動聚焦金額欄', async ({ page }) => {
+    await addRecordDesktop(page, '318', '晚餐');
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await expect(page.locator('.overlay.center [data-leaf="晚餐"]')).toHaveClass(/active/);
+    await expect(page.locator('.overlay.center [data-el="amountInput"]')).toBeFocused();
+    // 照片區有「拍照」與「選照片」兩個入口，拍照那個要帶 capture
+    await expect(page.locator('.overlay.center [data-el="photoCapture"]')).toHaveAttribute('capture', 'environment');
+    await expect(page.locator('.overlay.center [data-el="photoFile"]')).toHaveCount(1);
+  });
+
   test('編輯記錄：改金額後明細更新', async ({ page }) => {
     await addRecordDesktop(page, '246', '午餐');
     await expect(page.locator('.desktop-main')).toContainText('246', { timeout: 10000 });

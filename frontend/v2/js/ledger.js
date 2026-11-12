@@ -362,8 +362,13 @@ function openEditIncomeExpense(record) {
       </div>`;
     }).join('');
     // 新增一律開放（離線會排隊，不是被擋下）；只有刪除受限於是否連線。
-    const addBtn = `<label style="width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer">
-          <i class="ti ti-camera-plus" style="font-size:var(--text-xl)"></i>
+    const tile = 'width:56px;height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:10px;color:var(--muted);cursor:pointer';
+    const addBtn = `<label style="${tile}" title="拍照">
+          <i class="ti ti-camera" style="font-size:var(--text-xl)"></i>
+          <input data-el="photoCapture" type="file" accept="image/*" capture="environment" style="display:none">
+        </label>
+        <label style="${tile}" title="選照片">
+          <i class="ti ti-photo-plus" style="font-size:var(--text-xl)"></i>
           <input data-el="photoFile" type="file" accept="image/*" multiple style="display:none">
         </label>`;
     return thumbs + addBtn;
@@ -372,10 +377,11 @@ function openEditIncomeExpense(record) {
     const area = ov.querySelector('[data-el="photoArea"]');
     if (!area) return;
     area.innerHTML = photoAreaHtml();
-    const input = area.querySelector('[data-el="photoFile"]');
     // 先等 handleAddPhotos 把檔案內容讀完（compressImage 內部會整個讀進記憶體）
     // 再清空 input.value，避免兩者交錯時清空動作影響到還沒被完整讀取的 File。
-    if (input) input.addEventListener('change', async (e) => { const fl = e.target.files; await handleAddPhotos(fl); e.target.value = ''; });
+    area.querySelectorAll('[data-el="photoFile"], [data-el="photoCapture"]').forEach((input) => {
+      input.addEventListener('change', async (e) => { const fl = e.target.files; await handleAddPhotos(fl); e.target.value = ''; });
+    });
   }
   async function loadPhotoThumbs() {
     const missing = photos.filter((p) => !p.url && !p._pending);
