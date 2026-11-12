@@ -38,7 +38,7 @@ JWT_SECRET=any-local-secret
 |---------|:----:|--------|------|
 | `MONGO_URI` | ✅ | 無 | MongoDB 連線字串。本地測試可用 `mongodb://localhost:27017/accounting_db` |
 | `JWT_SECRET` | ✅ | 無 | JWT 簽名金鑰，32 字元以上。產生方式：`python -c "import secrets; print(secrets.token_hex(32))"` |
-| `FRONTEND_URLS` | | `http://localhost:8080,https://accounting-system.zeabur.app` | 允許跨域的前端網址（逗號分隔）。**前端用別的 port 時必須加進來**，正式環境請明確設定為實際網域 |
+| `FRONTEND_URLS` | | `http://localhost:8080` | 允許跨域的前端網址（逗號分隔）。**前端用別的 port 時必須加進來**，正式環境請明確設定為實際網域 |
 | `REGISTRATION_MODE` | | `open` | 註冊模式：`open` 開放 / `invite` 需一次性邀請碼 / `closed` 關閉；無法辨識的值視為 `closed` |
 | `TRUSTED_PROXY_COUNT` | | `1` | 限速與登入鎖定取客戶端 IP 時，信任幾層反向代理（`X-Forwarded-For` 由右往左數第 N 筆）。見下方說明 |
 | `PORT` | | `5001` | 後端監聽埠 |

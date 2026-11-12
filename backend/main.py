@@ -36,9 +36,7 @@ app.config["COMPRESS_MIN_SIZE"] = 500
 Compress(app)
 
 # CORS 設定
-FRONTEND_URLS = os.getenv(
-    "FRONTEND_URLS", "http://localhost:8080,https://accounting-system.zeabur.app"
-).split(",")
+FRONTEND_URLS = os.getenv("FRONTEND_URLS", "http://localhost:8080").split(",")
 FRONTEND_URLS = [url.strip() for url in FRONTEND_URLS if url.strip()]
 CORS(
     app,
@@ -77,7 +75,7 @@ def add_security_headers(response):
         "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
         "img-src 'self' data:; "
-        "connect-src 'self' http://localhost:5001 https://*.zeabur.app;"
+        "connect-src 'self' http://localhost:5001;"
     )
     return response
 

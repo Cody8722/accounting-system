@@ -186,7 +186,7 @@ test('描述邊界情況', () => {
 
 | 測試檔案 | 對應模組 | 涵蓋函式 | 守護的邏輯 |
 |---------|---------|---------|-----------|
-| `config.test.js` | `frontend/v2/js/config.js` | `resolveBackendUrl`、`storagePrefix` | 依 hostname/pathname 判斷本機、區網 IP、Tailscale 正式/測試環境、Zeabur 的後端 URL 與 localStorage key 前綴推導 |
+| `config.test.js` | `frontend/v2/js/config.js` | `resolveBackendUrl`、`storagePrefix` | 依 hostname/pathname 判斷本機、區網 IP、Tailscale 正式/測試環境的後端 URL 與 localStorage key 前綴推導 |
 | `jwt.test.js` | `frontend/v2/js/jwt.js` | `jwtExp`、`tokenLocallyValid` | 離線時信任本地 JWT 的過期判斷，避免把過期 token 當作有效登入狀態放行 |
 | `invoice.test.js` | `frontend/v2/js/invoice.js` | `parseInvoiceQR` | 電子發票 QR Code 左側 77 碼格式解析，並確保右側加密內容/雜訊不會被誤判成合法發票 |
 | `sync.test.js` | `frontend/v2/js/sync.js` | `classifySyncOutcome` | 離線佇列同步的逐筆失敗政策：2xx 成功、401 停止整批、4xx 標記需處理、5xx/網路錯誤重試 |

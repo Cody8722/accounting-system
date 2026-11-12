@@ -26,12 +26,6 @@ export function resolveBackendUrl(hostname, pathname = '/') {
   ) {
     return `http://${hostname}:5001`;
   }
-  if (hostname === 'accounting-system.zeabur.app') {
-    return 'https://accounting-system-ghth.zeabur.app';
-  }
-  if (hostname.includes('zeabur.app')) {
-    return `https://${hostname.replace('frontend', 'backend')}`;
-  }
   return 'http://localhost:5001';
 }
 
