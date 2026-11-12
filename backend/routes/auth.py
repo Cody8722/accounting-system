@@ -392,7 +392,7 @@ def forgot_password():
             # 決定前端 URL（優先 Origin header → Referer → FRONTEND_URL env → FRONTEND_URLS 第一個）
             frontend_urls = os.getenv(
                 "FRONTEND_URLS",
-                "http://localhost:8080,https://accounting-system.zeabur.app",
+                "http://localhost:8080",
             ).split(",")
             frontend_urls = [u.strip() for u in frontend_urls if u.strip()]
 
