@@ -196,6 +196,10 @@ function renderPhotoArea() {
   });
 }
 
+// 網路狀態變了就重繪照片區：否則開啟當下被判定離線時，拍照／選照片按鈕會一直卡在停用狀態（手機拍完照回來常短暫回報離線）
+window.addEventListener('online', renderPhotoArea);
+window.addEventListener('offline', renderPhotoArea);
+
 async function addPhotoFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
