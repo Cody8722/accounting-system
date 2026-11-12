@@ -14,7 +14,7 @@ import { CATEGORY_TREE, QUICK_LEAVES, categoryMeta, DESKTOP_BREAKPOINT } from '.
 import { showToast, showConfirm, todayStr, escapeHtml } from './utils.js';
 import { emit } from './store.js';
 import { openInvoiceScan } from './invoice.js';
-import { fetchWallets, walletChipsHtml, locationChipsHtml } from './wallet.js';
+import { fetchWallets, walletMeta, walletChipsHtml, locationChipsHtml } from './wallet.js';
 import { isOnline, enqueueOutbox, genClientId } from './offline.js';
 import { compressImage, uploadPhotos, openPhotoLightbox } from './photos.js';
 
@@ -54,6 +54,16 @@ function rememberCategory() {
     const all = JSON.parse(localStorage.getItem(LAST_CATEGORY_KEY) || '{}');
     localStorage.setItem(LAST_CATEGORY_KEY, JSON.stringify({ ...all, [type]: category }));
   } catch { /* 無痕模式或儲存被封鎖：不影響記帳 */ }
+}
+
+const LAST_WALLET_KEY = 'add:lastWallet';
+
+/** 上次存檔成功用的錢包 id（「未分類」記為空字串，讀回來是 null）；是否還存在由 openAdd 在錢包清單載入後驗證 */
+function recallWallet() {
+  try { return localStorage.getItem(LAST_WALLET_KEY) || null; } catch { return null; }
+}
+function rememberWallet() {
+  try { localStorage.setItem(LAST_WALLET_KEY, walletId || ''); } catch { /* 儲存不可用：不影響記帳 */ }
 }
 
 const UNIT_LABEL = { day: '天', week: '週', month: '個月', year: '年' };
@@ -345,6 +355,7 @@ async function offlineSave(payload, amount) {
   if (!ok) { showToast('離線儲存失敗（瀏覽器儲存不可用）', 'error'); return; }
   showToast('已離線記錄，連線後自動同步', 'success');
   rememberCategory();
+  rememberWallet();
   emit('records:changed');
   // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
   clearCalc();
@@ -381,6 +392,7 @@ async function finishSave(amount, hadSplit = false, recordId = null) {
   }
   showToast(hadSplit ? '已記一筆（含受限資金）' : '已記一筆', 'success');
   rememberCategory();
+  rememberWallet();
   emit('records:changed');
   // 連續記帳：清空金額與備註，保留類型/分類/帳戶/位置
   clearCalc();
@@ -671,7 +683,7 @@ function buildDesktop() {
 export function openAdd(initialType = 'expense') {
   if (host) return;
   mode = window.innerWidth >= DESKTOP_BREAKPOINT ? 'desktop' : 'mobile';
-  type = initialType; category = recallCategory(type); walletId = null; location = null; date = todayStr(); note = ''; recurring = false;
+  type = initialType; category = recallCategory(type); walletId = recallWallet(); location = null; date = todayStr(); note = ''; recurring = false;
   splitOpen = false; restrictedAmountStr = ''; restrictedNote = '';
   acc = null; op = null; buf = '';
   pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
@@ -683,7 +695,11 @@ export function openAdd(initialType = 'expense') {
   renderPhotoArea();
   refresh();
   // 錢包清單快取可能尚未載入過（例如尚未開過設定頁的錢包管理）；抓回後重繪一次 chips
-  fetchWallets().then(renderWalletArea).catch(() => {});
+  // 預選的錢包若已被刪除／封存，退回「未分類」（清單載入後才驗證得了）
+  fetchWallets().then(() => {
+    if (walletId && !walletMeta(walletId)) walletId = null;
+    renderWalletArea();
+  }).catch(() => {});
   // 電腦版有實體鍵盤，開啟即聚焦金額欄；手機版用自製鍵盤，聚焦會誤跳系統鍵盤所以不做
   if (mode === 'desktop') host.querySelector('[data-el="amountInput"]').focus();
 }
