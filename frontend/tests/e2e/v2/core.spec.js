@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { genUser, apiRegister, loginV2 } from './helpers.js';
+import { genUser, apiRegister, loginV2, BACKEND } from './helpers.js';
 
 /**
  * v2 核心流程（桌面外殼，viewport 1280×720）。
@@ -69,6 +69,33 @@ test.describe('v2 核心流程', () => {
     // 照片區有「拍照」與「選照片」兩個入口，拍照那個要帶 capture
     await expect(page.locator('.overlay.center [data-el="photoCapture"]')).toHaveAttribute('capture', 'environment');
     await expect(page.locator('.overlay.center [data-el="photoFile"]')).toHaveCount(1);
+  });
+
+  test('再開記一筆：預選上次使用的錢包', async ({ page }) => {
+    // 錢包走 API 建立（Node 端 fetch，不受 CORS 限制），重新整理後前端才抓得到
+    const token = await page.evaluate(() => localStorage.getItem('authToken'));
+    const res = await fetch(`${BACKEND}/admin/api/wallets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: 'E2E錢包' }),
+    });
+    expect(res.status).toBe(201);
+    await page.reload();
+    await page.waitForSelector('.sidebar, .tabbar', { timeout: 20000 });
+
+    await gotoLedger(page);
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await page.locator('.overlay.center [data-wallet]').filter({ hasText: 'E2E錢包' }).click();
+    await page.fill('.overlay.center [data-el="amountInput"]', '77');
+    await page.click('.overlay.center [data-leaf="早餐"]');
+    await page.click('.overlay.center [data-el="save"]');
+    await confirmWithdrawalIfNeeded(page);
+    await page.waitForSelector('.overlay.center', { state: 'detached', timeout: 10000 });
+
+    await page.click('[data-el="add"]');
+    await page.waitForSelector('.overlay.center [data-el="save"]', { timeout: 10000 });
+    await expect(page.locator('.overlay.center [data-wallet]').filter({ hasText: 'E2E錢包' })).toHaveClass(/active/);
   });
 
   test('編輯記錄：改金額後明細更新', async ({ page }) => {
