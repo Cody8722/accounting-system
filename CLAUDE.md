@@ -131,7 +131,7 @@ black --check backend/                                        # 只檢查不修�
 
 ```bash
 # 啟動前端靜態伺服器
-python -m http.server 8081 --directory frontend               # http://localhost:8081
+python -m http.server 8081 --directory frontend/v2            # http://localhost:8081
 # 注意：port 8080 在 Windows 上可能被其他程式佔用（如 FANUC），改用 8081
 
 # 安裝 E2E 測試依賴
@@ -209,7 +209,7 @@ const CACHE_NAME = 'accounting-system-vX.Y.Z';
 |------|:----:|------|
 | `MONGO_URI` | ✅ | MongoDB 連線字串 |
 | `JWT_SECRET` | ✅ | JWT 簽名金鑰（32 字元以上） |
-| `FRONTEND_URLS` | | 允許 CORS 的前端網址（逗號分隔，預設含 8080/8081） |
+| `FRONTEND_URLS` | | 允許 CORS 的前端網址（逗號分隔，預設只有 `http://localhost:8080`；用其他 port 要自己加） |
 | `REGISTRATION_MODE` | | 註冊模式：`open`（預設，開放）/ `invite`（需一次性邀請碼，用 `backend/manage_invites.py` 管理）/ `closed`（關閉）；無法辨識的值視為 `closed` |
 | `SMTP_HOST` | | Gmail SMTP 伺服器（預設 smtp.gmail.com） |
 | `SMTP_PORT` | | SMTP 埠號（587=TLS） |
