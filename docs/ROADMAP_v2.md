@@ -64,13 +64,16 @@
 
 ### 階段 3：APK 套殼前置整理
 - 把 `onclick=` 改成 JS 綁事件，之後 CSP 才能拿掉 `'unsafe-inline'`，XSS 防護才真正變嚴。
-- 後端網址在 APK 內改為固定值，不再靠網域偵測。
 - 匯出改走原生分享（WebView 預設不處理下載）。
-- 評估 Service Worker 在 WebView 內的離線同步是否需調整。
+- 確認 Service Worker 在 WebView 內離線快取與離線同步正常（殼載入遠端網頁，第一次連過之後離線可用）。
+- Service Worker 更新機制要穩：記一筆時不強制重整、預先快取繞過瀏覽器 HTTP 快取（v1.19.x 已修，套殼前再驗一次）。
 
 ### 階段 4：APK 套殼
+- **採「殼載入遠端網頁」**（如 Capacitor 設定載入 `https://ubuntu-server.tail886591.ts.net/`）：前端更新部署到 NAS 就生效，APK 不用跟著換；網頁沿用同源相對路徑，不需要寫死後端網址。
 - 相機改用原生元件；網頁版相機不再投資。
 - 取代下方長期目標的「React Native / Flutter」方向，改為套殼現有網頁。
+- **APK 自行更新（不上 Google Play）**：只有原生部分變動才需要換 APK。GitHub Actions 在發版時建 APK 並附在 GitHub Release，手機用 Obtainium 追蹤該 Release（repo 公開，免權杖）；每次安裝仍需手動確認。簽章金鑰存放於 GitHub Secrets，不進 repo，並另行備份（遺失就只能重裝、本機未同步資料會丟）。
+- 限制：需連到 Tailscale 才能首次載入；網址僅 tailnet 內可達，只適合自用／家人，不適用商店上架。
 
 ### 暫不排入
 - 應收／應付頁面（明確決定不做）。
