@@ -52,10 +52,11 @@
 2. 合併 develop→release、打 tag `v1.2.0`、建立 GitHub Release、補 `CHANGELOG.md`。
 3. 手動部署正式環境：設定 `REGISTRATION_MODE`；若 nginx 前還有另一層代理，設 `TRUSTED_PROXY_COUNT=2`；重建 backend 與 frontend 容器（`nginx.conf` 有變更）。
 
-### 階段 1：v1.2.1 小修
-- 記一筆加「拍照」按鈕（`capture="environment"`，一點直接開後置鏡頭，保留「選照片」）。
-- 小尾巴：`docs/API.md` 改密碼路徑寫錯；`backend/photo_storage/` 加進 `.gitignore`；`dashboard.js` 殘留 `#8a8a94` 色碼；確認「現金不足提領 NT$1,000」是設計如此還是 bug。
-- 快速記帳流程（#11）：記住上次分類、進入時自動聚焦金額欄位。
+### 階段 1：小修 — ✅ 已完成（已合併 develop，待發版）
+- [x] 記一筆與明細頁編輯加「拍照」按鈕（`capture="environment"`，一點直接開後置鏡頭，保留「選照片」）。
+- [x] 小尾巴：`docs/API.md` 改密碼路徑寫錯；`backend/photo_storage/` 加進 `.gitignore`；`dashboard.js` 殘留 `#8a8a94` 色碼改用 `--cat-other`；「現金不足提領」確認是設計如此（後端回 409 附試算，前端確認後重送），不是 bug。
+- [x] 快速記帳流程（#11）：記住上次的分類與錢包、桌面版開啟即聚焦金額欄（手機版用自製鍵盤，不聚焦以免跳系統鍵盤）。
+- [x] 順帶修正：記一筆開著時遇到新版不再強制重整（避免清掉已拍的照片）；Service Worker 預先快取繞過瀏覽器 HTTP 快取（修正更新後新舊畫面混版）。
 
 ### 階段 2：v1.3.0 資料正確性
 - 審計尚未看過的區域：`records.py` 邏輯、`wallets.py`、`debts.py`、其餘使用 `innerHTML` 的地方。
