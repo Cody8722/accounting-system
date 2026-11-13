@@ -6,6 +6,57 @@
 
 ---
 
+## [1.3.0] - 2026-11-14
+
+### ✨ Added
+
+- **記一筆可直接拍照**：照片區拆成「拍照」（手機直接開後置鏡頭）與「選照片」（可複選）兩個入口，明細頁編輯記錄同步（#73）
+- **記一筆預選上次的分類與錢包**：存檔成功後記住（收入、支出各記一個分類；錢包共用一個，含「未分類」），下次開啟預選；已不存在的分類或錢包自動退回未選。桌面版開啟即聚焦金額欄（#73）
+- **Docker 一行架設**：`docker-compose.yml` 改為通用版——內建 MongoDB（`COMPOSE_PROFILES=local-db`）、named volume、前端 8080／後端 5001 對外、後端等 MongoDB 再啟動、前後端 healthcheck。`cp backend/.env.example backend/.env && cp .env.example .env && docker compose up -d --build` 即可（#74）
+
+### 🐛 Fixed
+
+- 記一筆時遇到新版本不再強制重整頁面（原本會清掉已拍的照片與填到一半的內容），改為關閉記一筆後才換新版（#73）
+- 更新後畫面新舊版混在一起（例如記一筆是舊版、明細是新版）：Service Worker 預先快取改為繞過瀏覽器 HTTP 快取（#73）
+- 記一筆的照片區在開啟當下被判定離線時，按鈕會一直停用；改為網路狀態改變時重繪（#73）
+- `dashboard.js` 殘留寫死的色碼改用 `--cat-other`（#73）
+
+### 🔄 Changed
+
+- **主機專屬的 compose 設定改放本機覆蓋檔** `docker-compose.override.yml`（外部網路、照片目錄、映像釘版本等）：該檔已加入 `.gitignore`，不進版控，Compose 自動合併，啟動指令不變。**已用外部網路、不對外開埠的環境（如 NAS）升級前，必須先在該主機建好此檔再 `git pull`**，否則通用版主檔會少接外部網路、連不到既有 MongoDB（#74）
+- `docker-compose.test.yml` 補上等 MongoDB 與 healthcheck（#74）
+- 移除所有 Zeabur 相關設定與描述：後端 `FRONTEND_URLS` 預設值與 CSP 不再含 `*.zeabur.app`，前端 `resolveBackendUrl()` 不再對應 Zeabur 網域（#72）
+- `backend/photo_storage/` 加入 `.gitignore`；路線圖補上 APK 套殼階段（載入遠端網頁、不經 Play 自行更新）
+
+---
+
+## [1.2.0] - 2026-11-11
+
+### ✨ Added
+
+- **註冊可改為邀請制或關閉**：新增 `REGISTRATION_MODE`（`open` 預設／`invite`／`closed`，無法辨識的值視為 `closed`）。邀請制使用一次性邀請碼，資料庫只存 SHA-256 雜湊並以原子操作消耗，用 `backend/manage_invites.py create|list|revoke` 管理；新增 `GET /api/auth/registration-config` 讓前端決定是否顯示邀請碼欄位（#65）
+- 新增 `TRUSTED_PROXY_COUNT`（預設 1），限速取客戶端 IP 時信任幾層反向代理（#64）
+
+### 🔒 Security
+
+- escapeHtml 補上屬性注入防護（跳脫 `"`、`'`）（#64）
+- 限速不再能靠偽造 `X-Forwarded-For` 繞過：由右往左取第 N 筆，而非信任最左邊（#64）
+- 匯入匯出強化：匯入後清統計快取；CSV 以 `= + - @ \t \r` 開頭的字串加單引號前綴、Excel 的 `=` 開頭字串標成文字，防公式注入；分類只收字串並存去頭尾空白後的值；單次匯入上限 20,000 筆；非物件項目算「無效」而非整批 500（#67）
+- 修改密碼或重設密碼後，舊 token 立即失效（記錄 `password_changed_at`，簽發時間早於它的 token 回 401）；從未改過密碼的帳號不受影響，不會強制全員重新登入（#68）
+- 登入失敗鎖定改以「來源 IP + Email」為鍵，別人無法再把本人鎖在外面；鎖定表上限 10,000 筆且查詢不再為任意 Email 建立記錄；`validate-password`、`password-config` 補上每分鐘 60 次限速（#69）
+- 前端頁面（`nginx.conf`）加上 CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`；`script-src`／`style-src` 仍保留 `'unsafe-inline'`（頁面有大量 `onclick=` 與行內樣式）（#70）
+
+### 🐛 Fixed
+
+- 明細頁編輯記錄時，錢包清單快取可能尚未載入（#63）
+
+### 🔄 Changed
+
+- CI runner 由 `ubuntu-latest` 固定為 `ubuntu-24.04`（Playwright 不支援 26.04）（#66）
+- README 精簡為亮點／安裝／注意事項，詳細內容搬到 `docs/SETUP.md`、`docs/FEATURES.md`、`docs/DATABASE.md`、`docs/API_ENDPOINTS.md`；`docs/ROADMAP_v2.md` 補上開發順序；修正文件中寫錯的內容（改密碼路徑、登入限速、前端啟動指令等）
+
+---
+
 ## [1.1.0] - 2026-09-07
 
 ### ✨ Added

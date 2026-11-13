@@ -40,11 +40,6 @@ test('172 的非私有段落不套 LAN 規則（落到預設）', () => {
   assert.equal(resolveBackendUrl('172.32.0.1'), 'http://localhost:5001');
 });
 
-test('Zeabur 正式與通用備援', () => {
-  assert.equal(resolveBackendUrl('accounting-system.zeabur.app'), 'https://accounting-system-ghth.zeabur.app');
-  assert.equal(resolveBackendUrl('myapp-frontend.zeabur.app'), 'https://myapp-backend.zeabur.app');
-});
-
 test('未知網域 → 預設 localhost:5001', () => {
   assert.equal(resolveBackendUrl('example.com'), 'http://localhost:5001');
 });

@@ -52,10 +52,11 @@
 2. 合併 develop→release、打 tag `v1.2.0`、建立 GitHub Release、補 `CHANGELOG.md`。
 3. 手動部署正式環境：設定 `REGISTRATION_MODE`；若 nginx 前還有另一層代理，設 `TRUSTED_PROXY_COUNT=2`；重建 backend 與 frontend 容器（`nginx.conf` 有變更）。
 
-### 階段 1：v1.2.1 小修
-- 記一筆加「拍照」按鈕（`capture="environment"`，一點直接開後置鏡頭，保留「選照片」）。
-- 小尾巴：`docs/API.md` 改密碼路徑寫錯；`backend/photo_storage/` 加進 `.gitignore`；`dashboard.js` 殘留 `#8a8a94` 色碼；確認「現金不足提領 NT$1,000」是設計如此還是 bug。
-- 快速記帳流程（#11）：記住上次分類、進入時自動聚焦金額欄位。
+### 階段 1：小修 — ✅ 已完成（已合併 develop，待發版）
+- [x] 記一筆與明細頁編輯加「拍照」按鈕（`capture="environment"`，一點直接開後置鏡頭，保留「選照片」）。
+- [x] 小尾巴：`docs/API.md` 改密碼路徑寫錯；`backend/photo_storage/` 加進 `.gitignore`；`dashboard.js` 殘留 `#8a8a94` 色碼改用 `--cat-other`；「現金不足提領」確認是設計如此（後端回 409 附試算，前端確認後重送），不是 bug。
+- [x] 快速記帳流程（#11）：記住上次的分類與錢包、桌面版開啟即聚焦金額欄（手機版用自製鍵盤，不聚焦以免跳系統鍵盤）。
+- [x] 順帶修正：記一筆開著時遇到新版不再強制重整（避免清掉已拍的照片）；Service Worker 預先快取繞過瀏覽器 HTTP 快取（修正更新後新舊畫面混版）。
 
 ### 階段 2：v1.3.0 資料正確性
 - 審計尚未看過的區域：`records.py` 邏輯、`wallets.py`、`debts.py`、其餘使用 `innerHTML` 的地方。
@@ -64,13 +65,16 @@
 
 ### 階段 3：APK 套殼前置整理
 - 把 `onclick=` 改成 JS 綁事件，之後 CSP 才能拿掉 `'unsafe-inline'`，XSS 防護才真正變嚴。
-- 後端網址在 APK 內改為固定值，不再靠網域偵測。
 - 匯出改走原生分享（WebView 預設不處理下載）。
-- 評估 Service Worker 在 WebView 內的離線同步是否需調整。
+- 確認 Service Worker 在 WebView 內離線快取與離線同步正常（殼載入遠端網頁，第一次連過之後離線可用）。
+- Service Worker 更新機制要穩：記一筆時不強制重整、預先快取繞過瀏覽器 HTTP 快取（v1.19.x 已修，套殼前再驗一次）。
 
 ### 階段 4：APK 套殼
+- **採「殼載入遠端網頁」**（如 Capacitor 設定載入 `https://ubuntu-server.tail886591.ts.net/`）：前端更新部署到 NAS 就生效，APK 不用跟著換；網頁沿用同源相對路徑，不需要寫死後端網址。
 - 相機改用原生元件；網頁版相機不再投資。
 - 取代下方長期目標的「React Native / Flutter」方向，改為套殼現有網頁。
+- **APK 自行更新（不上 Google Play）**：只有原生部分變動才需要換 APK。GitHub Actions 在發版時建 APK 並附在 GitHub Release，手機用 Obtainium 追蹤該 Release（repo 公開，免權杖）；每次安裝仍需手動確認。簽章金鑰存放於 GitHub Secrets，不進 repo，並另行備份（遺失就只能重裝、本機未同步資料會丟）。
+- 限制：需連到 Tailscale 才能首次載入；網址僅 tailnet 內可達，只適合自用／家人，不適用商店上架。
 
 ### 暫不排入
 - 應收／應付頁面（明確決定不做）。

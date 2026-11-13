@@ -12,6 +12,8 @@ on:
     paths:
       - 'nginx*.conf'
       - 'docker-compose*.yml'
+      - '.env.example'
+      - 'backend/Dockerfile'
       - 'scripts/ci/nginx-smoke.sh'
       - '.github/workflows/nginx-integration.yml'
   pull_request:
@@ -19,6 +21,8 @@ on:
     paths:
       - 'nginx*.conf'
       - 'docker-compose*.yml'
+      - '.env.example'
+      - 'backend/Dockerfile'
       - 'scripts/ci/nginx-smoke.sh'
       - '.github/workflows/nginx-integration.yml'
   workflow_dispatch:
@@ -49,6 +53,28 @@ jobs:
             -out    "$CERT_DIR/ubuntu-server.tail886591.ts.net.crt" \
             -days 2 -subj "/CN=localhost" \
             -addext "subjectAltName=DNS:localhost,DNS:ubuntu-server.tail886591.ts.net,IP:127.0.0.1"
+
+      # 主 docker-compose.yml 是通用版（自帶埠對外、內建網路）；雙環境部署的差異由「本機覆蓋檔」
+      # docker-compose.override.yml 提供（該檔被 gitignore，不進版控）。CI 在此臨時產生等效內容。
+      - name: 產生雙環境覆蓋檔（接 edge / shared-db、不對外開埠）
+        run: |
+          cat > docker-compose.override.yml <<'EOF'
+          services:
+            backend:
+              ports: !reset []
+              networks:
+                - shared-db
+                - edge
+            frontend:
+              ports: !reset []
+              networks:
+                - edge
+          networks:
+            shared-db:
+              external: true
+            edge:
+              external: true
+          EOF
 
       # 正式與測試共用同一份 compose 變數 MONGO_URI，以行內環境變數分別指定資料庫名
       - name: 啟動正式環境（/ → accounting_db）
@@ -105,3 +131,50 @@ jobs:
           docker compose -p accounting down || true
           docker rm -f mongodb || true
           docker network rm edge shared-db || true
+          rm -f docker-compose.override.yml
+
+  # 通用快速開始：照 README／docker-compose.yml 註解的步驟，在乾淨環境一行跑起來
+  # （內建 MongoDB、前端 8080、後端 5001）。換環境能不能快速架設，就靠這個 job 守著。
+  generic-quickstart:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 準備設定檔（照快速開始步驟）
+        run: |
+          cp backend/.env.example backend/.env
+          sed -i "s|^JWT_SECRET=.*|JWT_SECRET=ci-only-secret-$(openssl rand -hex 16)|" backend/.env
+          cp .env.example .env
+
+      - name: 啟動（docker compose up -d --build）
+        run: docker compose up -d --build
+
+      - name: 等待後端與前端就緒
+        run: |
+          for i in $(seq 1 60); do
+            b="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:5001/health || true)"
+            f="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/ || true)"
+            if [ "$b" = "200" ] && [ "$f" = "200" ]; then
+              echo "後端與前端皆就緒（第 $i 次嘗試）"
+              exit 0
+            fi
+            echo "等待中… ($i/60) backend=$b frontend=$f"
+            sleep 3
+          done
+          echo "逾時：未在時限內就緒"
+          exit 1
+
+      - name: 後端確實連上資料庫（登入端點回 401 而非 5xx）
+        run: |
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://localhost:5001/api/auth/verify || true)"
+          [ "$code" = "401" ] || { echo "預期 401，實得 $code"; exit 1; }
+
+      - name: 輸出容器日誌（僅失敗時）
+        if: failure()
+        run: |
+          docker compose ps -a || true
+          docker compose logs --no-color || true
+
+      - name: 清理
+        if: always()
+        run: docker compose down -v || true

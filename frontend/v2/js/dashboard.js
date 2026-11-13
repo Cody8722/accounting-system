@@ -68,11 +68,11 @@ function txRowsInner(records) {
   return records.slice(0, 5).map((r, i) => {
     const sub = `${escapeHtml(r.date)}${r.description ? ' · ' + escapeHtml(r.description) : ''}`;
     if (r.type === 'transfer') {
-      return `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, #8a8a94 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/></svg></div>
+      return `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, var(--cat-other) 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" style="stroke:var(--cat-other)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/></svg></div>
         <div class="nm"><b>內部轉移</b><small>${sub}</small></div><div class="amt mono" style="color:var(--muted2)">${fmtMoney(r.amount)}</div></div>`;
     }
     if (r.type === 'restricted') {
-      return `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, #8a8a94 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a8a94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      return `<div class="tx${i >= 2 ? ' thumb-hide' : ''}"><div class="ic" style="background:color-mix(in srgb, var(--cat-other) 16%, transparent)"><svg viewBox="0 0 24 24" fill="none" style="stroke:var(--cat-other)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
         <div class="nm"><b>${escapeHtml(r.description || '受限資金')}</b><small>${sub}</small></div><div class="amt mono" style="color:var(--muted2)">${fmtMoney(r.amount)}</div></div>`;
     }
     const m = categoryMeta(r.category);
