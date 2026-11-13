@@ -1,55 +1,92 @@
 version: '3.8'
 
-# 正式環境（release 分支，接 accounting_db）。
-# MongoDB 用「現有的 mongodb 容器」（外部 shared-db 網路）；MONGO_URI 由根目錄 .env 提供（見 .env.example）。
-# HTTPS 反向代理獨立於 docker-compose.proxy.yml（不在此檔），前後端經外部 edge 網路讓 proxy 解析容器名。
+# 通用 compose：任何裝有 Docker 的機器都能一行跑起來，不綁特定主機。
 #
-# 部署（正式 checkout ~/accounting-system-prod）：
-#   docker network create edge   # 若尚未建立（與測試環境共用）
-#   docker compose up -d
-#   docker compose -f docker-compose.proxy.yml up -d
+# 快速開始（本機／任一台主機）：
+#   cp backend/.env.example backend/.env      # 填 JWT_SECRET（MONGO_URI 由本檔提供，不用改）
+#   cp .env.example .env                      # 內含 COMPOSE_PROFILES=local-db（啟動內建 MongoDB）
+#   docker compose up -d --build
+#   前端 http://localhost:8080　後端 http://localhost:5001
+#
+# 用既有的 MongoDB（不啟內建那個）：.env 不要設 COMPOSE_PROFILES，並設 MONGO_URI。
+# 特定主機的差異（外部網路、照片目錄、映像釘版本…）放在同目錄的
+# docker-compose.override.yml，Compose 會自動合併；該檔已被 .gitignore，不進版控。
 
 services:
-  # 後端服務（Flask / gunicorn）
+  # 內建 MongoDB：只在啟用 local-db profile 時才會啟動（已有資料庫的環境不需要）
+  mongodb:
+    image: mongo:7
+    container_name: accounting-mongodb
+    restart: unless-stopped
+    profiles: ["local-db"]
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - accounting-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # 後端服務（Flask）
   backend:
     build: ./backend
     container_name: accounting-backend
     restart: unless-stopped
     environment:
-      - MONGO_URI=${MONGO_URI:?請在根目錄 .env 設定 MONGO_URI（正式庫 accounting_db）}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/accounting_db}
       - PORT=8080
       - TESTING=false
       - PHOTO_STORAGE_PATH=/data/photos
       # JWT_SECRET / SMTP / 密碼政策等，由掛載的 backend/.env 提供（load_dotenv 讀取）
+    ports:
+      - "${BACKEND_PORT:-5001}:8080"
     volumes:
       - ./backend:/app
-      - /tank/docker-data/accounting-photos/prod:/data/photos
+      - photos:/data/photos
     networks:
-      - accounting-network    # 與 frontend 互通
-      - shared-db             # 連到現有 mongodb 容器
-      - edge                  # 讓獨立的 proxy 解析得到此容器
-    command: python main.py
+      - accounting-network
+    # 等 MongoDB 連接埠通了才啟動：後端 init_db 只試一次，開機時若比 MongoDB 早起就會一直卡在「資料庫未連線」
+    command:
+      - sh
+      - -c
+      - |
+        until python3 -c "import socket; socket.create_connection(('mongodb', 27017), 2)" 2>/dev/null; do echo 'waiting for mongodb'; sleep 2; done
+        exec python main.py
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 8080), 3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   # 前端服務（靜態文件服務器）
   frontend:
     image: nginx:alpine
     container_name: accounting-frontend
     restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
     volumes:
-      - ./frontend/v2:/usr/share/nginx/html:ro    # 根目錄直接服務 v2（/ 即現在的 /v2）
+      - ./frontend/v2:/usr/share/nginx/html:ro    # 根目錄直接服務 v2
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     networks:
       - accounting-network
-      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 networks:
   accounting-network:
     driver: bridge
-  # 現有 MongoDB 容器所在的外部網路
-  shared-db:
-    external: true
-  # 與 proxy / 測試環境共用的外部網路（需先建立：docker network create edge）
-  edge:
-    external: true
+
+volumes:
+  mongo-data:
+  photos:
