@@ -6,6 +6,30 @@
 
 ---
 
+## [1.3.0] - 2026-11-14
+
+### ✨ Added
+
+- **記一筆可直接拍照**：照片區拆成「拍照」（手機直接開後置鏡頭）與「選照片」（可複選）兩個入口，明細頁編輯記錄同步（#73）
+- **記一筆預選上次的分類與錢包**：存檔成功後記住（收入、支出各記一個分類；錢包共用一個，含「未分類」），下次開啟預選；已不存在的分類或錢包自動退回未選。桌面版開啟即聚焦金額欄（#73）
+- **Docker 一行架設**：`docker-compose.yml` 改為通用版——內建 MongoDB（`COMPOSE_PROFILES=local-db`）、named volume、前端 8080／後端 5001 對外、後端等 MongoDB 再啟動、前後端 healthcheck。`cp backend/.env.example backend/.env && cp .env.example .env && docker compose up -d --build` 即可（#74）
+
+### 🐛 Fixed
+
+- 記一筆時遇到新版本不再強制重整頁面（原本會清掉已拍的照片與填到一半的內容），改為關閉記一筆後才換新版（#73）
+- 更新後畫面新舊版混在一起（例如記一筆是舊版、明細是新版）：Service Worker 預先快取改為繞過瀏覽器 HTTP 快取（#73）
+- 記一筆的照片區在開啟當下被判定離線時，按鈕會一直停用；改為網路狀態改變時重繪（#73）
+- `dashboard.js` 殘留寫死的色碼改用 `--cat-other`（#73）
+
+### 🔄 Changed
+
+- **主機專屬的 compose 設定改放本機覆蓋檔** `docker-compose.override.yml`（外部網路、照片目錄、映像釘版本等）：該檔已加入 `.gitignore`，不進版控，Compose 自動合併，啟動指令不變。**已用外部網路、不對外開埠的環境（如 NAS）升級前，必須先在該主機建好此檔再 `git pull`**，否則通用版主檔會少接外部網路、連不到既有 MongoDB（#74）
+- `docker-compose.test.yml` 補上等 MongoDB 與 healthcheck（#74）
+- 移除所有 Zeabur 相關設定與描述：後端 `FRONTEND_URLS` 預設值與 CSP 不再含 `*.zeabur.app`，前端 `resolveBackendUrl()` 不再對應 Zeabur 網域（#72）
+- `backend/photo_storage/` 加入 `.gitignore`；路線圖補上 APK 套殼階段（載入遠端網頁、不經 Play 自行更新）
+
+---
+
 ## [1.2.0] - 2026-11-11
 
 ### ✨ Added
