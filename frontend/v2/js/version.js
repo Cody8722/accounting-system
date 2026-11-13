@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.18.1';
-export const RELEASE_NOTE = '內部清理：移除不再使用的舊部署設定，無功能變更';
+export const APP_VERSION = '1.19.4';
+export const RELEASE_NOTE = '新增：記一筆可直接拍照、自動記住上次的分類與錢包；修正更新後畫面新舊版混在一起的問題';

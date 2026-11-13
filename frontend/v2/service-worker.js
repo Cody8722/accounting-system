@@ -3,7 +3,7 @@
  * ⚠️ 每次改動 v2 前端請更新 CACHE_NAME 版本號，讓用戶端取得新版。
  * 策略：App 殼與靜態資源 cache-first；API 請求一律走網路（不快取）。
  */
-const CACHE_NAME = 'accounting-v2-1.18.1';
+const CACHE_NAME = 'accounting-v2-1.19.4';
 const CORE = [
   './',
   './index.html',
@@ -41,7 +41,9 @@ const CORE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  // cache: 'reload' 讓預先快取一律繞過瀏覽器 HTTP 快取；否則瀏覽器認為還沒過期的舊檔
+  // 會被存進新版快取，造成「有些畫面是新版、有些是舊版」的混版問題
+  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

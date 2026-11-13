@@ -12,6 +12,7 @@ import { APP_VERSION, RELEASE_NOTE } from './version.js';
 import { isOnline } from './offline.js';
 import { flushOutbox, pendingCount } from './sync.js';
 import { on } from './store.js';
+import { isAddOpen } from './add.js';
 
 const root = document.getElementById('app');
 
@@ -146,6 +147,11 @@ if ('serviceWorker' in navigator) {
         lastController = navigator.serviceWorker.controller;
         if (isFirstActivation || reloaded) return;
         reloaded = true;
+        // 正在記一筆（可能已拍照、填了一半）就不要硬重整，等關閉記一筆後再換新版
+        if (isAddOpen()) {
+          window.addEventListener('add:closed', () => window.location.reload(), { once: true });
+          return;
+        }
         window.location.reload();
       });
 
