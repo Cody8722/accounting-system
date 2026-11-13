@@ -26,7 +26,19 @@ services:
       - test-network
       - shared-db
       - edge
-    command: python main.py
+    # 等 MongoDB 連接埠通了才啟動：後端 init_db 只試一次，開機時若比 MongoDB 早起就會一直卡在「資料庫未連線」
+    command:
+      - sh
+      - -c
+      - |
+        until python3 -c "import socket; socket.create_connection(('mongodb', 27017), 2)" 2>/dev/null; do echo 'waiting for mongodb'; sleep 2; done
+        exec python main.py
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 8080), 3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   frontend-test:
     image: nginx:alpine
@@ -40,6 +52,12 @@ services:
     networks:
       - test-network
       - edge
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 networks:
   test-network:

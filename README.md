@@ -14,9 +14,21 @@
 - **資料帶得走**：匯出 CSV／Excel／JSON，JSON 備份可匯入還原
 - **簡單部署**：Docker Compose + nginx，前端無 bundler、無 build step
 
-## 快速安裝（本機）
+## 快速安裝
 
-需要 Python 3.8+、Docker（跑 MongoDB）。
+### 方式一：Docker（任何裝有 Docker 的機器，最快）
+
+```bash
+cp backend/.env.example backend/.env    # 把 JWT_SECRET 填成任意 32 字元以上的隨機字串
+cp .env.example .env                    # 預設啟動內建 MongoDB
+docker compose up -d --build
+```
+
+前端 <http://localhost:8080>、後端 <http://localhost:5001>。資料存在 docker volume，`docker compose down` 不會刪除。已有自己的 MongoDB、要換埠或對外開放，見 [`docs/SETUP.md`](docs/SETUP.md) 的「Docker 部署」。
+
+### 方式二：本機開發（不用 Docker 跑應用，只用 Docker 跑 MongoDB）
+
+需要 Python 3.8+。
 
 ```bash
 # 1. MongoDB
@@ -32,7 +44,7 @@ python main.py                 # http://localhost:5001
 python -m http.server 8080 --directory frontend/v2    # http://localhost:8080
 ```
 
-`.env` 最小設定：
+`backend/.env` 最小設定：
 
 ```
 MONGO_URI=mongodb://localhost:27017/

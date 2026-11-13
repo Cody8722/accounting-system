@@ -118,7 +118,33 @@ npx playwright test --config frontend/tests/playwright.config.js
 
 ---
 
-## 部署
+## Docker 部署
+
+repo 根目錄的 `docker-compose.yml` 是**通用版**，不綁任何主機：換一台機器 clone 下來就能跑。
+
+```bash
+cp backend/.env.example backend/.env    # 填 JWT_SECRET（32 字元以上的隨機字串）
+cp .env.example .env                    # 預設啟動內建 MongoDB
+docker compose up -d --build
+```
+
+| 想做的事 | 怎麼做 |
+|---------|--------|
+| 用內建 MongoDB（預設） | `.env` 保留 `COMPOSE_PROFILES=local-db`，資料存在 docker volume `mongo-data` |
+| 用既有的 MongoDB | `.env` 刪掉 `COMPOSE_PROFILES`，設 `MONGO_URI=mongodb://…` |
+| 換對外的埠 | `.env` 設 `FRONTEND_PORT`／`BACKEND_PORT`；前端網址要同步加進 `backend/.env` 的 `FRONTEND_URLS` |
+| 從區網其他裝置連 | 用 `http://<這台主機 IP>:8080` 開前端（後端網址由前端自動對應為同 IP 的 5001 埠），並把這個前端網址加進 `FRONTEND_URLS` |
+| 備份資料 | 內建 MongoDB：`docker compose exec mongodb mongodump --archive > backup.archive`；照片在 volume `photos` |
+
+後端啟動時會先等 MongoDB 的連接埠通了才起來（開機順序不固定也不會卡在「資料庫未連線」），前後端都有 healthcheck，可用 `docker compose ps` 看狀態。
+
+### 特定主機的差異：`docker-compose.override.yml`
+
+主機專屬的設定（例如外部 Docker 網路、照片放在特定磁碟、映像釘版本、自動重啟標籤、不對外開埠）**不要改主檔**，放在同目錄的 `docker-compose.override.yml`。Compose 會自動合併它；這個檔案已被 `.gitignore`，**只存在那台主機上，不進版控**。所以 `git pull` 不會衝突，其他環境也不會被影響。
+
+> 這個檔案沒有 git 備份，遺失就得重寫，建議在該主機另外備份一份。
+
+## 部署（自架正式環境）
 
 正式環境為自架 NAS，Docker Compose + nginx reverse proxy，**手動部署，沒有任何 CI/CD 自動部署**。`develop`／`release` 的 GitHub Actions 只跑測試，合併 PR 後要自己 SSH 進 NAS：
 
@@ -130,6 +156,7 @@ docker compose up -d --build --force-recreate
 ```
 
 - 雙環境（正式 `/` + 測試 `/test/`）的完整操作手冊：[DEPLOY_TWO_ENV.md](DEPLOY_TWO_ENV.md)。
+- NAS 的主機差異放在該目錄本機的 `docker-compose.override.yml`（見上方說明）。
 - 改了前端要先升 Service Worker 版本號，否則使用者端快取不會更新：[frontend/UPDATE_CHECKLIST.md](../frontend/UPDATE_CHECKLIST.md)。
 - 前端 nginx（`nginx.conf`）對靜態頁面加了 CSP 與基本安全標頭，改動後要重建前端容器才會生效。
 - PWA 安裝與離線功能：[frontend/PWA-README.md](../frontend/PWA-README.md)。
