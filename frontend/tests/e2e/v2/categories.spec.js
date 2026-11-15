@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { genUser, apiRegister, loginV2, BACKEND } from './helpers.js';
+import { genUser, apiRegister, loginV2, authToken, BACKEND } from './helpers.js';
 
 /**
  * 自訂分類（我的 → 分類設定）：新增大類／細項、自訂顏色、記一筆用得到、
@@ -30,9 +30,7 @@ test.describe('v2 自訂分類', () => {
     }
   }
 
-  async function token(page) {
-    return page.evaluate(() => localStorage.getItem('authToken'));
-  }
+  const token = authToken;
 
   test('新增大類與細項、自選顏色，儲存後記一筆選得到，且明細顯示', async ({ page }) => {
     await openEditor(page);

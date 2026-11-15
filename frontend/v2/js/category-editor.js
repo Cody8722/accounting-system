@@ -9,7 +9,7 @@
 import { PALETTES, ICON_CHOICES, getCategoryConfig } from './config.js';
 import { escapeHtml, showToast, showConfirm } from './utils.js';
 import { emit } from './store.js';
-import { fetchCategoryUsage, saveCategoryConfig } from './categories.js';
+import { loadCategoryState, saveCategoryConfig } from './categories.js';
 
 const RESERVED = ['債務收回', '債務償還'];
 const MAX_QUICK = 12;
@@ -103,8 +103,11 @@ function mountColorPicker(host, { value, allowInherit = false, inheritColor = ''
 }
 
 export async function openCategoryEditor() {
+  // 一定要先拿到後端最新設定再開（見 loadCategoryState 說明），否則儲存可能蓋掉自訂分類
+  const state = await loadCategoryState();
+  if (!state) { showToast('需要連線才能編輯分類', 'warning'); return; }
+  const usage = state.usage;
   const base = getCategoryConfig();
-  const usage = await fetchCategoryUsage();
   const trees = fromConfig(base);
   const removed = []; // {origin, target:item}：被刪除、舊記錄要改歸到 target 的細項
   let type = 'expense';

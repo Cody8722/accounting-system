@@ -60,13 +60,25 @@ export async function refreshCategories() {
   return changed;
 }
 
-/** 給編輯器用：取得最新的各分類使用筆數（失敗時回傳最後一次的結果） */
-export async function fetchCategoryUsage() {
+/**
+ * 給編輯器用：向後端取最新設定（有差異就套用並更新快取）與各分類使用筆數。
+ * 編輯器必須拿到最新設定才能開——全新瀏覽器沒有快取、背景同步又還沒回來時，
+ * 若直接用內建預設開編輯器，一按儲存就會把使用者原本的自訂分類蓋掉。
+ * 取不到（離線等）回傳 null，由呼叫端擋下。
+ */
+export async function loadCategoryState() {
+  let res;
   try {
-    const res = await apiJson('/api/user/categories');
-    lastUsage = res.usage || {};
-  } catch { /* 離線：用上次的 */ }
-  return lastUsage;
+    res = await apiJson('/api/user/categories');
+  } catch {
+    return null;
+  }
+  lastUsage = res.usage || {};
+  if (JSON.stringify(res.config || null) !== JSON.stringify(readCache())) {
+    applyCategoryConfig(res.config);
+    cacheCategoryConfig(res.config);
+  }
+  return { usage: lastUsage };
 }
 
 /** 儲存設定（cfg=null 還原預設）。成功後套用並更新快取，回傳後端回應 */

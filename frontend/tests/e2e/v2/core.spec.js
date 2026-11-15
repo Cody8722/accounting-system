@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { genUser, apiRegister, loginV2, BACKEND } from './helpers.js';
+import { genUser, apiRegister, loginV2, authToken, BACKEND } from './helpers.js';
 
 /**
  * v2 核心流程（桌面外殼，viewport 1280×720）。
@@ -73,7 +73,7 @@ test.describe('v2 核心流程', () => {
 
   test('再開記一筆：預選上次使用的錢包', async ({ page }) => {
     // 錢包走 API 建立（Node 端 fetch，不受 CORS 限制），重新整理後前端才抓得到
-    const token = await page.evaluate(() => localStorage.getItem('authToken'));
+    const token = await authToken(page);
     const res = await fetch(`${BACKEND}/admin/api/wallets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

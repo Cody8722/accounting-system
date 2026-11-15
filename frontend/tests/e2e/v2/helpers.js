@@ -16,6 +16,11 @@ export function genUser() {
   return { name: `v2測試${t}`, email: `v2-${t}@example.com`, password: 'MyS3cur3P@ssw0rd!XyZ' };
 }
 
+/** 取得目前登入的 JWT。正式路徑存在 authToken，測試路徑（/test/）有 test: 前綴 */
+export async function authToken(page) {
+  return page.evaluate(() => localStorage.getItem('authToken') || localStorage.getItem('test:authToken'));
+}
+
 /** 以後端 API 註冊（Node fetch，不受瀏覽器 CORS 限制） */
 export async function apiRegister(user) {
   const res = await fetch(`${BACKEND}/api/auth/register`, {
