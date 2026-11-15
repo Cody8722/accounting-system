@@ -154,6 +154,23 @@ test.describe('v2 核心流程', () => {
     await expect(page.locator('.desktop-main')).toContainText('帳戶管理', { timeout: 10000 });
   });
 
+  test('概覽還在載入時切到別頁：晚到的概覽不會蓋掉現在的畫面', async ({ page }) => {
+    // 把概覽用的統計 API 拖慢 3 秒（設定頁不呼叫它），重新載入後立刻切到「我的」。
+    // 舊行為：設定頁先畫好，3 秒後概覽才載入完、又把整個畫面蓋回概覽，但側欄還停在「我的」。
+    await page.route('**/admin/api/accounting/stats*', async (route) => {
+      await new Promise((r) => setTimeout(r, 3000));
+      await route.continue();
+    });
+    await page.reload();
+    await page.waitForSelector('.sidebar, .tabbar', { timeout: 20000 });
+    await page.click('[data-nav="settings"]');
+    await expect(page.locator('.desktop-main [data-act="category"]')).toBeVisible({ timeout: 10000 });
+    // 等拖慢的概覽請求回來之後，畫面仍應停在設定頁
+    await page.waitForTimeout(4500);
+    await expect(page.locator('.desktop-main [data-act="category"]')).toBeVisible();
+    await expect(page.locator('.desktop-main')).not.toContainText('分類佔比');
+  });
+
   test('電腦版預設落地在概覽，KPI 卡與四張卡渲染', async ({ page }) => {
     // beforeEach 登入後，電腦版預設畫面即為概覽（釘選式 deck）
     await expect(page.locator('.desktop-main')).toContainText('概覽', { timeout: 10000 });
