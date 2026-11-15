@@ -5,7 +5,7 @@
  * 再向後端確認；跟快取不同才通知畫面重繪。編輯介面在 category-editor.js（用到才載入）。
  */
 
-import { apiJson, getUserData } from './api.js';
+import { apiCall, apiJson, getUserData } from './api.js';
 import { applyCategoryConfig, storagePrefix } from './config.js';
 
 const NS = typeof window !== 'undefined' ? storagePrefix(window.location.pathname) : '';
@@ -35,6 +35,18 @@ function readCache() {
   }
 }
 
+/**
+ * 向後端取分類設定與使用筆數。刻意不走 apiJson：它的 GET 有「資料版本閘門」，版本相同就直接回
+ * IndexedDB 的舊快取，而資料版本只涵蓋記錄／預算／定期／錢包，不含分類——改完分類版本不變，
+ * 會一直拿到改之前的舊回應。分類很小、也有自己的本機快取，直接打 API 最單純。
+ * 失敗（離線、HTTP 錯誤）會丟錯。
+ */
+async function fetchCategoryResponse() {
+  const res = await apiCall('/api/user/categories');
+  if (!res.ok) throw new Error(`取得分類失敗 (${res.status})`);
+  return res.json();
+}
+
 /** 啟動時同步套用本機快取（必須在第一次渲染前呼叫） */
 export function applyCachedCategories() {
   applyCategoryConfig(readCache());
@@ -47,7 +59,7 @@ export function applyCachedCategories() {
 export async function refreshCategories() {
   let res;
   try {
-    res = await apiJson('/api/user/categories');
+    res = await fetchCategoryResponse();
   } catch {
     return false;
   }
@@ -69,7 +81,7 @@ export async function refreshCategories() {
 export async function loadCategoryState() {
   let res;
   try {
-    res = await apiJson('/api/user/categories');
+    res = await fetchCategoryResponse();
   } catch {
     return null;
   }
