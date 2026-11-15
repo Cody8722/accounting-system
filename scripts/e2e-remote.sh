@@ -7,7 +7,8 @@
 #
 # 必填環境變數：
 #   E2E_REMOTE_URL   站台網址，如 https://host.example.net
-#   E2E_PURGE_CMD    在測試環境後端容器內執行清理的完整指令，例如：
+#   E2E_PURGE_CMD    在測試環境後端容器內執行清理的完整指令（結尾要有 --yes；腳本會自動再補上
+#                    --recent-minutes，只清這次執行期間建立的帳號），例如：
 #                    ssh -i ~/.ssh/KEY user@host docker exec accounting-backend-test python manage_test_accounts.py purge --yes
 # 選填：
 #   E2E_REMOTE_PATH  App 在站台上的路徑（預設 /test/）
@@ -24,12 +25,17 @@ API_URL="${E2E_REMOTE_API:-${E2E_REMOTE_URL}${APP_PATH%/}}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+START_EPOCH="$(date +%s)"
+
 cleanup() {
   echo
-  echo "▶ 清理測試帳號…"
+  # 只清「這次執行期間建立的」帳號：用經過的分鐘數（進位再多留 2 分鐘緩衝）交給 --recent-minutes，
+  # 以伺服器時間判斷，不會誤刪別人同時在跑的測試帳號，也不受兩邊時鐘差異影響。
+  local elapsed_min=$(( ( $(date +%s) - START_EPOCH ) / 60 + 3 ))
+  echo "▶ 清理這次建立的測試帳號（最近 ${elapsed_min} 分鐘內）…"
   # shellcheck disable=SC2086  # E2E_PURGE_CMD 本來就是要被拆成多個參數的指令
-  if ! $E2E_PURGE_CMD; then
-    echo "⚠️  清理失敗，測試帳號還留在測試資料庫，請手動執行：$E2E_PURGE_CMD" >&2
+  if ! $E2E_PURGE_CMD --recent-minutes "$elapsed_min"; then
+    echo "⚠️  清理失敗，測試帳號還留在測試資料庫，請手動執行：$E2E_PURGE_CMD --recent-minutes $elapsed_min" >&2
   fi
 }
 trap cleanup EXIT
