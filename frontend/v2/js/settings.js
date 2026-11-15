@@ -62,13 +62,10 @@ async function openAccount() {
   ov.querySelector('[data-el="logout"]').onclick = async () => { if (await showConfirm('確定要登出？')) logout(); };
 }
 
-function openCategory() {
-  const body = CATEGORY_TREE.expense.concat(CATEGORY_TREE.income).map((g) => `
-    <div style="margin-bottom:var(--space-base)">
-      <div style="font-weight:600;font-size:var(--text-emphasis);color:var(--text);margin-bottom:var(--space-xs)"><i class="ti ${g.icon}" style="color:${g.color};margin-right:var(--space-2xs)"></i>${g.group}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:var(--space-2xs)">${g.items.map((l) => `<span style="font-size:13px;color:var(--text3);background:var(--fill);border-radius:var(--radius-sm);padding:5px 10px">${escapeHtml(l)}</span>`).join('')}</div>
-    </div>`).join('');
-  sheet('分類設定', body + '<div style="font-size:var(--text-base);color:var(--muted2);text-align:center;margin-top:var(--space-xs)">分類結構內建於前端，記錄以細項名稱儲存</div>');
+async function openCategory() {
+  // 編輯器用到才載入（體積不小，且只有這個畫面需要）
+  const { openCategoryEditor } = await import('./category-editor.js');
+  openCategoryEditor();
 }
 
 async function openRecurring() {

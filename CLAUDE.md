@@ -52,6 +52,7 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **`routes/`**：各功能 Blueprint
   - `auth.py` — 登入、註冊（含邀請制／關閉註冊與 `registration-config`）、驗證、忘記/重設密碼、密碼強度檢查
   - `user.py` — 個人資料、修改密碼
+  - `categories.py` — 使用者自訂分類（`users.category_config`；改名／合併會連同記錄、定期項目、預算一起改）
   - `records.py` — 記帳記錄 CRUD、內部轉移（`transfer`）、受限資金解鎖（`unlock`）、輕量更新檢查（`data-version`）
   - `stats.py` — 統計、趨勢、期間比較、整合概覽
   - `budget.py` — 預算設定
@@ -84,7 +85,8 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **錢包 / 資金**：`wallet.js`（資金錢包資料層、管理 UI、帳本頁餘額摘要條；含帳戶×位置雙維度、受限資金、資金流向樹）、`lock.js`（手機版明細頁鎖定模式：複選錢包＋分類鎖定，套用到帳本/統計/預算）
 - **照片**：`photos.js`（上傳前壓縮、上傳/刪除、需認證照片 blob URL）、`invoice.js`（電子發票 QR 掃描，記一筆入口之一）
 - **離線 / 同步 / 版本**：`offline.js`（IndexedDB 讀取快取 + 線上/離線偵測 + 離線寫入 outbox）、`sync.js`（回連後 outbox FIFO 同步，含照片 FormData 同步）、`version.js`（`APP_VERSION`/更新說明，供「已更新」Toast 與 data-version 閘門比對）
-- **其他**：`settings.js`（帳戶管理、分類設定、定期項目、資料同步、匯出、照片瀏覽入口）
+- **自訂分類**：`categories.js`（載入／本機快取／套用／儲存；啟動時先同步套用快取、再向後端確認）、`category-editor.js`（「我的 → 分類設定」編輯畫面，用到才動態載入）。`config.js` 的 `CATEGORY_TREE`／`QUICK_LEAVES` 是被各模組直接 import 的物件，`applyCategoryConfig()` 只「原地」換內容、不換物件
+- **其他**：`settings.js`（帳戶管理、分類設定入口、定期項目、資料同步、匯出、照片瀏覽入口）
 
 各模組透過 `window.xxx` 暴露函式供 HTML `onclick` 呼叫，模組間狀態/事件經 `store.js` 解耦。
 
@@ -98,7 +100,7 @@ PWA 相關：`frontend/v2/service-worker.js`（快取策略、版本號控制）
 
 - **後端單元測試**：`backend/tests/`（pytest），使用 `conftest.py` 共享 fixtures，測試時設定 `TESTING=true` 環境變數
 - **前端單元測試**：`frontend/tests/unit/`（Node 內建 `node --test`，非 Jest），測試檔案：`config.test.js`、`invoice.test.js`、`jwt.test.js`、`sync.test.js`
-- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`auth.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
+- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`auth.spec.js`、`categories.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
 
 ---
 

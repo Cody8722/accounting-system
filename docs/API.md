@@ -1707,6 +1707,50 @@ new Chart(ctx, {
 }
 ```
 
+### 取得自訂分類
+
+**端點**: `GET /api/user/categories`
+
+**認證**: 需要 JWT Token
+
+**回應 (200)**: `config` 為 `null` 代表沒自訂過（前端用內建分類）；`usage` 是各分類名稱的使用筆數（記錄 + 定期項目），刪除分類時前端用來提示要改歸到哪。
+```json
+{
+  "config": {
+    "expense": [{ "group": "寵物", "icon": "ti-paw", "color": "#5fbf8a", "items": ["飼料"] }],
+    "income":  [{ "group": "收入", "icon": "ti-cash", "color": "#3f8f66", "items": ["薪資"] }],
+    "leaf_colors": { "飼料": "#123456" },
+    "quick": { "expense": ["飼料"], "income": ["薪資"] }
+  },
+  "usage": { "飼料": 12, "薪資": 3 }
+}
+```
+
+### 儲存自訂分類
+
+**端點**: `PUT /api/user/categories`
+
+**認證**: 需要 JWT Token
+
+**請求**:
+```json
+{
+  "config": { "expense": [], "income": [], "leaf_colors": {}, "quick": {} },
+  "renames": [{ "from": "舊名稱", "to": "新名稱" }]
+}
+```
+
+- `config`：整份設定（結構見 [DATABASE.md](DATABASE.md) 的 `users.category_config`）；傳 `null` 還原內建分類（此時不可帶 `renames`）。
+- `renames`（可選）：改名或合併。`from` 必須已不在新設定中、`to` 必須在新設定中，後端會把該使用者的 `records`、`recurring` 的 `category` 與預算的鍵由 `from` 改成 `to`（預算合併時金額相加）。
+- 驗證：名稱 1–50 字、不含 `.`、不以 `$` 開頭、整份設定內細項不可重複、不可用「債務收回」「債務償還」；顏色須為 `#rrggbb`；圖示須為 `ti-` 開頭；大類每種類型最多 40 個、每大類細項最多 100 個、常用細項每種類型最多 12 個。
+
+**回應 (200)**:
+```json
+{ "message": "分類已儲存", "config": { "...": "..." }, "renamed_records": 5 }
+```
+
+**錯誤 (400)**: 格式或驗證不符，`error` 為原因。
+
 ---
 
 ## 系統狀態
