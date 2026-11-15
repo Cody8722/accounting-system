@@ -149,6 +149,19 @@ npx playwright show-report                                    # 查看 HTML 報�
 node --test frontend/tests/unit/*.test.js
 ```
 
+### 對遠端測試環境跑 E2E（用完即銷毀測試帳號）
+
+E2E 每個 spec 會用 API 註冊一次性帳號。對 NAS 測試環境跑時用 `scripts/e2e-remote.sh`：跑完（成功、失敗、中斷都一樣）自動呼叫 `backend/manage_test_accounts.py` 清掉「這次執行期間建立的」測試帳號。主機專屬細節用環境變數傳入，不進 repo：
+
+```bash
+E2E_REMOTE_URL=https://<host> \
+E2E_PURGE_CMD="ssh -i <key> <user>@<host> docker exec accounting-backend-test python manage_test_accounts.py purge --yes" \
+  bash scripts/e2e-remote.sh e2e/v2/core.spec.js --project=chromium --workers=1
+```
+
+- `manage_test_accounts.py`（`list`／`purge`，purge 預設只預覽、加 `--yes` 才刪）只動 `@example.com` 且符合 `^(v2|probe)-\d+` 的帳號，資料庫名稱必須含 `test`，連正式庫一律拒絕。
+- 限速計數在後端程序記憶體（`storage_uri="memory://"`），沒有外部清法，只能重啟測試後端容器；註冊每 IP 每小時 5 次、登入每分鐘 10 次，連跑多個 spec 要留意。
+
 ## push 前必須執行
 
 測試是「推送前的最後守門員」，在一個功能/任務完成、準備 `git push` 時執行一次即可，**不需要每次 commit 後都跑**。

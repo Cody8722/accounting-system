@@ -23,7 +23,8 @@ set -u
 APP_PATH="${E2E_REMOTE_PATH:-/test/}"
 API_URL="${E2E_REMOTE_API:-${E2E_REMOTE_URL}${APP_PATH%/}}"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Windows Git Bash 的 pwd 是 /d/Users/...，node 會誤當成 D:\d\Users\...；pwd -W 給 Windows 格式路徑
+ROOT="$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })"
 
 START_EPOCH="$(date +%s)"
 
