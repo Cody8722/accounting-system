@@ -123,9 +123,12 @@ def _token_still_valid(payload: dict) -> bool:
     try:
         user = db.users_collection.find_one(
             {"_id": ObjectId(payload.get("user_id"))},
-            {"password_changed_at": 1},
+            {"password_changed_at": 1, "deleted_at": 1},
         )
     except (InvalidId, TypeError):
+        return False
+    # 帳號在垃圾桶（自助刪除）：所有 token 立即失效，要先登入走「還原」
+    if user and user.get("deleted_at") is not None:
         return False
     # 使用者不存在時不在這裡擋（各路由自己回 404），避免改變既有行為
     changed_at = user.get("password_changed_at") if user else None
