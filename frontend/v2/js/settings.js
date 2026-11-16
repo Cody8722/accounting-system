@@ -50,7 +50,7 @@ async function openAccount() {
       <button class="btn-primary" data-el="chpw" style="width:100%;background:var(--fill);color:var(--text);box-shadow:none">更新密碼</button>
     </div>
     <button class="btn-primary" data-el="logout" style="width:100%;margin-top:var(--space-lg);background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-logout"></i> 登出</button>
-    <button class="link" data-el="delAccount" type="button" style="display:block;margin:var(--space-emphasis) auto 0;color:var(--muted2);font-size:13px">刪除帳號…</button>`;
+    <button class="btn-primary" data-el="delAccount" type="button" style="width:100%;margin-top:var(--space-base);background:var(--expense);color:#fff;box-shadow:none"><i class="ti ti-trash"></i> 刪除帳號</button>`;
   ov.querySelector('[data-el="saveName"]').onclick = async () => {
     try { await apiJson('/api/user/profile', { method: 'PUT', body: JSON.stringify({ name: ov.querySelector('[data-el="name"]').value.trim() }) }); showToast('已更新名稱', 'success'); } catch (e) { showToast(e.message, 'error'); }
   };
