@@ -7,7 +7,7 @@ import { apiJson, apiCall, getUserData } from './api.js';
 import { CATEGORY_TREE } from './config.js';
 import { escapeHtml, showToast, showConfirm, fmtMoney, monthStr } from './utils.js';
 import { getThemePref, setThemePref } from './theme.js';
-import { logout, changePassword } from './auth.js';
+import { logout, changePassword, deleteAccount } from './auth.js';
 import { monthRange, emit } from './store.js';
 import { openWalletManager } from './wallet.js';
 import { isOnline } from './offline.js';
@@ -49,7 +49,8 @@ async function openAccount() {
       <input data-el="newpw" type="password" class="field" style="margin-bottom:var(--space-base)" placeholder="新密碼">
       <button class="btn-primary" data-el="chpw" style="width:100%;background:var(--fill);color:var(--text);box-shadow:none">更新密碼</button>
     </div>
-    <button class="btn-primary" data-el="logout" style="width:100%;margin-top:var(--space-lg);background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-logout"></i> 登出</button>`;
+    <button class="btn-primary" data-el="logout" style="width:100%;margin-top:var(--space-lg);background:var(--expense-soft);color:var(--expense);box-shadow:none"><i class="ti ti-logout"></i> 登出</button>
+    <button class="link" data-el="delAccount" type="button" style="display:block;margin:var(--space-emphasis) auto 0;color:var(--muted2);font-size:13px">刪除帳號…</button>`;
   ov.querySelector('[data-el="saveName"]').onclick = async () => {
     try { await apiJson('/api/user/profile', { method: 'PUT', body: JSON.stringify({ name: ov.querySelector('[data-el="name"]').value.trim() }) }); showToast('已更新名稱', 'success'); } catch (e) { showToast(e.message, 'error'); }
   };
@@ -60,6 +61,48 @@ async function openAccount() {
     catch (e) { showToast(e.message, 'error'); }
   };
   ov.querySelector('[data-el="logout"]').onclick = async () => { if (await showConfirm('確定要登出？')) logout(); };
+  ov.querySelector('[data-el="delAccount"]').onclick = () => { ov.remove(); openDeleteAccount(); };
+}
+
+// 保留期選項：天數 0 = 立即永久刪除（後端 RETENTION_CHOICES 同步）
+const RETENTION_OPTIONS = [
+  { days: 7, label: '保留 7 天' },
+  { days: 30, label: '保留 30 天（建議）' },
+  { days: 90, label: '保留 90 天' },
+  { days: 0, label: '立即永久刪除' },
+];
+
+function openDeleteAccount() {
+  const ov = sheet('刪除帳號', `
+    <div style="font-size:var(--text-base);color:var(--text2);line-height:1.6;margin-bottom:var(--space-lg)">
+      刪除後會先進「垃圾桶」：保留期內用原本的 Email 和密碼登入就能還原，期滿後所有記錄、預算、錢包、照片都會永久清除。
+      <br>要留份備份，請先到「匯出報表」下載。
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:var(--space-lg)">
+      ${RETENTION_OPTIONS.map((o) => `<label class="list-row" style="cursor:pointer">
+        <input type="radio" name="retention" value="${o.days}" ${o.days === 30 ? 'checked' : ''} style="margin-right:var(--space-sm)">
+        <span style="flex:1;${o.days === 0 ? 'color:var(--expense)' : ''}">${o.label}</span></label>`).join('')}
+    </div>
+    <input data-el="pw" type="password" class="field" style="margin-bottom:var(--space-lg)" placeholder="輸入密碼以確認" autocomplete="current-password">
+    <button class="btn-primary" data-el="confirm" style="width:100%;background:var(--expense);box-shadow:none">刪除帳號</button>`);
+  const btn = ov.querySelector('[data-el="confirm"]');
+  btn.onclick = async () => {
+    const password = ov.querySelector('[data-el="pw"]').value;
+    if (!password) { showToast('請輸入密碼', 'warning'); return; }
+    if (!isOnline()) { showToast('刪除帳號需要連線，請連上網路後再試', 'warning'); return; }
+    const days = Number(ov.querySelector('input[name="retention"]:checked').value);
+    const msg = days === 0
+      ? '確定要「立即永久刪除」帳號？所有資料會馬上清除，無法還原。'
+      : `確定要刪除帳號？資料保留 ${days} 天，期間可還原。`;
+    if (!(await showConfirm(msg, { confirmText: days === 0 ? '永久刪除' : '刪除帳號' }))) return;
+    btn.disabled = true;
+    try {
+      await deleteAccount(password, days);
+    } catch (e) {
+      btn.disabled = false;
+      showToast(e.message, 'error');
+    }
+  };
 }
 
 function openCategory() {

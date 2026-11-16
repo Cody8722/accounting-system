@@ -48,10 +48,11 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **`auth.py`**：獨立認證模組，處理密碼強度驗證（多層規則、熵值計算）、bcrypt 雜湊、JWT 簽發
 - **`extensions.py`**：共用工具：`require_auth` JWT 驗證 decorator、Flask-Limiter 實例、輸入驗證函式（`validate_amount`、`validate_category` 等）
 - **`db.py`**：MongoDB 連線初始化，暴露各 collection 物件
+- **`account_trash.py`**：帳號垃圾桶——自助刪除後進垃圾桶（`users.deleted_at`／`purge_at`）、還原、Email 接管、永久清除（`purge_user`）；管理用 CLI 是 `manage_trash.py`（`list`／`purge-expired [--yes]`，建議 NAS 排程每天跑）。垃圾桶帳號的 token 由 `extensions._token_still_valid` 立即作廢
 - **`invites.py`**：邀請制註冊——`REGISTRATION_MODE` 判斷與一次性邀請碼（建立／原子消耗／還回）；管理用 CLI 是 `manage_invites.py`（`create`／`list`／`revoke`）
 - **`routes/`**：各功能 Blueprint
   - `auth.py` — 登入、註冊（含邀請制／關閉註冊與 `registration-config`）、驗證、忘記/重設密碼、密碼強度檢查
-  - `user.py` — 個人資料、修改密碼
+  - `user.py` — 個人資料、修改密碼、自助刪除帳號（`delete-account`）
   - `records.py` — 記帳記錄 CRUD、內部轉移（`transfer`）、受限資金解鎖（`unlock`）、輕量更新檢查（`data-version`）
   - `stats.py` — 統計、趨勢、期間比較、整合概覽
   - `budget.py` — 預算設定
@@ -98,7 +99,7 @@ PWA 相關：`frontend/v2/service-worker.js`（快取策略、版本號控制）
 
 - **後端單元測試**：`backend/tests/`（pytest），使用 `conftest.py` 共享 fixtures，測試時設定 `TESTING=true` 環境變數
 - **前端單元測試**：`frontend/tests/unit/`（Node 內建 `node --test`，非 Jest），測試檔案：`config.test.js`、`invoice.test.js`、`jwt.test.js`、`sync.test.js`
-- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`auth.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
+- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`account-deletion.spec.js`、`auth.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
 
 ---
 

@@ -26,6 +26,8 @@ Token 有效期：**7 天**。過期後需重新登入。
 | `GET` | `/api/user/profile` | 取得個人資料 | ✅ | 一般限制 |
 | `PUT` | `/api/user/profile` | 更新個人資料 | ✅ | 一般限制 |
 | `POST` | `/api/user/change-password` | 修改密碼（成功後舊 token 失效） | ✅ | 每小時 5 次 |
+| `POST` | `/api/user/delete-account` | 自助刪除帳號（需密碼；進垃圾桶保留 7/30/90 天，0 = 立即永久刪除） | ✅ | 每小時 5 次 |
+| `POST` | `/api/auth/restore-account` | 還原垃圾桶中的帳號（Email＋密碼），回傳新 token | | 每小時 10 次；共用登入失敗鎖定 |
 | `GET` | `/status` | 系統健康檢查，確認後端與資料庫狀態 | ✅ | 每分鐘 10 次 |
 
 > 一般速率限制：每用戶每日 200 次、每小時 50 次（以 JWT user_id 識別；未認證請求以 IP 計算）
