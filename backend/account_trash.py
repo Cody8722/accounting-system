@@ -11,14 +11,19 @@ account_trash.py — 帳號垃圾桶：自助刪除、還原、到期清除。
   （原 Email 另存 original_email），資料不動、保留期照舊。
 """
 
+import logging
 import os
 import shutil
+import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 import db
 from bson import ObjectId
+
+logger = logging.getLogger(__name__)
 
 # 可選的保留天數；0 = 立即永久刪除
 RETENTION_CHOICES = (0, 7, 30, 90)
@@ -131,8 +136,63 @@ def trashed_users() -> list:
 
 
 def purge_expired(now: Optional[datetime] = None) -> int:
-    """永久清除所有保留期已滿的帳號，回傳清除數量。"""
-    users = expired_users(now)
-    for user in users:
-        purge_user(user["_id"])
-    return len(users)
+    """永久清除所有保留期已滿的帳號，回傳清除數量。單一帳號失敗只記 log、不中斷其他帳號。"""
+    purged = 0
+    for user in expired_users(now):
+        try:
+            purge_user(user["_id"])
+            purged += 1
+        except Exception as e:  # 如：另一個 worker 同時在清同一個帳號的照片目錄
+            logger.error(f"清除到期帳號失敗 {user['_id']}: {e}")
+    return purged
+
+
+# ==================== 自動到期清除（不需要外部排程） ====================
+
+DEFAULT_PURGE_INTERVAL_HOURS = 6
+_FIRST_RUN_DELAY_SECONDS = 60
+_auto_purge_started = False
+
+
+def _purge_interval_hours() -> float:
+    """清除間隔（小時）。環境變數 ACCOUNT_TRASH_PURGE_INTERVAL_HOURS；0 或不合法的值 = 停用。"""
+    raw = os.getenv("ACCOUNT_TRASH_PURGE_INTERVAL_HOURS")
+    if raw is None or raw.strip() == "":
+        return DEFAULT_PURGE_INTERVAL_HOURS
+    try:
+        return max(float(raw), 0)
+    except ValueError:
+        return 0
+
+
+def _auto_purge_loop(interval_seconds: float) -> None:
+    time.sleep(_FIRST_RUN_DELAY_SECONDS)
+    while True:
+        try:
+            count = purge_expired()
+            if count:
+                logger.info(f"自動清除保留期已滿的帳號：{count} 個")
+        except Exception as e:  # 資料庫暫時連不上等：下一輪再試，不讓執行緒死掉
+            logger.error(f"自動清除到期帳號失敗: {e}")
+        time.sleep(interval_seconds)
+
+
+def start_auto_purge() -> bool:
+    """啟動背景執行緒，定期清除保留期已滿的垃圾桶帳號，使用者不必另外設排程。
+
+    每個後端程序最多啟動一條（重複呼叫無效）；清除本身是冪等的，多個程序同時跑也安全。
+    回傳是否真的啟動了。
+    """
+    global _auto_purge_started
+    interval_hours = _purge_interval_hours()
+    if _auto_purge_started or interval_hours <= 0:
+        return False
+    _auto_purge_started = True
+    threading.Thread(
+        target=_auto_purge_loop,
+        args=(interval_hours * 3600,),
+        name="account-trash-purge",
+        daemon=True,
+    ).start()
+    logger.info(f"帳號垃圾桶自動清除已啟用（每 {interval_hours:g} 小時）")
+    return True

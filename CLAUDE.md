@@ -48,7 +48,7 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **`auth.py`**：獨立認證模組，處理密碼強度驗證（多層規則、熵值計算）、bcrypt 雜湊、JWT 簽發
 - **`extensions.py`**：共用工具：`require_auth` JWT 驗證 decorator、Flask-Limiter 實例、輸入驗證函式（`validate_amount`、`validate_category` 等）
 - **`db.py`**：MongoDB 連線初始化，暴露各 collection 物件
-- **`account_trash.py`**：帳號垃圾桶——自助刪除後進垃圾桶（`users.deleted_at`／`purge_at`）、還原、Email 接管、永久清除（`purge_user`）；管理用 CLI 是 `manage_trash.py`（`list`／`purge-expired [--yes]`，建議 NAS 排程每天跑）。垃圾桶帳號的 token 由 `extensions._token_still_valid` 立即作廢
+- **`account_trash.py`**：帳號垃圾桶——自助刪除後進垃圾桶（`users.deleted_at`／`purge_at`）、還原、Email 接管、永久清除（`purge_user`）；到期清除由後端啟動時開的背景執行緒自動跑（`start_auto_purge`，每 6 小時，`TESTING=true` 不啟動），不需外部排程；手動用 CLI `manage_trash.py`（`list`／`purge-expired [--yes]`）。垃圾桶帳號的 token 由 `extensions._token_still_valid` 立即作廢
 - **`invites.py`**：邀請制註冊——`REGISTRATION_MODE` 判斷與一次性邀請碼（建立／原子消耗／還回）；管理用 CLI 是 `manage_invites.py`（`create`／`list`／`revoke`）
 - **`routes/`**：各功能 Blueprint
   - `auth.py` — 登入、註冊（含邀請制／關閉註冊與 `registration-config`）、驗證、忘記/重設密碼、密碼強度檢查

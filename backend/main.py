@@ -139,6 +139,13 @@ from routes.debts import migrate_group_debts  # noqa: E402
 
 migrate_group_debts()
 
+# 自助刪除帳號後的垃圾桶：保留期滿的帳號由後端背景執行緒定期自動清除（不需外部排程）。
+# 測試環境（TESTING=true）不啟動，避免測試中背景執行緒動到資料。
+if os.getenv("TESTING", "false").lower() != "true":
+    import account_trash  # noqa: E402
+
+    account_trash.start_auto_purge()
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5001))

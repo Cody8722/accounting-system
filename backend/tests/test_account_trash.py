@@ -334,3 +334,75 @@ class TestPurgeExpired:
 
         assert not (tmp_path / str(uid)).exists()
         assert other.exists()
+
+    def test_one_failure_does_not_stop_the_rest(self, monkeypatch):
+        stamp = self._stamp()
+        bad = self._trashed(
+            f"bad{stamp}@example.com", datetime.now() - timedelta(days=1)
+        )
+        good = self._trashed(
+            f"good{stamp}@example.com", datetime.now() - timedelta(days=1)
+        )
+        real_purge = account_trash.purge_user
+
+        def flaky(uid, photo_root=None):
+            if uid == bad:
+                raise OSError("photo dir busy")
+            real_purge(uid, photo_root)
+
+        monkeypatch.setattr(account_trash, "purge_user", flaky)
+
+        assert account_trash.purge_expired() >= 1
+        assert db.users_collection.find_one({"_id": bad}) is not None
+        assert db.users_collection.find_one({"_id": good}) is None
+
+
+class TestAutoPurge:
+    """後端自己定期清到期帳號，不需要使用者另外設排程。"""
+
+    @pytest.fixture(autouse=True)
+    def fresh_state(self, monkeypatch):
+        monkeypatch.setattr(account_trash, "_auto_purge_started", False)
+        started = []
+
+        class FakeThread:
+            def __init__(self, target, args, name, daemon):
+                started.append((target, args, name, daemon))
+
+            def start(self):
+                pass
+
+        monkeypatch.setattr(account_trash.threading, "Thread", FakeThread)
+        self.started = started
+
+    def test_starts_one_daemon_thread_with_default_interval(self, monkeypatch):
+        monkeypatch.delenv("ACCOUNT_TRASH_PURGE_INTERVAL_HOURS", raising=False)
+        assert account_trash.start_auto_purge() is True
+        assert len(self.started) == 1
+        _target, args, _name, daemon = self.started[0]
+        assert daemon is True
+        assert args == (account_trash.DEFAULT_PURGE_INTERVAL_HOURS * 3600,)
+
+    def test_second_call_does_not_start_another(self, monkeypatch):
+        monkeypatch.delenv("ACCOUNT_TRASH_PURGE_INTERVAL_HOURS", raising=False)
+        account_trash.start_auto_purge()
+        assert account_trash.start_auto_purge() is False
+        assert len(self.started) == 1
+
+    def test_custom_interval(self, monkeypatch):
+        monkeypatch.setenv("ACCOUNT_TRASH_PURGE_INTERVAL_HOURS", "0.5")
+        account_trash.start_auto_purge()
+        assert self.started[0][1] == (1800,)
+
+    @pytest.mark.parametrize("raw", ["0", "-1", "abc"])
+    def test_disabled_by_zero_or_invalid_value(self, monkeypatch, raw):
+        monkeypatch.setenv("ACCOUNT_TRASH_PURGE_INTERVAL_HOURS", raw)
+        assert account_trash.start_auto_purge() is False
+        assert self.started == []
+
+    def test_not_started_when_testing(self):
+        # main.py 在 TESTING=true 時不會呼叫 start_auto_purge；跑測試的行程本身不該有這條執行緒
+        import threading
+
+        names = [t.name for t in threading.enumerate()]
+        assert "account-trash-purge" not in names

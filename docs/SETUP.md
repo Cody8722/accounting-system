@@ -74,7 +74,9 @@ python manage_invites.py revoke <id>                            # 撤銷
 
 ### 帳號垃圾桶（自助刪除後的到期清除）
 
-使用者自助刪除帳號後會先進垃圾桶（保留 7/30/90 天）。期滿的帳號要靠排程永久清除，建議在 NAS 每天跑一次：
+使用者自助刪除帳號後會先進垃圾桶（保留 7/30/90 天）。**期滿的帳號由後端自己定期清除，不需要另外設排程**：後端啟動 1 分鐘後清一次，之後每 6 小時一次（測試模式 `TESTING=true` 不啟動）。可用環境變數 `ACCOUNT_TRASH_PURGE_INTERVAL_HOURS` 調整間隔，`0` 停用自動清除。
+
+想手動查看或立即清除時，可用管理指令：
 
 ```bash
 docker exec <後端容器> python manage_trash.py list                  # 列出垃圾桶中的帳號與預定清除時間
@@ -82,7 +84,7 @@ docker exec <後端容器> python manage_trash.py purge-expired         # 預覽
 docker exec <後端容器> python manage_trash.py purge-expired --yes   # 永久清除期滿帳號與其所有資料
 ```
 
-只會動「已進垃圾桶且 `purge_at` 已到期」的帳號。
+自動清除與指令都只會動「已進垃圾桶且 `purge_at` 已到期」的帳號。
 
 ---
 
