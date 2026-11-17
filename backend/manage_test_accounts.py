@@ -19,39 +19,25 @@
 """
 
 import argparse
-import os
 import re
-import shutil
 import sys
 from datetime import datetime, timedelta
-from pathlib import Path
 
+import account_trash
 import db
 
 DEFAULT_PATTERN = r"^(v2|probe)-\d+@example\.com$"
 REQUIRED_DOMAIN = "@example.com"
 MAX_PURGE = 200
 
-# 與 routes/photos.py 相同的照片根目錄
-PHOTO_ROOT = Path(os.getenv("PHOTO_STORAGE_PATH", "./photo_storage")).resolve()
-
-# 以 user_id 關聯的集合：(顯示名稱, 取得 collection 的函式)
-_USER_COLLECTIONS = (
-    ("記錄", lambda: db.accounting_records_collection),
-    ("預算", lambda: db.accounting_budget_collection),
-    ("定期", lambda: db.recurring_collection),
-    ("欠款", lambda: db.debts_collection),
-    ("錢包", lambda: db.wallets_collection),
-)
+# 刪帳號與資料的實作、照片根目錄都與自助刪除帳號共用（account_trash.py），避免兩份邏輯不一致
+PHOTO_ROOT = account_trash.PHOTO_ROOT
+_USER_COLLECTIONS = account_trash.USER_COLLECTIONS
+_user_id_filter = account_trash.user_id_filter
 
 
 def _db_name():
     return db.users_collection.database.name
-
-
-def _user_id_filter(uid):
-    # 歷史資料的 user_id 可能是字串
-    return {"user_id": {"$in": [uid, str(uid)]}}
 
 
 def find_accounts(pattern, recent_minutes=None):
@@ -83,21 +69,8 @@ def _counts(uid):
     }
 
 
-def _remove_photos(uid):
-    """刪除該帳號的照片目錄；只刪 PHOTO_ROOT 底下、名稱就是 user_id 的那一層。"""
-    target = (PHOTO_ROOT / str(uid)).resolve()
-    if target.parent != PHOTO_ROOT or not target.is_dir():
-        return False
-    shutil.rmtree(target)
-    return True
-
-
 def purge_account(user):
-    uid = user["_id"]
-    for _name, coll in _USER_COLLECTIONS:
-        coll().delete_many(_user_id_filter(uid))
-    _remove_photos(uid)
-    db.users_collection.delete_one({"_id": uid})
+    account_trash.purge_user(user["_id"], photo_root=PHOTO_ROOT)
 
 
 def _print_accounts(accounts):

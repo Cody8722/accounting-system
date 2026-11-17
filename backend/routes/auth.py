@@ -5,7 +5,8 @@ POST /api/auth/validate-password  即時密碼強度驗證
 GET  /api/auth/password-config    取得密碼規則
 GET  /api/auth/registration-config 註冊模式（open / invite / closed），前端據此決定註冊表單
 POST /api/auth/register           用戶註冊（invite 模式需帶 invite_code）
-POST /api/auth/login              用戶登入
+POST /api/auth/login              用戶登入（垃圾桶中的帳號回 403 account_in_trash）
+POST /api/auth/restore-account    還原垃圾桶中的帳號（Email＋密碼），成功回傳新 token
 GET  /api/auth/verify             驗證 token
 POST /api/auth/logout             登出
 POST /api/auth/forgot-password    寄送密碼重設信
@@ -17,6 +18,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+import account_trash
 import auth
 import db
 import invites
@@ -200,7 +202,7 @@ def register():
             return jsonify({"error": password_message}), 400
 
         existing_user = db.users_collection.find_one({"email": email})
-        if existing_user:
+        if existing_user and existing_user.get("deleted_at") is None:
             return jsonify({"error": "此 Email 已被註冊"}), 409
 
         password_hash = auth.hash_password(password)
@@ -211,6 +213,10 @@ def register():
             claimed_invite = invites.claim_invite(invite_code)
             if not claimed_invite:
                 return jsonify({"error": "邀請碼無效、已使用或已過期"}), 403
+
+        # Email 被垃圾桶中的帳號占用：新註冊接管 Email，舊帳號改掛佔位 Email（資料與保留期不動）
+        if existing_user:
+            account_trash.release_email(existing_user)
 
         user = {
             "email": email,
@@ -280,6 +286,20 @@ def login():
 
         _clear_login_failures(email, client_ip)
 
+        # 垃圾桶中的帳號（自助刪除後的保留期）：密碼對才告知，並引導改走「還原」
+        if user.get("deleted_at") is not None:
+            purge_at = user.get("purge_at")
+            return (
+                jsonify(
+                    {
+                        "error": "此帳號已刪除，保留期內可還原",
+                        "code": "account_in_trash",
+                        "purge_at": purge_at.isoformat() if purge_at else None,
+                    }
+                ),
+                403,
+            )
+
         db.users_collection.update_one(
             {"_id": user["_id"]}, {"$set": {"last_login": datetime.now()}}
         )
@@ -314,6 +334,75 @@ def login():
     except Exception as e:
         logger.error(f"登入失敗: {e}")
         return jsonify({"error": "登入失敗，請稍後再試"}), 500
+
+
+@bp.route("/api/auth/restore-account", methods=["POST"])
+@limiter.limit("10 per hour")
+def restore_account():
+    """還原垃圾桶中的帳號：驗證 Email＋密碼，成功後回傳新 token（等同登入）"""
+    if db.users_collection is None:
+        return jsonify({"error": "資料庫未連線"}), 500
+
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        email = data.get("email", "").strip().lower()
+        password = data.get("password", "")
+        if not email or not password:
+            return jsonify({"error": "Email 和密碼不能為空"}), 400
+
+        client_ip = get_client_ip()
+        if _is_locked_out(email, client_ip):
+            return jsonify({"error": "登入失敗次數過多，請 15 分鐘後再試"}), 429
+
+        user = db.users_collection.find_one(
+            {"email": email, "deleted_at": {"$exists": True}}
+        )
+        if not user or not auth.verify_password(password, user["password_hash"]):
+            _record_login_failure(email, client_ip)
+            return jsonify({"error": "Email 或密碼錯誤"}), 401
+
+        purge_at = user.get("purge_at")
+        if purge_at and purge_at <= datetime.now():
+            return jsonify({"error": "保留期已滿，此帳號即將永久刪除，無法還原"}), 410
+
+        _clear_login_failures(email, client_ip)
+        account_trash.restore_user(user["_id"])
+        db.users_collection.update_one(
+            {"_id": user["_id"]}, {"$set": {"last_login": datetime.now()}}
+        )
+
+        token = auth.generate_jwt(
+            user_id=str(user["_id"]), email=user["email"], name=user.get("name", "")
+        )
+        logger.info(f"用戶還原帳號: {email}")
+        return (
+            jsonify(
+                {
+                    "token": token,
+                    "user": {
+                        "id": str(user["_id"]),
+                        "email": user["email"],
+                        "name": user.get("name", ""),
+                        "created_at": (
+                            user.get("created_at").isoformat()
+                            if user.get("created_at")
+                            else None
+                        ),
+                        "requires_password_change": user.get(
+                            "requires_password_change", False
+                        ),
+                    },
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        logger.error(f"還原帳號失敗: {e}")
+        return jsonify({"error": "還原失敗，請稍後再試"}), 500
 
 
 @bp.route("/api/auth/verify", methods=["GET"])
@@ -375,7 +464,8 @@ def forgot_password():
             return jsonify({"error": "請提供 Email"}), 400
 
         user = db.users_collection.find_one({"email": email})
-        if user:
+        # 垃圾桶中的帳號不走忘記密碼（回應與「Email 不存在」相同，不洩漏狀態）
+        if user and user.get("deleted_at") is None:
             token = auth.generate_reset_token()
             expires_at = datetime.now() + timedelta(hours=1)
 
@@ -454,7 +544,7 @@ def reset_password():
             return jsonify({"error": "請提供 token 和新密碼"}), 400
 
         user = db.users_collection.find_one({"password_reset_token": token})
-        if not user:
+        if not user or user.get("deleted_at") is not None:
             return jsonify({"error": "連結無效或已過期"}), 400
 
         expires = user.get("password_reset_expires")

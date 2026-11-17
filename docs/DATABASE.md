@@ -21,6 +21,9 @@
   requires_password_change: Boolean,// 強制修改密碼旗標
   password_reset_token: String,     // 忘記密碼流程用（可選，用完即 $unset）
   password_reset_expires: DateTime, // reset token 效期（可選）
+  deleted_at: DateTime,             // 自助刪除帳號後進垃圾桶的時間（可選；有值 = 垃圾桶中，所有 token 失效、不能登入使用）
+  purge_at: DateTime,               // 垃圾桶保留期滿、由 manage_trash.py 永久清除的時間（可選）
+  original_email: String,           // 垃圾桶帳號的 Email 被新註冊接管後，原 Email 存這裡（email 改成佔位值；可選）
   category_config: {                // 使用者自訂分類（可選；沒有此欄位 = 用前端內建預設）
     expense: [{ group: String, icon: String, color: String, items: [String] }],  // 支出大類（icon 為 Tabler 的 ti-xxx、color 為 #rrggbb）
     income:  [{ group, icon, color, items }],                                    // 收入大類

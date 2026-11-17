@@ -208,6 +208,33 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
+### 刪除帳號（自助）
+
+**端點**: `POST /api/user/delete-account`
+
+**認證**: 需要 JWT Token（另需重新輸入密碼）
+
+**請求體**:
+```json
+{ "password": "MyP@ssw0rd!123", "retention_days": 30 }
+```
+
+`retention_days` 只能是 `0`、`7`、`30`、`90`（預設 30）。大於 0：帳號進垃圾桶，資料不動，期滿由管理指令 `manage_trash.py purge-expired` 永久清除；`0`：立即永久刪除帳號與所有資料（記錄、預算、定期、欠款、錢包、照片），無法還原。成功後既有 token 立即失效。
+
+**回應 (200)**:
+```json
+{ "message": "帳號已刪除", "purge_at": "2026-12-16T19:08:19.661877" }
+```
+立即永久刪除時 `purge_at` 為 `null`。密碼錯誤回 **400**（不是 401，避免前端誤判為登入過期而登出）。
+
+**垃圾桶期間的行為**
+- 用原帳密 `POST /api/auth/login` → **403** `{"code": "account_in_trash", "purge_at": "..."}`（密碼錯誤仍是一般的 401，不洩漏狀態）
+- `POST /api/auth/restore-account` `{"email","password"}` → 200 `{token, user}`（等同登入；還原前簽發的舊 token 不會復活）；保留期已滿回 410
+- 忘記／重設密碼流程不處理垃圾桶帳號
+- 有人用同一個 Email 重新註冊：註冊成功並接管該 Email，原垃圾桶帳號資料與保留期不動，但失去 Email（改存 `original_email`），之後無法再用 Email 還原
+
+---
+
 ### 修改個人資料
 
 **端點**: `POST /api/auth/update-profile`
