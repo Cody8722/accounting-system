@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.20.1';
-export const RELEASE_NOTE = '新增：可自助刪除帳號（先進垃圾桶，保留期內可還原）；到「我的 → 帳戶管理」最下方';
+export const APP_VERSION = '1.20.2';
+export const RELEASE_NOTE = '更新：換新 App 圖示；已加到主畫面的舊圖示需刪除後重新加入才會更新';
