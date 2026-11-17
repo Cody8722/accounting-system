@@ -18,25 +18,19 @@
   <style>
     #splash { position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; background:var(--bg,#f5f5f7); pointer-events:none; transition:opacity .28s ease; }
     #splash.hide { opacity:0; }
-    #splash svg.sp { width:200px; height:200px; }
-    /* 外圈：淡淡的底環＋一段持續旋轉的弧線 */
-    .sp-track { stroke:var(--border,#d0d4da); opacity:.5; }
-    .sp-ring { stroke:var(--accent,#1f6feb); transform-origin:120px 120px; animation:sp-spin 1s linear infinite; }
-    @keyframes sp-spin { to { transform:rotate(360deg); } }
-    /* 中間圖案：各零件依序飛進來「合體」，約 1.4 秒；結束後保持完整圖案（forwards），外圈繼續轉到 App 準備好 */
-    .sp-bg { transform-box:fill-box; transform-origin:center; animation:sp-pop .4s cubic-bezier(.2,.9,.3,1.2) both; }
+    #splash svg.sp { width:200px; height:200px; overflow:visible; }
+    /* 圖案零件各自繞著中心走螺旋進場並歸位（約 1.7 秒）：
+       外層 .pc 繞圖案中心旋轉 --a，內層 .in 從 (--x,--y) 縮小的起點移回原位並反向自轉（零件本身保持正向）。
+       兩層用同一個 timing function，所以反向自轉剛好抵銷旋轉；結束後保持完整圖案（both）。 */
+    .sp-bg { transform-box:fill-box; transform-origin:center; animation:sp-pop .35s cubic-bezier(.2,.9,.3,1.2) both; }
     @keyframes sp-pop { from { opacity:0; transform:scale(.6); } to { opacity:1; transform:none; } }
-    .sp-book { animation:sp-rise .5s cubic-bezier(.2,.9,.3,1.1) .2s both; }
-    @keyframes sp-rise { from { opacity:0; transform:translateY(140px); } to { opacity:1; transform:none; } }
-    .sp-line { transform-box:fill-box; transform-origin:left center; animation:sp-draw .26s ease-out both; }
-    .sp-l1 { animation-delay:.55s; } .sp-l2 { animation-delay:.65s; } .sp-l3 { animation-delay:.75s; }
-    @keyframes sp-draw { from { transform:scaleX(0); } to { transform:none; } }
-    .sp-coin { animation:sp-drop .55s cubic-bezier(.3,0,.4,1) .8s both; }
-    @keyframes sp-drop { 0% { opacity:0; transform:translateY(-340px); } 55% { opacity:1; transform:translateY(26px); } 78% { transform:translateY(-12px); } 100% { opacity:1; transform:none; } }
-    .sp-pencil { animation:sp-slide .45s cubic-bezier(.2,.9,.3,1.1) 1s both; }
-    @keyframes sp-slide { from { opacity:0; transform:translate(280px,280px); } to { opacity:1; transform:none; } }
-    /* 減少動態效果：直接顯示完整圖案、外圈不轉 */
-    @media (prefers-reduced-motion:reduce) { #splash { transition:none; } .sp-ring, .sp-bg, .sp-book, .sp-line, .sp-coin, .sp-pencil { animation:none; } }
+    .pc { transform-origin:512px 512px; animation:sp-orbit 1.6s cubic-bezier(.22,.7,.2,1) var(--d,0s) both, sp-fade .3s ease-out var(--d,0s) both; }
+    .pc > .in { transform-box:fill-box; transform-origin:center; animation:sp-home 1.6s cubic-bezier(.22,.7,.2,1) var(--d,0s) both; }
+    @keyframes sp-orbit { from { transform:rotate(var(--a)); } to { transform:none; } }
+    @keyframes sp-home { from { transform:translate(var(--x),var(--y)) rotate(calc(var(--a) * -1)) scale(.35); } to { transform:none; } }
+    @keyframes sp-fade { from { opacity:0; } to { opacity:1; } }
+    /* 減少動態效果：直接顯示完整圖案 */
+    @media (prefers-reduced-motion:reduce) { #splash { transition:none; } .sp-bg, .pc, .pc > .in { animation:none; } }
   </style>
   <script>
     // 在 CSS 變數生效前先套好主題，避免暗色使用者先閃一下亮色底（theme.js 稍後會再套一次，結果相同）
@@ -52,37 +46,31 @@
 <body>
   <!-- 圖案零件取自 icon.svg（座標系 1024），拆成可各自動畫的群組；改圖示時這裡要一起更新 -->
   <div id="splash" aria-hidden="true">
-    <svg class="sp" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
-      <circle class="sp-track" cx="120" cy="120" r="108" fill="none" stroke-width="6"/>
-      <circle class="sp-ring" cx="120" cy="120" r="108" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="170 509"/>
-      <svg x="36" y="36" width="168" height="168" viewBox="0 0 1024 1024">
-        <clipPath id="sp-clip"><rect width="1024" height="1024" rx="230"/></clipPath>
-        <g clip-path="url(#sp-clip)">
-          <rect class="sp-bg" width="1024" height="1024" fill="#1f6feb"/>
-          <g transform="translate(512 512) scale(.84) translate(-512 -512)">
-            <g class="sp-book">
-              <rect x="312" y="252" width="400" height="520" rx="48" fill="#fff"/>
-              <path d="M312 300 a48 48 0 0 1 48-48 H410 V772 H360 a48 48 0 0 1-48-48 Z" fill="#b9d3fa"/>
-            </g>
-            <rect class="sp-line sp-l1" x="464" y="400" width="188" height="60" rx="30" fill="#1f6feb"/>
-            <rect class="sp-line sp-l2" x="464" y="508" width="188" height="60" rx="30" fill="#1f6feb"/>
-            <rect class="sp-line sp-l3" x="464" y="616" width="112" height="60" rx="30" fill="#1f6feb"/>
-            <g class="sp-pencil">
-              <g transform="translate(672 650) rotate(45)">
-                <path d="M-54 -200 H54 V120 L0 210 L-54 120 Z" fill="#0b3d91" stroke="#1f6feb" stroke-width="34" stroke-linejoin="round" paint-order="stroke"/>
-                <path d="M-54 -200 H54 V-120 H-54 Z" fill="#8bb6f7"/>
-              </g>
-            </g>
-            <g class="sp-coin">
-              <circle cx="650" cy="300" r="105" fill="#8bb6f7" stroke="#1f6feb" stroke-width="30" paint-order="stroke"/>
-              <g transform="translate(650 300) scale(.37)" fill="none" stroke="#0b3d91" stroke-width="64" stroke-linecap="round">
-                <path d="M0 -150 V150"/>
-                <path d="M96 -76 C96 -124 52 -150 0 -150 C-56 -150 -96 -124 -96 -80 C-96 -36 -56 -20 0 -4 C56 12 96 32 96 76 C96 124 56 150 0 150 C-56 150 -96 124 -96 80"/>
-              </g>
-            </g>
+    <svg class="sp" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+      <clipPath id="sp-clip"><rect width="1024" height="1024" rx="230"/></clipPath>
+      <rect class="sp-bg" width="1024" height="1024" rx="230" fill="#1f6feb"/>
+      <g transform="translate(512 512) scale(.84) translate(-512 -512)">
+        <g class="pc" style="--a:-540deg;--x:-430px;--y:0px;--d:0s"><g class="in">
+          <rect x="312" y="252" width="400" height="520" rx="48" fill="#fff"/>
+          <path d="M312 300 a48 48 0 0 1 48-48 H410 V772 H360 a48 48 0 0 1-48-48 Z" fill="#b9d3fa"/>
+        </g></g>
+        <g class="pc" style="--a:-540deg;--x:215px;--y:-372px;--d:.06s"><g class="in"><rect x="464" y="400" width="188" height="60" rx="30" fill="#1f6feb"/></g></g>
+        <g class="pc" style="--a:-540deg;--x:430px;--y:0px;--d:.1s"><g class="in"><rect x="464" y="508" width="188" height="60" rx="30" fill="#1f6feb"/></g></g>
+        <g class="pc" style="--a:-540deg;--x:215px;--y:372px;--d:.14s"><g class="in"><rect x="464" y="616" width="112" height="60" rx="30" fill="#1f6feb"/></g></g>
+        <g class="pc" style="--a:-540deg;--x:-215px;--y:372px;--d:.18s"><g class="in">
+          <g transform="translate(672 650) rotate(45)">
+            <path d="M-54 -200 H54 V120 L0 210 L-54 120 Z" fill="#0b3d91" stroke="#1f6feb" stroke-width="34" stroke-linejoin="round" paint-order="stroke"/>
+            <path d="M-54 -200 H54 V-120 H-54 Z" fill="#8bb6f7"/>
           </g>
-        </g>
-      </svg>
+        </g></g>
+        <g class="pc" style="--a:-540deg;--x:-215px;--y:-372px;--d:.22s"><g class="in">
+          <circle cx="650" cy="300" r="105" fill="#8bb6f7" stroke="#1f6feb" stroke-width="30" paint-order="stroke"/>
+          <g transform="translate(650 300) scale(.37)" fill="none" stroke="#0b3d91" stroke-width="64" stroke-linecap="round">
+            <path d="M0 -150 V150"/>
+            <path d="M96 -76 C96 -124 52 -150 0 -150 C-56 -150 -96 -124 -96 -80 C-96 -36 -56 -20 0 -4 C56 12 96 32 96 76 C96 124 56 150 0 150 C-56 150 -96 124 -96 80"/>
+          </g>
+        </g></g>
+      </g>
     </svg>
   </div>
   <div id="app"></div>
