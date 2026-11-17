@@ -111,21 +111,39 @@ function setupOfflineIndicator() {
   });
 }
 
-async function boot() {
-  initTheme();
-  maybeShowUpdateToast();
-  setupOfflineIndicator();
-  // token 失效時回到登入
-  window.addEventListener('auth:token-invalid', () => { removeAuthToken(); showAuth(); });
+// 啟動畫面（index.html 的 #splash）至少顯示這麼久，避免網路很快時一閃而過
+const SPLASH_MIN_MS = 600;
 
-  const status = await verifyToken();
-  if (status === 'valid' || status === 'offline-trusted') {
-    if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
-    enterApp(getUserData());
-    updatePendingBadge();
-    if (status === 'valid') flushOutbox(); // 進場即嘗試把離線佇列送出
-  } else {
-    showAuth();
+function hideSplash() {
+  const el = document.getElementById('splash');
+  if (!el) return;
+  // performance.now() 是從頁面開始載入算起，所以只補「還差多少」，不是每次都多等 600ms
+  const wait = Math.max(0, SPLASH_MIN_MS - performance.now());
+  setTimeout(() => {
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 350); // 等淡出動畫（.28s）結束再移除
+  }, wait);
+}
+
+async function boot() {
+  try {
+    initTheme();
+    maybeShowUpdateToast();
+    setupOfflineIndicator();
+    // token 失效時回到登入
+    window.addEventListener('auth:token-invalid', () => { removeAuthToken(); showAuth(); });
+
+    const status = await verifyToken();
+    if (status === 'valid' || status === 'offline-trusted') {
+      if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
+      enterApp(getUserData());
+      updatePendingBadge();
+      if (status === 'valid') flushOutbox(); // 進場即嘗試把離線佇列送出
+    } else {
+      showAuth();
+    }
+  } finally {
+    hideSplash(); // 不論走哪條路（含例外）都要收掉，不能讓啟動畫面卡住
   }
 }
 
