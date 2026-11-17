@@ -10,7 +10,7 @@
  */
 
 import { apiCall, apiJson, setAuthToken, setUserData, removeAuthToken, getAuthToken, getUserData, resetAuthGuard } from './api.js';
-import { showToast } from './utils.js';
+import { showToast, showConfirm } from './utils.js';
 import { isOnline, clearOfflineData } from './offline.js';
 import { tokenLocallyValid } from './jwt.js';
 
@@ -52,6 +52,39 @@ export async function logout() {
   // cache 也可能被下一位使用者剛好相同的 data-version 簽章沿用，見 clearOfflineData()。
   await clearOfflineData();
   location.reload();
+}
+
+const NOTICE_KEY = 'authNotice';
+
+/**
+ * 自助刪除帳號：POST /api/user/delete-account {password, retention_days}
+ * retention_days：7/30/90 進垃圾桶（保留期內可還原）、0 立即永久刪除。
+ * 成功後後端已讓所有 token 失效 → 直接清本機憑證與離線資料，回到登入畫面（不呼叫 /logout，token 已作廢）。
+ * 密碼錯誤後端回 400（不是 401），所以不會被當成登入過期而誤登出。
+ */
+export async function deleteAccount(password, retentionDays) {
+  const res = await apiCall('/api/user/delete-account', {
+    method: 'POST',
+    body: JSON.stringify({ password, retention_days: retentionDays }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || '刪除帳號失敗');
+  try {
+    sessionStorage.setItem(NOTICE_KEY, retentionDays === 0
+      ? '帳號已永久刪除'
+      : `帳號已刪除，${data.purge_at ? data.purge_at.slice(0, 10) : '保留期'} 前用原本的 Email 和密碼登入即可還原`);
+  } catch { /* 無痕模式等：少一則提示而已 */ }
+  removeAuthToken();
+  await clearOfflineData();
+  location.reload();
+}
+
+/** 還原垃圾桶中的帳號：成功回傳 {token,user}（與登入同格式）。 */
+async function restoreAccount(email, password) {
+  const res = await apiCall('/api/auth/restore-account', { method: 'POST', body: JSON.stringify({ email, password }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || '還原失敗');
+  return data;
 }
 
 export async function changePassword(oldPassword, newPassword) {
@@ -123,6 +156,7 @@ export function renderForcedPasswordChange(container, onSuccess) {
  */
 export function renderAuth(container, onSuccess) {
   let mode = 'login'; // 'login' | 'register'
+  let notice = null;  // 一次性提示（刪除帳號後）
   container.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
@@ -160,7 +194,7 @@ export function renderAuth(container, onSuccess) {
     q('invite').style.display = needInvite ? '' : 'none';
     q('invite').required = needInvite;
     q('title').textContent = isReg ? '建立帳號' : '歡迎回來';
-    q('sub').textContent = isReg ? '開始你的記帳生活' : '登入以繼續記帳';
+    q('sub').textContent = isReg ? '開始你的記帳生活' : (notice || '登入以繼續記帳');
     submit.textContent = isReg ? '註冊' : '登入';
     q('switchText').textContent = isReg ? '已經有帳號？' : '還沒有帳號？';
     q('switch').textContent = isReg ? '登入' : '註冊';
@@ -190,8 +224,17 @@ export function renderAuth(container, onSuccess) {
         return;
       }
       const res = await apiCall('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || '登入失敗');
+      let data = await res.json().catch(() => ({}));
+      if (res.status === 403 && data.code === 'account_in_trash') {
+        // 自助刪除後的保留期：密碼已驗證過，問要不要還原
+        const until = data.purge_at ? data.purge_at.slice(0, 10) : '';
+        const yes = await showConfirm(`這個帳號已刪除${until ? `，將於 ${until} 永久清除` : ''}。要還原它嗎？`, { confirmText: '還原帳號', cancelText: '不用了', danger: false });
+        if (!yes) return;
+        data = await restoreAccount(email, password);
+        showToast('帳號已還原', 'success');
+      } else if (!res.ok) {
+        throw new Error(data.error || '登入失敗');
+      }
       setAuthToken(data.token);
       setUserData(data.user);
       resetAuthGuard();
@@ -204,6 +247,11 @@ export function renderAuth(container, onSuccess) {
     }
   });
 
+  // 剛刪除帳號後重新載入：登入畫面副標改顯示一次性提示（保留期與還原方式）
+  try {
+    notice = sessionStorage.getItem(NOTICE_KEY);
+    if (notice) sessionStorage.removeItem(NOTICE_KEY);
+  } catch { /* 無痕模式等：略過 */ }
   setMode('login');
 
   // 非同步取得註冊模式後再調整畫面（登入畫面先顯示，不被這個請求卡住）
