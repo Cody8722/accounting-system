@@ -111,8 +111,9 @@ function setupOfflineIndicator() {
   });
 }
 
-// 啟動畫面（index.html 的 #splash）至少顯示這麼久，避免網路很快時一閃而過
-const SPLASH_MIN_MS = 600;
+// 啟動畫面（index.html 的 #splash）至少顯示這麼久：要讓圖案「合體」動畫（約 1.4 秒）播完。
+// 改動畫長度時這個值要一起調；想更快進 App 就調小（動畫會被淡出中斷）。
+const SPLASH_MIN_MS = 1500;
 
 function hideSplash() {
   const el = document.getElementById('splash');
