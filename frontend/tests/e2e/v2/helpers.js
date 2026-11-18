@@ -7,10 +7,18 @@
 
 export const BACKEND = process.env.BACKEND_URL || 'http://localhost:5001';
 
+/** App 在站台上的路徑。預設 /v2/；對 NAS 測試環境跑時設 E2E_APP_PATH=/test/（避免誤打到正式環境的 /v2/） */
+export const APP_PATH = process.env.E2E_APP_PATH || '/v2/';
+
 /** 產生唯一測試帳號（密碼符合強度政策：≥12、含大小寫+數字+特殊符號） */
 export function genUser() {
   const t = `${Date.now()}${Math.floor(Math.random() * 100000)}`;
   return { name: `v2測試${t}`, email: `v2-${t}@example.com`, password: 'MyS3cur3P@ssw0rd!XyZ' };
+}
+
+/** 取得目前登入的 JWT。正式路徑存在 authToken，測試路徑（/test/）有 test: 前綴 */
+export async function authToken(page) {
+  return page.evaluate(() => localStorage.getItem('authToken') || localStorage.getItem('test:authToken'));
 }
 
 /** 以後端 API 註冊（Node fetch，不受瀏覽器 CORS 限制） */
@@ -27,7 +35,7 @@ export async function apiRegister(user) {
 
 /** 透過 v2 UI 登入，等待 App 外殼出現（桌面側欄或手機導覽） */
 export async function loginV2(page, user) {
-  await page.goto('/v2/');
+  await page.goto(APP_PATH);
   await page.waitForSelector('.auth-card [data-el="email"]', { timeout: 15000 });
   await page.fill('.auth-card [data-el="email"]', user.email);
   await page.fill('.auth-card [data-el="password"]', user.password);

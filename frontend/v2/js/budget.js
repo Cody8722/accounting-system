@@ -5,10 +5,15 @@
  */
 
 import { apiJson } from './api.js';
-import { BUDGET_CATEGORIES, categoryMeta } from './config.js';
+import { BUDGET_CATEGORIES, categoryMeta, customBudgetLeaves } from './config.js';
 import { fmtMoney, escapeHtml, showToast } from './utils.js';
 import { monthRange, emit } from './store.js';
 import { lockQueryParams, lockBadgeHtml, bindLockBadge } from './lock.js';
+
+/** 內建預算分類 + 使用者自訂的支出細項（每次現算，分類編輯後立即生效） */
+function allBudgetCategories() {
+  return [...BUDGET_CATEGORIES, ...customBudgetLeaves()];
+}
 
 async function fetchData() {
   const { start, end, label } = monthRange();
@@ -53,7 +58,7 @@ function openEditor(current, onSaved) {
       <button class="icon-btn" data-close="1"><i class="ti ti-x"></i></button>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
-      ${BUDGET_CATEGORIES.map((c) => `
+      ${allBudgetCategories().map((c) => `
         <div style="display:flex;align-items:center;gap:10px">
           <span style="flex:1;font-size:var(--text-emphasis);color:var(--text)">${escapeHtml(c)}</span>
           <input data-cat="${escapeHtml(c)}" type="number" min="0" class="field mono" style="width:120px;text-align:right" value="${current[c] || ''}" placeholder="0">
@@ -92,7 +97,7 @@ export async function budgetSummaryCard() {
   const totalSpent = data.totalExpense;
   const pct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
   const left = totalBudget - totalSpent;
-  const top = BUDGET_CATEGORIES.filter((c) => data.budget[c] > 0)
+  const top = allBudgetCategories().filter((c) => data.budget[c] > 0)
     .map((c) => ({ c, b: data.budget[c], s: data.spentMap[c] || 0 }))
     .sort((a, b) => b.s / b.b - a.s / a.b)
     .slice(0, 4);
@@ -125,7 +130,7 @@ async function render(container, mode) {
   const totalSpent = data.totalExpense;
   const pct = totalBudget > 0 ? Math.round(totalSpent / totalBudget * 100) : 0;
   const left = totalBudget - totalSpent;
-  const cats = BUDGET_CATEGORIES.filter((c) => data.budget[c] > 0);
+  const cats = allBudgetCategories().filter((c) => data.budget[c] > 0);
 
   const inner = document.createElement('div');
   inner.innerHTML = `

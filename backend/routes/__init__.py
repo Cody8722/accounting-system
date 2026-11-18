@@ -9,6 +9,7 @@ def register_blueprints(app):
     """將所有 Blueprint 註冊至 Flask app。"""
     from routes.auth import bp as auth_bp
     from routes.budget import bp as budget_bp
+    from routes.categories import bp as categories_bp
     from routes.debts import bp as debts_bp
     from routes.io import bp as io_bp
     from routes.photos import bp as photos_bp
@@ -20,6 +21,7 @@ def register_blueprints(app):
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(budget_bp)
+    app.register_blueprint(categories_bp)
     app.register_blueprint(debts_bp)
     app.register_blueprint(io_bp)
     app.register_blueprint(photos_bp)

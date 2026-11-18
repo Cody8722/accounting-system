@@ -41,7 +41,13 @@ function renderView() {
   if (!screen) return;
   const fn = RENDERERS[mode][state.view];
   if (!fn) return;
-  fn(screen);
+  // 每次繪製都用全新的容器：畫面函式多半是非同步的（等資料回來才寫入），使用者若在載入完成前
+  // 就切頁，慢的那個回來時只會寫進已被換掉的舊容器，不會蓋掉現在的畫面。
+  // display:contents 讓內容的版面行為跟直接放在 screen 底下一樣。
+  const view = document.createElement('div');
+  view.style.display = 'contents';
+  screen.replaceChildren(view);
+  fn(view);
   // 更新導覽 active
   root.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.view));
 }

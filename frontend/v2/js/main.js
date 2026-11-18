@@ -11,13 +11,17 @@ import { showToast } from './utils.js';
 import { APP_VERSION, RELEASE_NOTE } from './version.js';
 import { isOnline } from './offline.js';
 import { flushOutbox, pendingCount } from './sync.js';
-import { on } from './store.js';
+import { on, emit } from './store.js';
 import { isAddOpen } from './add.js';
+import { applyCachedCategories, refreshCategories } from './categories.js';
 
 const root = document.getElementById('app');
 
 function startApp() {
+  // 先同步套用本機快取的自訂分類，第一次渲染就是對的；再向後端確認，有差異才重繪
+  applyCachedCategories();
   initRouter(root);
+  refreshCategories().then((changed) => { if (changed) emit('records:changed'); });
 }
 
 // 登入成功／既有 session 驗證通過後的共用入口：requires_password_change 為 true
