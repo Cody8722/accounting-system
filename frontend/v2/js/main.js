@@ -111,19 +111,29 @@ function setupOfflineIndicator() {
   });
 }
 
-// 啟動畫面（index.html 的 #splash）至少顯示這麼久：要讓圖案「合體」動畫（2.0 秒，Claude Design 做的 SMIL）播完。
-// 改動畫長度時這個值要一起調；想更快進 App 就調小（動畫會被淡出中斷）。
-const SPLASH_MIN_MS = 2100;
+// 啟動畫面（index.html 的 #splash）：Claude Design 做的 2.0 秒 SMIL 動畫。
+// 瀏覽器要等整頁 load 事件才會開始跑 SMIL 時間軸（載入中 getCurrentTime() 會停在 0），
+// 所以不能用固定毫秒數倒數，要等動畫「實際播到結尾」才淡出。
+// 改動畫長度時 SPLASH_ANIM_S 要一起調；SPLASH_MAX_MS 是保險上限，避免動畫沒啟動時卡住。
+const SPLASH_ANIM_S = 2.0;
+const SPLASH_MAX_MS = 7000;
+
+function splashAnimDone(el) {
+  const svg = el.querySelector('svg');
+  if (!svg || typeof svg.getCurrentTime !== 'function') return true;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return true; // 直接是最後一格，不用等
+  return svg.getCurrentTime() >= SPLASH_ANIM_S;
+}
 
 function hideSplash() {
   const el = document.getElementById('splash');
   if (!el) return;
-  // performance.now() 是從頁面開始載入算起，所以只補「還差多少」，不是每次都多等 600ms
-  const wait = Math.max(0, SPLASH_MIN_MS - performance.now());
-  setTimeout(() => {
+  const tick = () => {
+    if (!splashAnimDone(el) && performance.now() < SPLASH_MAX_MS) { setTimeout(tick, 50); return; }
     el.classList.add('hide');
     setTimeout(() => el.remove(), 350); // 等淡出動畫（.28s）結束再移除
-  }, wait);
+  };
+  tick();
 }
 
 async function boot() {
