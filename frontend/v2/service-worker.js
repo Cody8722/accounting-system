@@ -3,13 +3,16 @@
  * ⚠️ 每次改動 v2 前端請更新 CACHE_NAME 版本號，讓用戶端取得新版。
  * 策略：App 殼與靜態資源 cache-first；API 請求一律走網路（不快取）。
  */
-const CACHE_NAME = 'accounting-v2-1.21.0';
+const CACHE_NAME = 'accounting-v2-1.21.1';
 const CORE = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+  './icon.svg',
+  './favicon-32.png',
+  './apple-touch-icon.png',
   './css/tokens.css',
   './vendor/jsqr.js',
   './vendor/tabler-icons/tabler-icons.min.css',
