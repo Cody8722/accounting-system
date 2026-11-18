@@ -19,18 +19,8 @@
     #splash { position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; background:var(--bg,#f5f5f7); pointer-events:none; transition:opacity .28s ease; }
     #splash.hide { opacity:0; }
     #splash svg.sp { width:200px; height:200px; overflow:visible; }
-    /* 圖案零件各自繞著中心走螺旋進場並歸位（約 1.7 秒）：
-       外層 .pc 繞圖案中心旋轉 --a，內層 .in 從 (--x,--y) 縮小的起點移回原位並反向自轉（零件本身保持正向）。
-       兩層用同一個 timing function，所以反向自轉剛好抵銷旋轉；結束後保持完整圖案（both）。 */
-    .sp-bg { transform-box:fill-box; transform-origin:center; animation:sp-pop .35s cubic-bezier(.2,.9,.3,1.2) both; }
-    @keyframes sp-pop { from { opacity:0; transform:scale(.6); } to { opacity:1; transform:none; } }
-    .pc { transform-origin:512px 512px; animation:sp-orbit 1.6s cubic-bezier(.22,.7,.2,1) var(--d,0s) both, sp-fade .3s ease-out var(--d,0s) both; }
-    .pc > .in { transform-box:fill-box; transform-origin:center; animation:sp-home 1.6s cubic-bezier(.22,.7,.2,1) var(--d,0s) both; }
-    @keyframes sp-orbit { from { transform:rotate(var(--a)); } to { transform:none; } }
-    @keyframes sp-home { from { transform:translate(var(--x),var(--y)) rotate(calc(var(--a) * -1)) scale(.35); } to { transform:none; } }
-    @keyframes sp-fade { from { opacity:0; } to { opacity:1; } }
-    /* 減少動態效果：直接顯示完整圖案 */
-    @media (prefers-reduced-motion:reduce) { #splash { transition:none; } .sp-bg, .pc, .pc > .in { animation:none; } }
+    /* 減少動態效果：不淡出；SMIL 動畫由 body 內的 script 直接跳到最後一格 */
+    @media (prefers-reduced-motion:reduce) { #splash { transition:none; } }
   </style>
   <script>
     // 在 CSS 變數生效前先套好主題，避免暗色使用者先閃一下亮色底（theme.js 稍後會再套一次，結果相同）
@@ -44,35 +34,61 @@
   </script>
 </head>
 <body>
-  <!-- 圖案零件取自 icon.svg（座標系 1024），拆成可各自動畫的群組；改圖示時這裡要一起更新 -->
+  <!-- 啟動動畫：Claude Design 做的 SMIL 動畫（2.0 秒，播一次，最後一格＝icon.svg）。改動畫時 main.js 的 SPLASH_MIN_MS 要一起調 -->
   <div id="splash" aria-hidden="true">
     <svg class="sp" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
       <clipPath id="sp-clip"><rect width="1024" height="1024" rx="230"/></clipPath>
-      <rect class="sp-bg" width="1024" height="1024" rx="230" fill="#1f6feb"/>
-      <g transform="translate(512 512) scale(.84) translate(-512 -512)">
-        <g class="pc" style="--a:-540deg;--x:-430px;--y:0px;--d:0s"><g class="in">
-          <rect x="312" y="252" width="400" height="520" rx="48" fill="#fff"/>
-          <path d="M312 300 a48 48 0 0 1 48-48 H410 V772 H360 a48 48 0 0 1-48-48 Z" fill="#b9d3fa"/>
-        </g></g>
-        <g class="pc" style="--a:-540deg;--x:215px;--y:-372px;--d:.06s"><g class="in"><rect x="464" y="400" width="188" height="60" rx="30" fill="#1f6feb"/></g></g>
-        <g class="pc" style="--a:-540deg;--x:430px;--y:0px;--d:.1s"><g class="in"><rect x="464" y="508" width="188" height="60" rx="30" fill="#1f6feb"/></g></g>
-        <g class="pc" style="--a:-540deg;--x:215px;--y:372px;--d:.14s"><g class="in"><rect x="464" y="616" width="112" height="60" rx="30" fill="#1f6feb"/></g></g>
-        <g class="pc" style="--a:-540deg;--x:-215px;--y:372px;--d:.18s"><g class="in">
-          <g transform="translate(672 650) rotate(45)">
-            <path d="M-54 -200 H54 V120 L0 210 L-54 120 Z" fill="#0b3d91" stroke="#1f6feb" stroke-width="34" stroke-linejoin="round" paint-order="stroke"/>
-            <path d="M-54 -200 H54 V-120 H-54 Z" fill="#8bb6f7"/>
+      <g clip-path="url(#sp-clip)">
+        <rect width="1024" height="1024" fill="#1f6feb"/>
+<g transform="translate(512 512) scale(.84) translate(-512 -512)">
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 9;0 0" keyTimes="0;0.855;0.88;1" calcMode="spline" keySplines="0 0 1 1;0.2 0.8 0.3 1;0.3 0 0.2 1" begin="0s" dur="2.0s" fill="remove"/>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="76.8 76.8;0 0;0 0" keyTimes="0;0.15;1" calcMode="spline" keySplines="0.2 0.8 0.3 1;0 0 1 1" begin="0s" dur="2.0s" fill="remove"/>
+        <g>
+          <animateTransform attributeName="transform" type="scale" values="0.85;1;1" keyTimes="0;0.15;1" calcMode="spline" keySplines="0.2 0.8 0.3 1;0 0 1 1" begin="0s" dur="2.0s" fill="remove"/>
+          <g>
+            <animate attributeName="opacity" values="0;1;1" keyTimes="0;0.1;1" begin="0s" dur="2.0s" fill="remove"/>
+            <rect x="312" y="252" width="400" height="520" rx="48" fill="#fff"/><path d="M312 300 a48 48 0 0 1 48-48 H410 V772 H360 a48 48 0 0 1-48-48 Z" fill="#b9d3fa"/>
           </g>
-        </g></g>
-        <g class="pc" style="--a:-540deg;--x:-215px;--y:-372px;--d:.22s"><g class="in">
-          <circle cx="650" cy="300" r="105" fill="#8bb6f7" stroke="#1f6feb" stroke-width="30" paint-order="stroke"/>
-          <g transform="translate(650 300) scale(.37)" fill="none" stroke="#0b3d91" stroke-width="64" stroke-linecap="round">
-            <path d="M0 -150 V150"/>
-            <path d="M96 -76 C96 -124 52 -150 0 -150 C-56 -150 -96 -124 -96 -80 C-96 -36 -56 -20 0 -4 C56 12 96 32 96 76 C96 124 56 150 0 150 C-56 150 -96 124 -96 80"/>
+        </g>
+      </g>
+      <rect x="464" y="400" width="188" height="60" rx="30" fill="#1f6feb"><animate attributeName="width" values="0;0;188;188" keyTimes="0;0.1;0.25;1" begin="0s" dur="2.0s" fill="remove"/></rect>
+      <rect x="464" y="508" width="188" height="60" rx="30" fill="#1f6feb"><animate attributeName="width" values="0;0;188;188" keyTimes="0;0.29;0.425;1" begin="0s" dur="2.0s" fill="remove"/></rect>
+      <rect x="464" y="616" width="112" height="60" rx="30" fill="#1f6feb"><animate attributeName="width" values="0;0;112;112" keyTimes="0;0.465;0.55;1" begin="0s" dur="2.0s" fill="remove"/></rect>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="-59.51 -368.49;-59.51 -368.49;128.49 -368.49;-59.51 -260.49;128.49 -260.49;-59.51 -152.49;52.49 -152.49;0 0;0 0" keyTimes="0;0.1;0.25;0.29;0.425;0.465;0.55;0.725;1" calcMode="spline" keySplines="0 0 1 1;0 0 1 1;0.4 0 0.2 1;0 0 1 1;0.4 0 0.2 1;0 0 1 1;0.3 0 0.2 1;0 0 1 1" begin="0s" dur="2.0s" fill="remove"/>
+        <g>
+          <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.02;0.09;1" begin="0s" dur="2.0s" fill="remove"/>
+          <g transform="translate(672 650) rotate(45)"><path d="M-54 -200 H54 V120 L0 210 L-54 120 Z" fill="#0b3d91" stroke="#1f6feb" stroke-width="34" stroke-linejoin="round" paint-order="stroke"/><path d="M-54 -200 H54 V-120 H-54 Z" fill="#8bb6f7"/></g>
+        </g>
+      </g>
+    </g>
+    <g>
+      <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.855;0.865;1" begin="0s" dur="2.0s" fill="remove"/>
+      <circle cx="650" cy="300" r="105" fill="#8bb6f7" stroke="#1f6feb" stroke-width="30" paint-order="stroke"/><g transform="translate(650 300) scale(.37)" fill="none" stroke="#0b3d91" stroke-width="64" stroke-linecap="round"><path d="M0 -150 V150"/><path d="M96 -76 C96 -124 52 -150 0 -150 C-56 -150 -96 -124 -96 -80 C-96 -36 -56 -20 0 -4 C56 12 96 32 96 76 C96 124 56 150 0 150 C-56 150 -96 124 -96 80"/></g>
+    </g>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="-527.5 -225.0;-527.5 -225.0;-357.5 -165.0;104.0 48.0;104.0 48.0;-17.5 -235.0;-17.5 -235.0" keyTimes="0;0.725;0.825;0.855;0.87;0.98;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1;0.7 0 1 0.5;0 0 1 1;0.4 0 0.8 0.6;0 0 1 1" begin="0s" dur="2.0s" fill="remove"/>
+      <g>
+        <animateTransform attributeName="transform" type="scale" values="1.55;1.55;1.55;0.84;0.84;1.55;1.55" keyTimes="0;0.725;0.825;0.855;0.87;0.98;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1;0.7 0 1 0.5;0 0 1 1;0.4 0 0.8 0.6;0 0 1 1" begin="0s" dur="2.0s" fill="remove"/>
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="-15 650 300;-15 650 300;0 650 300;0 650 300;0 650 300;12 650 300;12 650 300" keyTimes="0;0.725;0.825;0.855;0.87;0.98;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1;0.7 0 1 0.5;0 0 1 1;0.4 0 0.8 0.6;0 0 1 1" begin="0s" dur="2.0s" fill="remove"/>
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.725;0.76;0.88;0.98;1" begin="0s" dur="2.0s" fill="remove"/>
+            <circle cx="650" cy="300" r="105" fill="#8bb6f7" stroke="#1f6feb" stroke-width="30" paint-order="stroke"/><g transform="translate(650 300) scale(.37)" fill="none" stroke="#0b3d91" stroke-width="64" stroke-linecap="round"><path d="M0 -150 V150"/><path d="M96 -76 C96 -124 52 -150 0 -150 C-56 -150 -96 -124 -96 -80 C-96 -36 -56 -20 0 -4 C56 12 96 32 96 76 C96 124 56 150 0 150 C-56 150 -96 124 -96 80"/></g>
           </g>
-        </g></g>
+        </g>
+      </g>
+    </g>
+  </g>
       </g>
     </svg>
   </div>
+  <script>
+    // 減少動態效果：SMIL 不吃 CSS media query，直接跳到動畫結束後的最後一格
+    try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) { var sv = document.querySelector('#splash svg'); sv.setCurrentTime(10); sv.pauseAnimations(); } } catch (e) { /* 略過 */ }
+  </script>
   <div id="app"></div>
   <!-- jsQR：電子發票 QR 掃描（免 AppID、純前端）。classic script 先於 module 執行，window.jsQR 就緒 -->
   <script src="./vendor/jsqr.js"></script>

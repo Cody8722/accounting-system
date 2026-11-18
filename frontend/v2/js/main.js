@@ -111,9 +111,9 @@ function setupOfflineIndicator() {
   });
 }
 
-// 啟動畫面（index.html 的 #splash）至少顯示這麼久：要讓圖案「合體」動畫（約 1.8 秒）播完。
+// 啟動畫面（index.html 的 #splash）至少顯示這麼久：要讓圖案「合體」動畫（2.0 秒，Claude Design 做的 SMIL）播完。
 // 改動畫長度時這個值要一起調；想更快進 App 就調小（動畫會被淡出中斷）。
-const SPLASH_MIN_MS = 1900;
+const SPLASH_MIN_MS = 2100;
 
 function hideSplash() {
   const el = document.getElementById('splash');
