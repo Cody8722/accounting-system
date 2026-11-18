@@ -53,6 +53,7 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **`routes/`**：各功能 Blueprint
   - `auth.py` — 登入、註冊（含邀請制／關閉註冊與 `registration-config`）、驗證、忘記/重設密碼、密碼強度檢查
   - `user.py` — 個人資料、修改密碼、自助刪除帳號（`delete-account`）
+  - `categories.py` — 使用者自訂分類（`users.category_config`；改名／合併會連同記錄、定期項目、預算一起改）
   - `records.py` — 記帳記錄 CRUD、內部轉移（`transfer`）、受限資金解鎖（`unlock`）、輕量更新檢查（`data-version`）
   - `stats.py` — 統計、趨勢、期間比較、整合概覽
   - `budget.py` — 預算設定
@@ -85,7 +86,8 @@ Flask 應用程式，路由拆分為 `backend/routes/` 目錄下的 Blueprint �
 - **錢包 / 資金**：`wallet.js`（資金錢包資料層、管理 UI、帳本頁餘額摘要條；含帳戶×位置雙維度、受限資金、資金流向樹）、`lock.js`（手機版明細頁鎖定模式：複選錢包＋分類鎖定，套用到帳本/統計/預算）
 - **照片**：`photos.js`（上傳前壓縮、上傳/刪除、需認證照片 blob URL）、`invoice.js`（電子發票 QR 掃描，記一筆入口之一）
 - **離線 / 同步 / 版本**：`offline.js`（IndexedDB 讀取快取 + 線上/離線偵測 + 離線寫入 outbox）、`sync.js`（回連後 outbox FIFO 同步，含照片 FormData 同步）、`version.js`（`APP_VERSION`/更新說明，供「已更新」Toast 與 data-version 閘門比對）
-- **其他**：`settings.js`（帳戶管理、分類設定、定期項目、資料同步、匯出、照片瀏覽入口）
+- **自訂分類**：`categories.js`（載入／本機快取／套用／儲存；啟動時先同步套用快取、再向後端確認）、`category-editor.js`（「我的 → 分類設定」編輯畫面，用到才動態載入）。`config.js` 的 `CATEGORY_TREE`／`QUICK_LEAVES` 是被各模組直接 import 的物件，`applyCategoryConfig()` 只「原地」換內容、不換物件
+- **其他**：`settings.js`（帳戶管理、分類設定入口、定期項目、資料同步、匯出、照片瀏覽入口）
 
 各模組透過 `window.xxx` 暴露函式供 HTML `onclick` 呼叫，模組間狀態/事件經 `store.js` 解耦。
 
@@ -99,7 +101,7 @@ PWA 相關：`frontend/v2/service-worker.js`（快取策略、版本號控制）
 
 - **後端單元測試**：`backend/tests/`（pytest），使用 `conftest.py` 共享 fixtures，測試時設定 `TESTING=true` 環境變數
 - **前端單元測試**：`frontend/tests/unit/`（Node 內建 `node --test`，非 Jest），測試檔案：`config.test.js`、`invoice.test.js`、`jwt.test.js`、`sync.test.js`
-- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`account-deletion.spec.js`、`auth.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
+- **E2E 測試**：`frontend/tests/e2e/v2/`（Playwright），測試檔案：`account-deletion.spec.js`、`auth.spec.js`、`categories.spec.js`、`core.spec.js`、`dataVersion.spec.js`、`offline.spec.js`；同一 spec 內串行執行（避免 MongoDB 帳號資料競爭）
 
 ---
 
@@ -147,6 +149,19 @@ npx playwright show-report                                    # 查看 HTML 報�
 # 前端單元測試
 node --test frontend/tests/unit/*.test.js
 ```
+
+### 對遠端測試環境跑 E2E（用完即銷毀測試帳號）
+
+E2E 每個 spec 會用 API 註冊一次性帳號。對 NAS 測試環境跑時用 `scripts/e2e-remote.sh`：跑完（成功、失敗、中斷都一樣）自動呼叫 `backend/manage_test_accounts.py` 清掉「這次執行期間建立的」測試帳號。主機專屬細節用環境變數傳入，不進 repo：
+
+```bash
+E2E_REMOTE_URL=https://<host> \
+E2E_PURGE_CMD="ssh -i <key> <user>@<host> docker exec accounting-backend-test python manage_test_accounts.py purge --yes" \
+  bash scripts/e2e-remote.sh e2e/v2/core.spec.js --project=chromium --workers=1
+```
+
+- `manage_test_accounts.py`（`list`／`purge`，purge 預設只預覽、加 `--yes` 才刪）只動 `@example.com` 且符合 `^(v2|probe)-\d+` 的帳號，資料庫名稱必須含 `test`，連正式庫一律拒絕。
+- 限速計數在後端程序記憶體（`storage_uri="memory://"`），沒有外部清法，只能重啟測試後端容器；註冊每 IP 每小時 5 次、登入每分鐘 10 次，連跑多個 spec 要留意。
 
 ## push 前必須執行
 

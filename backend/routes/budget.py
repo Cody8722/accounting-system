@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify, request
 
 import db
 from extensions import ALLOWED_CATEGORIES, limiter, require_auth
+from routes.categories import custom_leaves
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,10 @@ def set_accounting_budget():
         budget = data["budget"]
         if not isinstance(budget, dict):
             return jsonify({"error": "budget 必須為物件格式"}), 400
+        # 內建分類之外，也接受使用者自訂的細項（見 routes/categories.py）
+        user_leaves = custom_leaves(ObjectId(request.user_id))
         for key, val in budget.items():
-            if key not in ALLOWED_CATEGORIES:
+            if key not in ALLOWED_CATEGORIES and key not in user_leaves:
                 return jsonify({"error": f"不允許的分類: {key}"}), 400
             if not isinstance(val, (int, float)) or val < 0:
                 return jsonify({"error": f"預算金額必須為非負數字: {key}"}), 400
