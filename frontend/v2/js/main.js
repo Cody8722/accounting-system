@@ -111,25 +111,24 @@ function setupOfflineIndicator() {
   });
 }
 
-// 啟動畫面（index.html 的 #splash）：Claude Design 做的 2.0 秒 SMIL 動畫。
-// 瀏覽器要等整頁 load 事件才會開始跑 SMIL 時間軸（載入中 getCurrentTime() 會停在 0），
-// 所以不能用固定毫秒數倒數，要等動畫「實際播到結尾」才淡出。
-// 改動畫長度時 SPLASH_ANIM_S 要一起調；SPLASH_MAX_MS 是保險上限，避免動畫沒啟動時卡住。
-const SPLASH_ANIM_S = 2.0;
+// 啟動畫面（index.html 的 #splash）：Claude Design 做的 2.0 秒 SMIL 動畫（splash.svg，用 <img> 載入）。
+// 動畫從圖片載入完成那刻（index.html 的 onload 記在 window.__splashT）開始播，
+// 所以要等「圖片載入後再過 SPLASH_ANIM_MS」才淡出，不能從頁面開始載入算起。
+// 改動畫長度時 SPLASH_ANIM_MS 要一起調；SPLASH_MAX_MS 是保險上限，避免圖片載不到時卡住。
+const SPLASH_ANIM_MS = 2050;
 const SPLASH_MAX_MS = 7000;
 
-function splashAnimDone(el) {
-  const svg = el.querySelector('svg');
-  if (!svg || typeof svg.getCurrentTime !== 'function') return true;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return true; // 直接是最後一格，不用等
-  return svg.getCurrentTime() >= SPLASH_ANIM_S;
+function splashAnimDone() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return true; // 靜態圖，不用等
+  const t = window.__splashT;
+  return typeof t === 'number' && performance.now() - t >= SPLASH_ANIM_MS;
 }
 
 function hideSplash() {
   const el = document.getElementById('splash');
   if (!el) return;
   const tick = () => {
-    if (!splashAnimDone(el) && performance.now() < SPLASH_MAX_MS) { setTimeout(tick, 50); return; }
+    if (!splashAnimDone() && performance.now() < SPLASH_MAX_MS) { setTimeout(tick, 50); return; }
     el.classList.add('hide');
     setTimeout(() => el.remove(), 350); // 等淡出動畫（.28s）結束再移除
   };
