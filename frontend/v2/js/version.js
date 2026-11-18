@@ -7,5 +7,5 @@
  *
  * 刻意只保留最新一行、不做完整 CHANGELOG；使用者升版後看到的就是這一行。
  */
-export const APP_VERSION = '1.20.2';
-export const RELEASE_NOTE = '更新：換新 App 圖示；已加到主畫面的舊圖示需刪除後重新加入才會更新';
+export const APP_VERSION = '1.21.1';
+export const RELEASE_NOTE = '新增：分類可自訂（我的 → 分類設定）、可自助刪除帳號；換新 App 圖示（已加到主畫面的舊圖示需刪除後重新加入才會更新）';
