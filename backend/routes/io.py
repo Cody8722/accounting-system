@@ -250,7 +250,9 @@ def import_accounting_records():
         return jsonify({"error": "資料庫未初始化"}), 500
 
     try:
-        data = request.get_json()
+        # silent=True：壞 JSON 回 None → 走下面的 400「格式錯誤」，
+        # 不是丟 BadRequest 被這個函式的 except Exception 吞成 500
+        data = request.get_json(silent=True)
         if not data or "records" not in data or not isinstance(data["records"], list):
             return jsonify({"error": "格式錯誤：需要包含 records 陣列"}), 400
         if len(data["records"]) > MAX_IMPORT_RECORDS:

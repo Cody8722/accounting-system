@@ -20,7 +20,13 @@ from bson import ObjectId, json_util
 from flask import Blueprint, jsonify, request
 
 import db
-from extensions import limiter, require_auth, validate_objectid
+from extensions import (
+    limiter,
+    require_auth,
+    validate_amount,
+    validate_non_negative_amount,
+    validate_objectid,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +95,8 @@ def create_debt():
 
         if not data.get("person"):
             return jsonify({"error": "請輸入對象姓名或標題"}), 400
-        try:
-            amount = float(data.get("amount", 0))
-            if amount <= 0:
-                raise ValueError()
-        except (ValueError, TypeError):
+        valid, amount = validate_amount(data.get("amount", 0))
+        if not valid:
             return jsonify({"error": "請輸入有效金額"}), 400
 
         raw_members = data.get("members") or []
@@ -102,7 +105,9 @@ def create_debt():
             name = str(m.get("name", "")).strip()[:50]
             if not name:
                 continue
-            share = float(m.get("share", 0))
+            valid, share = validate_non_negative_amount(m.get("share", 0))
+            if not valid:
+                return jsonify({"error": "分帳份額必須為有效的非負數字"}), 400
             members.append(
                 {
                     "name": name,
@@ -185,7 +190,10 @@ def update_debt(debt_id):
         if "person" in data:
             update_fields["person"] = str(data["person"])[:50]
         if "amount" in data:
-            update_fields["amount"] = float(data["amount"])
+            valid, amount = validate_amount(data["amount"])
+            if not valid:
+                return jsonify({"error": "請輸入有效金額"}), 400
+            update_fields["amount"] = amount
         if "reason" in data:
             update_fields["reason"] = str(data["reason"])[:200]
         if "date" in data:
@@ -196,11 +204,15 @@ def update_debt(debt_id):
                 name = str(m.get("name", "")).strip()[:50]
                 if not name:
                     continue
+                valid_share, share = validate_non_negative_amount(m.get("share", 0))
+                valid_paid, paid = validate_non_negative_amount(m.get("paid_amount", 0))
+                if not (valid_share and valid_paid):
+                    return jsonify({"error": "分帳金額必須為有效的非負數字"}), 400
                 members.append(
                     {
                         "name": name,
-                        "share": float(m.get("share", 0)),
-                        "paid_amount": float(m.get("paid_amount", 0)),
+                        "share": share,
+                        "paid_amount": paid,
                         "is_settled": bool(m.get("is_settled", False)),
                     }
                 )
@@ -262,11 +274,8 @@ def add_repayment(debt_id):
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
-        try:
-            repay_amount = float(data.get("amount", 0))
-            if repay_amount <= 0:
-                raise ValueError()
-        except (ValueError, TypeError):
+        valid, repay_amount = validate_amount(data.get("amount", 0))
+        if not valid:
             return jsonify({"error": "請輸入有效還款金額"}), 400
 
         user_oid = ObjectId(request.user_id)
@@ -346,11 +355,8 @@ def repay_member(debt_id, member_idx):
         if not data:
             return jsonify({"error": "無效的請求資料"}), 400
 
-        try:
-            repay_amount = float(data.get("amount", 0))
-            if repay_amount <= 0:
-                raise ValueError()
-        except (ValueError, TypeError):
+        valid, repay_amount = validate_amount(data.get("amount", 0))
+        if not valid:
             return jsonify({"error": "請輸入有效還款金額"}), 400
 
         user_oid = ObjectId(request.user_id)

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_compress import Compress
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 
 import db
 from extensions import limiter
@@ -88,6 +89,23 @@ def not_found(e):
 @app.errorhandler(405)
 def method_not_allowed(e):
     return jsonify({"error": "不允許的請求方法"}), 405
+
+
+# HTTP 例外（壞 JSON 的 400、413 檔案過大、429 限速…）要保留自己的狀態碼，
+# 不能被下面的「未預期錯誤」處理器一律變成 500。
+_HTTP_ERROR_MESSAGES = {
+    400: "請求格式錯誤",
+    413: "上傳內容過大",
+    415: "不支援的內容類型",
+    429: "請求過於頻繁，請稍後再試",
+}
+
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    code = e.code or 500
+    message = _HTTP_ERROR_MESSAGES.get(code, e.name)
+    return jsonify({"error": message}), code
 
 
 @app.errorhandler(Exception)
