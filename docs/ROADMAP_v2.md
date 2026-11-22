@@ -97,6 +97,26 @@
 - 與 2b 的關係：備份帶 `occurred_at`／`tz_offset_min`／`location`／`photos[].exif`，原樣寫回；合併判重可用 `occurred_at` 加金額，比只有日期精準。
 - 要補的測試：新記錄 `date` 與 `occurred_at`＋偏移一致；跨午夜與時區邊界日期不位移；舊記錄無新欄位時排序與統計不變；EXIF 解析（有／無／損壞檔都不得讓上傳失敗）。
 
+**2g. 測試把關補強（2026-11-22，外部審查加獨立子代理審查，都讀程式碼確認）**：目前測試「綠燈但沒驗東西」，要先補，否則 2a、2c 的修正沒有可靠的回歸網。
+- 放水的斷言：`assert status_code in [..., 500]`（伺服器回 500 也算過）在 `test_accounting.py` 25 處、`test_api.py` 33 處、`test_auth.py` 19 處；統計測試 `total_income == 0 or isinstance(...)` 幾乎必然成立；趨勢測試只檢查結構不檢查數字。逐步改成精確狀態碼與數值斷言。
+- 靜默跳過：`test_accounting.py` 有 33 處在拿不到 token 時 `pytest.skip`，註冊壞掉整檔跳過、CI 仍綠。改成直接失敗。
+- CI 的 `mongo:7.0` 服務沒被用到，`conftest.py` 全走 mongomock，唯一索引、部分索引（`client_id`）、並發行為都沒被驗證。管錢相關的測試改跑真 Mongo。
+- 覆蓋率門檻只涵蓋 `main.py`（75）與 `auth.py`（80），`routes/` 沒有。補上門檻。
+- 並發類測試（解鎖連點、`client_id` 重送）循序呼叫重現不了競態（第二次會看到已解鎖而被擋，修前修後都過）；要用多執行緒加真 Mongo，修之前必須失敗。
+- 不變量測試：同一帳號下，位置餘額（銀行＋現金）、錢包餘額、概覽 `cash_balance` 三者要一致；匯出再匯入（2b）後餘額與時間欄位不變。
+
+**2h. 審查新發現（修之前一律先補會失敗的測試）**
+- **現在就影響數字、優先修（第一個修正 PR）**：
+  - 趨勢 `/accounting/trends` 先升冪排序再 `$limit`，取到最舊的 N 個月而不是最近的（`stats.py:252-253`）。
+  - 環比 `/accounting/comparison` 的「本期」不含今天（`cur_end = now` 加 `$lt`，`stats.py:364,374`），且不受錢包與分類篩選影響。
+  - 全域錯誤處理器 `@app.errorhandler(Exception)` 把所有 HTTP 例外都變成 500，400（壞 JSON）、413、429（限速）都被吃掉（`main.py:93-96`）。
+  - 金額驗證不一致：欠款（建立／更新／還款／成員還款）、預算、定期收支各自只做 `float()` 加 `<= 0`，接受 NaN、無限大；`validate_amount` 本身接受布林（`float(True)` 為 1.0）。統一走 `validate_amount` 並加 `math.isfinite`、拒絕 `bool`。
+- **併入 2a**：解鎖競態根因是 `update_one` 條件沒帶 `type: "restricted", unlocked_at: None`，改 `find_one_and_update`；定期收支套用不冪等（連按兩次產生兩筆）且不清統計快取；欠款還款的日期未驗證。
+- **併入 2c**：直接刪自動提領轉帳會留下指向不存在記錄的 `source_transfer_id` 且現金變負；刪除還款產生的記帳記錄不退回欠款 `paid_amount`；解鎖後的收入改金額，配對的支出不同步；收入改支出時位置沿用收入選的而非由系統判斷；轉帳與解鎖端點沒有 `client_id` 冪等，離線佇列不能安全使用；全額受限（`amount = 0`）不寫主記錄也就沒有 `client_id`，重送會重複建立受限資金；離線重送競態時，自動提領轉帳已先寫入，主記錄撞唯一索引後轉帳留成孤兒。
+- **併入 2b**：匯入接受 `transfer`／`restricted` 類型，手工檔案帶非空分類就能寫入沒有 `from_location`／`to_location`／`location` 的轉帳，要在匯入端擋掉。
+- **待驗證**：借出的錢可能讓淨資產永久多算（`net_balance = cash_balance + receivable - payable`，`stats.py:199`；建立借出欠款時不產生支出，對方還款卻產生收入），影響要看欠款建立的實作；概覽 `cash_balance`（全部收入減支出）與位置餘額定義不同，只在所有記錄都有位置時才一致；垃圾桶清除不含 `invites`（要確認是否以 user 關聯）。
+- **低優先**：錢包 `icon` 未跳脫就放進 HTML class 屬性（`wallet.js`、`lock.js`），只是自我 XSS，伺服器端對 `icon`、`color` 做白名單即可；`GET /records` 日期或類型參數無效時被靜默忽略。
+
 ### 階段 2.5：帳號垃圾桶與遷移代碼（排在 2b 之後）
 構想：刪除帳號不是立刻刪光，先進垃圾桶並可選保留時間；給一組代碼，可把這個帳號的資料遷移到另一個帳號。遷移 = 伺服器端用 2b 的還原邏輯匯入目標帳號，所以必須在完整備份還原之後。目前沒有「刪除帳號」功能，這是新功能。
 
