@@ -16,7 +16,7 @@ from bson import ObjectId
 from flask import Blueprint, jsonify, request
 
 import db
-from extensions import limiter, require_auth
+from extensions import limiter, require_auth, validate_amount
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,8 @@ def _validate_recurring_data(data):
     if not name or len(name) > 50:
         return None, (jsonify({"error": "名稱無效（1-50 字元）"}), 400)
 
-    try:
-        amount = float(data["amount"])
-        if amount <= 0:
-            raise ValueError
-    except (KeyError, ValueError, TypeError):
+    valid, amount = validate_amount(data.get("amount"))
+    if not valid:
         return None, (jsonify({"error": "金額必須為正數"}), 400)
 
     type_ = data.get("type", "expense")
