@@ -3,7 +3,7 @@
  * 串 GET/PUT/DELETE /admin/api/accounting/records。
  */
 
-import { apiJson, apiCall } from './api.js';
+import { apiJson } from './api.js';
 import { CATEGORY_TREE, categoryMeta } from './config.js';
 import { fmtMoney, escapeHtml, showToast, showConfirm, todayStr } from './utils.js';
 import { state, monthRange, shiftMonth, emit, on } from './store.js';
@@ -514,8 +514,7 @@ function openEditIncomeExpense(record) {
     if (record._pending) { await removeOutbox(record._clientId); showToast('已刪除待同步項', 'success'); cleanupPhotoUrls(); ov.remove(); emit('records:changed'); return; }
     if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
-      const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('刪除失敗');
+      await apiJson(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       showToast('已刪除', 'success'); cleanupPhotoUrls(); ov.remove(); emit('records:changed');
     } catch (e) { showToast(e.message, 'error'); }
   };
@@ -588,8 +587,7 @@ function openEditTransfer(record) {
     if (!(await showConfirm('確定刪除這筆轉移記錄？'))) return;
     if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
-      const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('刪除失敗');
+      await apiJson(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       showToast('已刪除', 'success'); ov.remove(); emit('records:changed');
     } catch (e) { showToast(e.message, 'error'); }
   };
@@ -664,8 +662,7 @@ function openEditRestricted(record) {
     if (!(await showConfirm('確定刪除這筆受限資金？'))) return;
     if (!isOnline()) { showToast('刪除已同步記錄需連線', 'warning'); return; }
     try {
-      const res = await apiCall(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('刪除失敗');
+      await apiJson(`/admin/api/accounting/records/${id}`, { method: 'DELETE' });
       showToast('已刪除', 'success'); ov.remove(); emit('records:changed');
     } catch (e) { showToast(e.message, 'error'); }
   };

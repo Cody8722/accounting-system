@@ -301,7 +301,7 @@ export async function openWalletManager() {
       if (w) openWalletForm(w, refresh);
     });
     body.querySelectorAll('[data-archive-wallet]').forEach((b) => b.onclick = async () => {
-      if (!(await showConfirm('封存這個錢包？歷史記錄會保留，可隨時還原。', { danger: false }))) return;
+      if (!(await showConfirm('封存這個錢包？歷史記錄會保留，但封存期間無法新增或修改這個錢包的記錄，可隨時還原。', { danger: false }))) return;
       try {
         const res = await apiCall(`/admin/api/wallets/${b.dataset.archiveWallet}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('封存失敗');
