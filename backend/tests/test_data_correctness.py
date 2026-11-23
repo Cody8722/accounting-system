@@ -255,3 +255,31 @@ class TestMemberRepaySyncFailureReported:
             )
         assert r.status_code == 200
         assert r.get_json().get("sync_failed") is True
+
+
+class TestRecordFiltersStrict:
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "start_date=bad&end_date=2026-01-31",
+            "start_date=2026-01-01&end_date=2026-13-45",
+            "type=bogus",
+        ],
+    )
+    def test_invalid_filter_returns_400(self, client, headers, query):
+        r = client.get(f"{ACCOUNTING}/records?{query}", headers=headers)
+        assert r.status_code == 400, r.get_json()
+
+    @pytest.mark.parametrize(
+        "query", ["start_date=bad&end_date=2026-01-31", "type=bogus"]
+    )
+    def test_export_invalid_filter_returns_400(self, client, headers, query):
+        r = client.get(f"{ACCOUNTING}/export?format=csv&{query}", headers=headers)
+        assert r.status_code == 400
+
+    def test_valid_filters_still_work(self, client, headers):
+        r = client.get(
+            f"{ACCOUNTING}/records?start_date=2026-01-01&end_date=2026-01-31&type=expense",
+            headers=headers,
+        )
+        assert r.status_code == 200

@@ -69,15 +69,20 @@ def export_accounting_records():
 
         if export_format != "json":
             if start_date and end_date:
-                valid_start, _ = validate_date(start_date)
-                valid_end, _ = validate_date(end_date)
-                if valid_start and valid_end:
-                    query["date"] = {"$gte": start_date, "$lte": end_date}
+                valid_start, start_err = validate_date(start_date)
+                valid_end, end_err = validate_date(end_date)
+                if not valid_start or not valid_end:
+                    return (
+                        jsonify({"error": start_err if not valid_start else end_err}),
+                        400,
+                    )
+                query["date"] = {"$gte": start_date, "$lte": end_date}
 
             if record_type:
-                valid, _ = validate_record_type(record_type)
-                if valid:
-                    query["type"] = record_type
+                valid, type_err = validate_record_type(record_type)
+                if not valid:
+                    return jsonify({"error": type_err}), 400
+                query["type"] = record_type
 
         headers = ["日期", "類型", "分類", "金額", "描述", "支出類型"]
 
