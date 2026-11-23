@@ -11,8 +11,10 @@ CI 的 mongo:7.0 服務會另外跑一步。
 import os
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime
+from unittest import mock
 
 import pytest
 from bson import ObjectId
@@ -112,6 +114,17 @@ def test_parallel_unlock_creates_exactly_one_expense(user):
         assert created.status_code == 201, created.get_json()
         rid = created.get_json()["restricted_id"]
 
+    # 把「讀到尚未解鎖」到「寫入」之間的空窗拉大：沒有原子保護的寫法會讓多個請求
+    # 都通過檢查（沒拉大時空窗太窄，舊寫法偶爾也會過，測試就證明不了什麼）
+    coll = db_module.accounting_records_collection
+    real_find_one = coll.find_one
+
+    def slow_find_one(query=None, *args, **kwargs):
+        doc = real_find_one(query, *args, **kwargs)
+        if query and query.get("_id") == ObjectId(rid):
+            time.sleep(0.15)
+        return doc
+
     def unlock(c, i):
         return c.post(
             f"{ACCOUNTING}/records/{rid}/unlock",
@@ -119,7 +132,8 @@ def test_parallel_unlock_creates_exactly_one_expense(user):
             headers=user["headers"],
         ).status_code
 
-    statuses = _run_parallel(unlock)
+    with mock.patch.object(coll, "find_one", side_effect=slow_find_one):
+        statuses = _run_parallel(unlock)
     assert statuses.count(201) == 1, statuses
     assert all(s in (201, 400) for s in statuses), statuses
     expenses = db_module.accounting_records_collection.count_documents(
