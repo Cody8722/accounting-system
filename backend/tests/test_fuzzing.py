@@ -320,7 +320,6 @@ class TestExtremeValueFuzzing:
         assert response.status_code in [
             200,
             201,
-            500,
         ], f"MAX_AMOUNT 邊界值應被接受，實際狀態碼: {response.status_code}"
 
     def test_amount_just_over_max(self, client, auth_token, valid_base):
@@ -399,7 +398,6 @@ class TestStructuralFuzzing:
         assert response.status_code in [
             200,
             201,
-            500,
         ], f"500 字元 description 應被接受，實際: {response.status_code}"
 
     def test_invalid_type_value(self, client, auth_token, valid_base):

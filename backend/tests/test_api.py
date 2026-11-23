@@ -57,7 +57,7 @@ class TestAuthentication:
     def test_records_without_auth(self, client):
         """测试未认证访问 records 端点"""
         response = client.get("/admin/api/accounting/records")
-        assert response.status_code in [401, 403]
+        assert response.status_code == 401
 
 
 class TestHealthCheck:
@@ -85,7 +85,7 @@ class TestRecordsAPI:
         """测试获取记录列表"""
         response = client.get("/admin/api/accounting/records", headers=auth_headers)
         # 200 if DB available, 500 if DB not initialized
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
         if response.status_code == 200:
             assert response.content_type == "application/json"
 
@@ -98,7 +98,7 @@ class TestRecordsAPI:
             content_type="application/json",
         )
         # 应该返回 400 (缺少必要字段) 或 500 (DB未初始化)
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_create_record_with_valid_data(self, client, auth_headers):
         """测试创建记录（有效数据）"""
@@ -117,7 +117,7 @@ class TestRecordsAPI:
             content_type="application/json",
         )
         # 成功(201)或失败(500, 如果DB未连接)
-        assert response.status_code in [201, 500]
+        assert response.status_code in [201]
 
     def test_create_record_invalid_type(self, client):
         """测试创建记录（无效类型）"""
@@ -131,7 +131,7 @@ class TestRecordsAPI:
             json=invalid_record,
             content_type="application/json",
         )
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
     def test_create_record_negative_amount(self, client):
         """测试创建记录（负数金额）"""
@@ -146,12 +146,12 @@ class TestRecordsAPI:
             content_type="application/json",
         )
         # 取决于验证逻辑，可能拒绝或接受
-        assert response.status_code in [200, 201, 400, 401, 403, 404, 500]
+        assert response.status_code == 401
 
     def test_get_single_record_invalid_id(self, client):
         """测试获取不存在的记录"""
         response = client.get("/admin/api/accounting/records/invalid_id_12345")
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
     def test_update_record_without_data(self, client):
         """测试更新记录缺少数据"""
@@ -160,12 +160,12 @@ class TestRecordsAPI:
             json={},
             content_type="application/json",
         )
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
     def test_delete_record_invalid_id(self, client):
         """测试删除不存在的记录"""
         response = client.delete("/admin/api/accounting/records/invalid_id_99999")
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
 
 class TestBudgetAPI:
@@ -174,7 +174,7 @@ class TestBudgetAPI:
     def test_get_budgets_endpoint(self, client):
         """测试获取预算列表"""
         response = client.get("/admin/api/accounting/budget")
-        assert response.status_code in [200, 401, 403, 404, 500]
+        assert response.status_code == 401
         assert response.content_type == "application/json" or response.status_code in [
             401,
             403,
@@ -186,7 +186,7 @@ class TestBudgetAPI:
         response = client.post(
             "/admin/api/accounting/budget", json={}, content_type="application/json"
         )
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
     def test_create_budget_with_valid_data(self, client):
         """测试创建预算（有效数据）"""
@@ -196,7 +196,7 @@ class TestBudgetAPI:
             json=valid_budget,
             content_type="application/json",
         )
-        assert response.status_code in [200, 201, 400, 401, 403, 404, 500]
+        assert response.status_code == 401
 
 
 class TestStatisticsAPI:
@@ -205,7 +205,7 @@ class TestStatisticsAPI:
     def test_get_statistics_endpoint(self, client):
         """测试获取统计数据"""
         response = client.get("/admin/api/accounting/stats")
-        assert response.status_code in [200, 401, 403, 404, 500]
+        assert response.status_code == 401
         assert response.content_type == "application/json" or response.status_code in [
             401,
             403,
@@ -217,12 +217,12 @@ class TestStatisticsAPI:
         response = client.get(
             "/admin/api/accounting/stats?start=2024-01-01&end=2024-12-31"
         )
-        assert response.status_code in [200, 400, 401, 403, 404, 500]
+        assert response.status_code == 401
 
     def test_get_category_breakdown(self, client):
         """测试获取分类统计"""
         response = client.get("/admin/api/accounting/stats/categories")
-        assert response.status_code in [200, 403, 404, 500]
+        assert response.status_code == 404
 
 
 class TestInputValidation:
@@ -237,7 +237,7 @@ class TestInputValidation:
             content_type="application/json",
         )
         # 可能允许或拒绝 0 金额
-        assert response.status_code in [200, 201, 400, 401, 403, 404, 500]
+        assert response.status_code == 401
 
     def test_amount_validation_very_large(self, client):
         """测试非常大的金额"""
@@ -247,7 +247,7 @@ class TestInputValidation:
             json=record,
             content_type="application/json",
         )
-        assert response.status_code in [200, 201, 400, 401, 403, 404, 500]
+        assert response.status_code == 401
 
     def test_date_format_validation(self, client):
         """测试日期格式验证"""
@@ -263,7 +263,7 @@ class TestInputValidation:
             content_type="application/json",
         )
         # 应该拒绝无效日期格式
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
 
 class TestCORS:
@@ -272,13 +272,13 @@ class TestCORS:
     def test_cors_headers(self, client):
         """测试 CORS headers 存在"""
         response = client.options("/admin/api/accounting/records")
-        assert response.status_code in [200, 204, 404, 500]
+        assert response.status_code == 200
 
     def test_cors_allows_methods(self, client):
         """测试 CORS 允许的方法"""
         response = client.get("/status", headers={"Origin": "http://localhost:3000"})
         # CORS headers should be present even if auth fails
-        assert response.status_code in [200, 401]
+        assert response.status_code == 200
 
     def test_cors_no_origin_header_has_no_fallback(self, client):
         """未帶 Origin header（非跨域請求）時不應該 fallback 到任何允許清單裡的網址，
@@ -307,7 +307,7 @@ class TestErrorHandling:
     def test_invalid_http_method(self, client):
         """测试不支持的 HTTP 方法"""
         response = client.patch("/admin/api/accounting/records")
-        assert response.status_code in [404, 405, 500]
+        assert response.status_code == 405
 
     def test_malformed_json(self, client):
         """测试格式错误的 JSON"""
@@ -316,7 +316,7 @@ class TestErrorHandling:
             data='{"invalid": json',
             content_type="application/json",
         )
-        assert response.status_code in [400, 401, 403, 404, 405, 500]
+        assert response.status_code == 401
 
 
 class TestAuthenticatedEndpoints:
@@ -325,7 +325,7 @@ class TestAuthenticatedEndpoints:
     def test_get_budget_with_auth(self, client, auth_headers):
         """測試獲取預算（已認證）"""
         response = client.get("/admin/api/accounting/budget", headers=auth_headers)
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
         if response.status_code == 200:
             data = response.get_json()
             assert "month" in data
@@ -337,14 +337,14 @@ class TestAuthenticatedEndpoints:
         response = client.post(
             "/admin/api/accounting/budget", json=budget_data, headers=auth_headers
         )
-        assert response.status_code in [200, 201, 500]
+        assert response.status_code == 200
 
     def test_get_budget_with_month_param(self, client, auth_headers):
         """GET 預算可指定月份，回應帶回該月份"""
         response = client.get(
             "/admin/api/accounting/budget?month=2026-03", headers=auth_headers
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
         if response.status_code == 200:
             assert response.get_json()["month"] == "2026-03"
 
@@ -362,7 +362,7 @@ class TestAuthenticatedEndpoints:
             json={"budget": {"早餐": 1500}, "month": "2026-03"},
             headers=auth_headers,
         )
-        assert response.status_code in [200, 201, 500]
+        assert response.status_code == 200
         check = client.get(
             "/admin/api/accounting/budget?month=2026-03", headers=auth_headers
         )
@@ -384,7 +384,7 @@ class TestAuthenticatedEndpoints:
         response = client.get(
             "/api/user/profile", headers={"Authorization": f"Bearer {auth_token}"}
         )
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code == 200
         if response.status_code == 200:
             data = response.get_json()
             assert "email" in data
@@ -398,7 +398,7 @@ class TestAuthenticatedEndpoints:
             json=update_data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 400, 500]
+        assert response.status_code == 200
 
     def test_change_password(self, client, auth_token):
         """測試更改密碼"""
@@ -413,7 +413,7 @@ class TestAuthenticatedEndpoints:
             json=password_data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 400, 401, 500]
+        assert response.status_code == 400
 
 
 class TestForgotPassword:
@@ -511,7 +511,7 @@ class TestComparisonAPI:
             "/admin/api/accounting/comparison",
             headers=auth_headers,
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
         if response.status_code == 200:
             data = response.get_json()
             assert "current" in data
@@ -524,7 +524,7 @@ class TestComparisonAPI:
             "/admin/api/accounting/comparison?period=quarter",
             headers=auth_headers,
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
     def test_comparison_year(self, client, auth_headers):
         """年度環比應返回 200 或 500（DB 未連線）"""
@@ -532,7 +532,7 @@ class TestComparisonAPI:
             "/admin/api/accounting/comparison?period=year",
             headers=auth_headers,
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
 
 class TestRecurringAPI:
@@ -546,7 +546,7 @@ class TestRecurringAPI:
     def test_get_recurring_with_auth(self, client, auth_headers):
         """已認證取得定期收支列表"""
         response = client.get("/admin/api/recurring", headers=auth_headers)
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
         if response.status_code == 200:
             assert isinstance(response.get_json(), list)
 
@@ -605,7 +605,7 @@ class TestRecurringAPI:
             },
             headers=auth_headers,
         )
-        assert response.status_code in [201, 500]
+        assert response.status_code in [201]
 
     def test_update_recurring_invalid_id(self, client, auth_headers):
         """無效 ID 更新應返回 400"""
@@ -894,7 +894,7 @@ class TestAuthExtended:
     def test_logout_without_token(self, client):
         """未登入時登出應回傳 401"""
         response = client.post("/api/auth/logout")
-        assert response.status_code in [401, 403]
+        assert response.status_code == 401
 
 
 class TestTokenSecurity:
@@ -924,7 +924,7 @@ class TestTokenSecurity:
             "/admin/api/accounting/records",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 401
 
     def test_tampered_token_rejected(self, client):
         """竄改的 token 應被拒絕"""
@@ -938,7 +938,7 @@ class TestTokenSecurity:
             "/admin/api/accounting/records",
             headers={"Authorization": f"Bearer {tampered}"},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 401
 
     def test_missing_bearer_prefix_rejected(self, client, auth_headers):
         """沒有 Bearer 前綴的 token 應被拒絕"""
@@ -948,7 +948,7 @@ class TestTokenSecurity:
             "/admin/api/accounting/records",
             headers={"Authorization": raw_token},
         )
-        assert response.status_code in [401, 403]
+        assert response.status_code == 401
 
 
 class TestRecurringAuthorization:
@@ -1094,7 +1094,7 @@ class TestBudgetEdgeCases:
             headers=auth_headers,
         )
         # 若 DB 未連線回 500，連線時應 200
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
 
 class TestRecordsSearch:
@@ -1320,7 +1320,7 @@ class TestForgotPasswordFlow:
             "/api/auth/reset-password",
             json={"token": "invalid-token-xyz", "new_password": "NewPass123!"},
         )
-        assert response.status_code in [400, 404]
+        assert response.status_code == 400
 
 
 class TestImportExportJSON:
@@ -1426,7 +1426,7 @@ class TestStatsOverview:
 
     def test_overview_no_auth_returns_401(self, client):
         r = client.get("/admin/api/stats/overview")
-        assert r.status_code in [401, 403]
+        assert r.status_code == 401
 
     def test_overview_empty_returns_zero_fields(self, client, auth_headers):
         """全新用戶，所有欄位應為數值（不一定為 0，因為共用 user_id 可能有既有資料）"""

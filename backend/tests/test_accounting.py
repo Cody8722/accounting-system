@@ -68,7 +68,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 500]
+        assert response.status_code == 201
 
     def test_create_income_record(self, client, auth_token):
         """測試創建收入記錄"""
@@ -86,7 +86,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 500]
+        assert response.status_code == 201
 
     def test_create_record_with_zero_amount(self, client, auth_token):
         """測試創建金額為 0 的記錄"""
@@ -103,7 +103,7 @@ class TestRecordCreation:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 應該拒絕 0 金額
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_create_record_with_negative_amount(self, client, auth_token):
         """測試創建負數金額"""
@@ -120,7 +120,7 @@ class TestRecordCreation:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 應該拒絕負數
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_create_record_with_very_large_amount(self, client, auth_token):
         """測試極大金額"""
@@ -136,7 +136,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 400
 
     def test_create_record_with_over_max_amount(self, client, auth_token):
         """測試超過最大金額"""
@@ -152,7 +152,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 400
 
     def test_create_record_with_many_decimals(self, client, auth_token):
         """測試多位小數"""
@@ -169,7 +169,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 500]
+        assert response.status_code == 201
 
     def test_create_record_invalid_type(self, client, auth_token):
         """測試無效類型"""
@@ -185,7 +185,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_create_record_future_date(self, client, auth_token):
         """測試未來日期"""
@@ -204,7 +204,7 @@ class TestRecordCreation:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 可能允許或拒絕未來日期
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 201
 
     def test_create_record_very_old_date(self, client, auth_token):
         """測試很久以前的日期"""
@@ -221,7 +221,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 201
 
     def test_create_record_invalid_date_format(self, client, auth_token):
         """測試無效日期格式"""
@@ -237,7 +237,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_create_record_missing_category(self, client, auth_token):
         """測試缺少分類"""
@@ -252,7 +252,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_create_record_empty_category(self, client, auth_token):
         """測試空分類"""
@@ -269,7 +269,7 @@ class TestRecordCreation:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 系統可能允許空分類
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 400
 
     def test_create_record_very_long_description(self, client, auth_token):
         """測試超長描述"""
@@ -286,7 +286,7 @@ class TestRecordCreation:
             json=data,
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 400
 
     def test_create_record_with_xss_in_description(self, client, auth_token):
         """測試描述中的 XSS"""
@@ -305,7 +305,7 @@ class TestRecordCreation:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 應該安全處理
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 201
 
     def test_create_record_with_sql_injection(self, client, auth_token):
         """測試 SQL 注入"""
@@ -323,7 +323,7 @@ class TestRecordCreation:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 應該安全處理（MongoDB 不受 SQL 注入影響）
-        assert response.status_code in [200, 201, 400, 500]
+        assert response.status_code == 201
 
 
 class TestRecordRetrieval:
@@ -336,7 +336,7 @@ class TestRecordRetrieval:
             "/admin/api/accounting/records",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
     def test_get_records_with_date_filter(self, client, auth_token):
         """測試日期篩選"""
@@ -347,7 +347,7 @@ class TestRecordRetrieval:
             f"/admin/api/accounting/records?start_date={start_date}&end_date={end_date}",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 400, 500]
+        assert response.status_code == 200
 
     def test_get_records_with_type_filter(self, client, auth_token):
         """測試類型篩選"""
@@ -356,7 +356,7 @@ class TestRecordRetrieval:
             "/admin/api/accounting/records?type=expense",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
     def test_get_records_with_category_filter(self, client, auth_token):
         """測試分類篩選"""
@@ -365,7 +365,7 @@ class TestRecordRetrieval:
             "/admin/api/accounting/records?category=飲食",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
 
 class TestRecordUpdate:
@@ -396,7 +396,7 @@ class TestRecordUpdate:
                     json=update_data,
                     headers={"Authorization": f"Bearer {auth_token}"},
                 )
-                assert response.status_code in [200, 404, 500]
+                assert response.status_code in [200, 404]
 
 
 class TestRecordDeletion:
@@ -425,7 +425,7 @@ class TestRecordDeletion:
                     f"/admin/api/accounting/records/{record_id}",
                     headers={"Authorization": f"Bearer {auth_token}"},
                 )
-                assert response.status_code in [200, 204, 404, 500]
+                assert response.status_code in [200, 204, 404]
 
     def test_delete_nonexistent_record(self, client, auth_token):
         """測試刪除不存在的記錄"""
@@ -435,7 +435,7 @@ class TestRecordDeletion:
             headers={"Authorization": f"Bearer {auth_token}"},
         )
         # 可能返回 400（ID 格式無效）或 404（未找到）
-        assert response.status_code in [400, 404, 500]
+        assert response.status_code == 400
 
 
 class TestStatistics:
@@ -448,28 +448,49 @@ class TestStatistics:
             "/admin/api/accounting/stats",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        assert response.status_code in [200, 500]
-
-        if response.status_code == 200:
-            data = response.get_json()
-            assert "total_income" in data
-            assert "total_expense" in data
-            assert "balance" in data
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "total_income" in data
+        assert "total_expense" in data
+        assert "balance" in data
 
     def test_statistics_with_no_records(self, client, auth_token):
-        """測試沒有記錄時的統計"""
+        """新用戶沒有記錄：收入、支出、結餘都精確為 0"""
 
-        # 新用戶應該沒有記錄
         response = client.get(
             "/admin/api/accounting/stats",
             headers={"Authorization": f"Bearer {auth_token}"},
         )
-        if response.status_code == 200:
-            data = response.get_json()
-            # 應該返回 0
-            assert data.get("total_income") == 0 or isinstance(
-                data.get("total_income"), (int, float)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["total_income"] == 0
+        assert data["total_expense"] == 0
+        assert data["balance"] == 0
+
+    def test_statistics_sums_match_created_records(self, client, auth_token):
+        """建立已知金額的記錄後，統計的總額與結餘要精確吻合"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        today = datetime.now().strftime("%Y-%m-%d")
+        for payload in (
+            {"type": "income", "amount": 5000, "category": "薪資", "location": "bank"},
+            {"type": "income", "amount": 250.5, "category": "薪資", "location": "cash"},
+            {"type": "expense", "amount": 1200, "category": "餐飲"},
+            {"type": "expense", "amount": 300.25, "category": "餐飲"},
+        ):
+            r = client.post(
+                "/admin/api/accounting/records",
+                json={**payload, "date": today, "confirm_withdrawal": True},
+                headers=headers,
             )
+            assert r.status_code == 201, r.get_json()
+
+        data = client.get(
+            f"/admin/api/accounting/stats?start_date={today}&end_date={today}",
+            headers=headers,
+        ).get_json()
+        assert data["total_income"] == 5250.5
+        assert data["total_expense"] == 1500.25
+        assert data["balance"] == 3750.25
 
 
 class TestConcurrency:
@@ -497,7 +518,7 @@ class TestConcurrency:
 
         # 所有請求都應該成功
         for response in responses:
-            assert response.status_code in [200, 201, 500]
+            assert response.status_code == 201
 
 
 class TestExport:
@@ -603,34 +624,42 @@ class TestTrends:
     def test_trends_success(self, client, auth_token):
         """測試成功獲取趨勢資料"""
 
-        # 先創建一些不同月份的記錄
+        # 在最近兩個月各建立已知金額的記錄（趨勢只回最近 N 個月）
+        now = datetime.now()
+        this_month = now.strftime("%Y-%m")
+        prev = now.replace(day=1) - timedelta(days=1)
+        prev_month = prev.strftime("%Y-%m")
         records = [
             {
                 "type": "income",
                 "amount": 5000,
                 "category": "薪資",
-                "date": "2024-01-15",
+                "date": f"{prev_month}-15",
+                "location": "bank",
             },
             {
                 "type": "expense",
                 "amount": 2000,
                 "category": "餐飲",
-                "date": "2024-01-20",
+                "date": f"{prev_month}-20",
+                "confirm_withdrawal": True,
             },
             {
                 "type": "income",
                 "amount": 5500,
                 "category": "薪資",
-                "date": "2024-02-15",
+                "date": f"{this_month}-01",
+                "location": "bank",
             },
         ]
 
         for record in records:
-            client.post(
+            created = client.post(
                 "/admin/api/accounting/records",
                 json=record,
                 headers={"Authorization": f"Bearer {auth_token}"},
             )
+            assert created.status_code == 201, created.get_json()
 
         # 測試趨勢 API
         response = client.get(
@@ -651,6 +680,11 @@ class TestTrends:
         assert len(data["months"]) == len(data["income"])
         assert len(data["months"]) == len(data["expense"])
 
+        # 數字也要對：最後兩個月就是剛建立的上月與本月
+        assert data["months"][-2:] == [prev_month, this_month]
+        assert data["income"][-2:] == [5000, 5500]
+        assert data["expense"][-2:] == [2000, 0]
+
     def test_trends_with_custom_months(self, client, auth_token):
         """測試自訂月份數量"""
 
@@ -661,8 +695,7 @@ class TestTrends:
 
         assert response.status_code == 200
         data = response.get_json()
-        # 返回的月份數量應該 <= 12
-        assert len(data["months"]) <= 12
+        assert len(data["months"]) == 12
 
     def test_trends_max_months_limit(self, client, auth_token):
         """測試月份數量限制"""
@@ -675,8 +708,8 @@ class TestTrends:
 
         assert response.status_code == 200
         data = response.get_json()
-        # 應該被限制在 24 個月
-        assert len(data["months"]) <= 24
+        # 超過上限時固定回 24 個月
+        assert len(data["months"]) == 24
 
     def test_trends_without_auth(self, client):
         """測試未認證時的趨勢查詢"""
