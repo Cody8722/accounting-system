@@ -11,13 +11,17 @@ import { showToast } from './utils.js';
 import { APP_VERSION, RELEASE_NOTE } from './version.js';
 import { isOnline } from './offline.js';
 import { flushOutbox, pendingCount } from './sync.js';
-import { on } from './store.js';
+import { on, emit } from './store.js';
 import { isAddOpen } from './add.js';
+import { applyCachedCategories, refreshCategories } from './categories.js';
 
 const root = document.getElementById('app');
 
 function startApp() {
+  // 先同步套用本機快取的自訂分類，第一次渲染就是對的；再向後端確認，有差異才重繪
+  applyCachedCategories();
   initRouter(root);
+  refreshCategories().then((changed) => { if (changed) emit('records:changed'); });
 }
 
 // 登入成功／既有 session 驗證通過後的共用入口：requires_password_change 為 true
@@ -111,21 +115,49 @@ function setupOfflineIndicator() {
   });
 }
 
-async function boot() {
-  initTheme();
-  maybeShowUpdateToast();
-  setupOfflineIndicator();
-  // token 失效時回到登入
-  window.addEventListener('auth:token-invalid', () => { removeAuthToken(); showAuth(); });
+// 啟動畫面（index.html 的 #splash）：Claude Design 做的 2.0 秒 SMIL 動畫（splash.svg，用 <img> 載入）。
+// 動畫從圖片載入完成那刻（index.html 的 onload 記在 window.__splashT）開始播，
+// 所以要等「圖片載入後再過 SPLASH_ANIM_MS」才淡出，不能從頁面開始載入算起。
+// 改動畫長度時 SPLASH_ANIM_MS 要一起調；SPLASH_MAX_MS 是保險上限，避免圖片載不到時卡住。
+const SPLASH_ANIM_MS = 2050;
+const SPLASH_MAX_MS = 7000;
 
-  const status = await verifyToken();
-  if (status === 'valid' || status === 'offline-trusted') {
-    if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
-    enterApp(getUserData());
-    updatePendingBadge();
-    if (status === 'valid') flushOutbox(); // 進場即嘗試把離線佇列送出
-  } else {
-    showAuth();
+function splashAnimDone() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return true; // 靜態圖，不用等
+  const t = window.__splashT;
+  return typeof t === 'number' && performance.now() - t >= SPLASH_ANIM_MS;
+}
+
+function hideSplash() {
+  const el = document.getElementById('splash');
+  if (!el) return;
+  const tick = () => {
+    if (!splashAnimDone() && performance.now() < SPLASH_MAX_MS) { setTimeout(tick, 50); return; }
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 350); // 等淡出動畫（.28s）結束再移除
+  };
+  tick();
+}
+
+async function boot() {
+  try {
+    initTheme();
+    maybeShowUpdateToast();
+    setupOfflineIndicator();
+    // token 失效時回到登入
+    window.addEventListener('auth:token-invalid', () => { removeAuthToken(); showAuth(); });
+
+    const status = await verifyToken();
+    if (status === 'valid' || status === 'offline-trusted') {
+      if (status === 'offline-trusted') showToast('離線模式：顯示本地資料', 'info', 3500);
+      enterApp(getUserData());
+      updatePendingBadge();
+      if (status === 'valid') flushOutbox(); // 進場即嘗試把離線佇列送出
+    } else {
+      showAuth();
+    }
+  } finally {
+    hideSplash(); // 不論走哪條路（含例外）都要收掉，不能讓啟動畫面卡住
   }
 }
 

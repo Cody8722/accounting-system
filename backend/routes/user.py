@@ -4,11 +4,13 @@ routes/user.py — 用戶個人資料 API
 GET  /api/user/profile       取得個人資料
 PUT  /api/user/profile       更新個人資料
 POST /api/user/change-password 修改密碼
+POST /api/user/delete-account  自助刪除帳號（進垃圾桶，保留期內可還原；0 天 = 立即永久刪除）
 """
 
 import logging
 from datetime import datetime
 
+import account_trash
 import auth
 import db
 from bson import ObjectId
@@ -166,3 +168,61 @@ def change_password():
     except Exception as e:
         logger.error(f"修改密碼失敗: {e}")
         return jsonify({"error": "修改密碼失敗"}), 500
+
+
+@bp.route("/api/user/delete-account", methods=["POST"])
+@require_auth
+@limiter.limit("5 per hour")
+def delete_account():
+    """
+    自助刪除帳號。需重新輸入密碼。
+
+    body: {"password": "...", "retention_days": 0 | 7 | 30 | 90}（預設 30）
+    - retention_days > 0：進垃圾桶，保留期內用 Email＋密碼可還原，期滿由管理指令永久清除
+    - retention_days = 0：立即永久刪除帳號與所有資料，無法還原
+    成功後既有 token 立即失效。
+    """
+    if db.users_collection is None:
+        return jsonify({"error": "資料庫未連線"}), 500
+
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "無效的請求資料"}), 400
+
+        password = data.get("password", "")
+        if not password:
+            return jsonify({"error": "請輸入密碼"}), 400
+
+        retention = account_trash.normalize_retention(
+            data.get("retention_days", account_trash.DEFAULT_RETENTION_DAYS)
+        )
+        if retention is None:
+            return jsonify({"error": "保留天數只能是 0、7、30 或 90"}), 400
+
+        uid = ObjectId(request.user_id)
+        user = db.users_collection.find_one({"_id": uid})
+        if not user:
+            return jsonify({"error": "用戶不存在"}), 404
+
+        # 故意回 400 而非 401：見 change_password（401 會讓前端誤判為 JWT 過期而登出）
+        if not auth.verify_password(password, user["password_hash"]):
+            return jsonify({"error": "密碼錯誤"}), 400
+
+        if retention == 0:
+            account_trash.purge_user(uid)
+            logger.info(f"用戶永久刪除帳號: {request.email}")
+            return jsonify({"message": "帳號已永久刪除", "purge_at": None}), 200
+
+        purge_at = account_trash.move_to_trash(uid, retention)
+        logger.info(f"用戶刪除帳號（進垃圾桶 {retention} 天）: {request.email}")
+        return (
+            jsonify(
+                {"message": "帳號已刪除", "purge_at": purge_at.isoformat()},
+            ),
+            200,
+        )
+
+    except Exception as e:
+        logger.error(f"刪除帳號失敗: {e}")
+        return jsonify({"error": "刪除帳號失敗"}), 500

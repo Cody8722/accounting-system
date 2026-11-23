@@ -107,19 +107,28 @@ export const QUICK_LEAVES = {
   income: ['薪資', '零用錢', '獎金/年終', '其他收入'],
 };
 
-/** 後端 budget POST 只接受 ALLOWED_CATEGORIES 這些 key */
+/** 後端 budget POST 只接受 ALLOWED_CATEGORIES 這些 key（外加使用者自訂的細項） */
 export const BUDGET_CATEGORIES = [
   '早餐', '午餐', '晚餐', '點心', '飲料',
   '交通', '娛樂', '購物', '醫療', '教育', '居住', '其他',
 ];
 
+const _clone = (v) => JSON.parse(JSON.stringify(v));
+
+/** 內建預設（深拷貝一份凍結起來；使用者自訂後仍可還原、也用來判斷哪些是自訂的） */
+const DEFAULT_TREE = _clone(CATEGORY_TREE);
+const DEFAULT_QUICK = _clone(QUICK_LEAVES);
+
+/** 細項個別顏色（沒設定的細項沿用大類顏色） */
+let _leafColors = {};
+
 /** leaf → {group, icon, color} 反查表（含系統自動分類 fallback） */
-const _leafMap = (() => {
+function buildLeafMap() {
   const m = {};
   for (const type of ['expense', 'income']) {
     for (const g of CATEGORY_TREE[type]) {
       for (const leaf of g.items) {
-        m[leaf] = { group: g.group, icon: g.icon, color: g.color, type };
+        m[leaf] = { group: g.group, icon: g.icon, color: _leafColors[leaf] || g.color, type };
       }
     }
   }
@@ -127,7 +136,8 @@ const _leafMap = (() => {
   m['債務收回'] = { group: '收入', icon: 'ti-arrow-back-up', color: '#3f8f66', type: 'income' };
   m['債務償還'] = { group: '其他', icon: 'ti-arrow-forward-up', color: '#b15c58', type: 'expense' };
   return m;
-})();
+}
+let _leafMap = buildLeafMap();
 
 /**
  * 取得分類的顯示中繼資料；未知葉節點回傳中性預設。
@@ -137,3 +147,55 @@ const _leafMap = (() => {
 export function categoryMeta(leaf) {
   return _leafMap[leaf] || { group: '其他', icon: 'ti-tag', color: CAT_OTHER, type: 'expense' };
 }
+
+/**
+ * 套用使用者自訂分類（來自後端 users.category_config）；null = 還原內建預設。
+ * CATEGORY_TREE / QUICK_LEAVES 是被許多模組直接 import 的物件，所以這裡「原地」換內容、
+ * 不換物件本身，各模組不用改就會拿到新的分類。
+ * @param {object|null} cfg
+ */
+export function applyCategoryConfig(cfg) {
+  const tree = cfg && cfg.expense && cfg.income ? cfg : null;
+  for (const type of ['expense', 'income']) {
+    CATEGORY_TREE[type].length = 0;
+    CATEGORY_TREE[type].push(..._clone(tree ? tree[type] : DEFAULT_TREE[type]));
+    QUICK_LEAVES[type].length = 0;
+    QUICK_LEAVES[type].push(...(tree && tree.quick && tree.quick[type] ? tree.quick[type] : DEFAULT_QUICK[type]));
+  }
+  _leafColors = tree && tree.leaf_colors ? { ...tree.leaf_colors } : {};
+  _leafMap = buildLeafMap();
+}
+
+/** 目前生效的分類設定（後端儲存格式）；編輯器拿它當起點。常用細項只保留真的存在於分類樹的。 */
+export function getCategoryConfig() {
+  const cfg = { expense: _clone(CATEGORY_TREE.expense), income: _clone(CATEGORY_TREE.income), leaf_colors: { ..._leafColors }, quick: {} };
+  for (const type of ['expense', 'income']) {
+    const leaves = new Set(cfg[type].flatMap((g) => g.items));
+    cfg.quick[type] = QUICK_LEAVES[type].filter((l) => leaves.has(l));
+  }
+  return cfg;
+}
+
+/** 使用者新增、不屬於內建的支出細項（預算頁要多列這些；內建的仍照 BUDGET_CATEGORIES） */
+export function customBudgetLeaves() {
+  const builtin = new Set([...BUDGET_CATEGORIES, ...DEFAULT_TREE.expense.flatMap((g) => g.items)]);
+  return CATEGORY_TREE.expense.flatMap((g) => g.items).filter((l) => !builtin.has(l));
+}
+
+/** 色盤：自訂顏色時可挑選（第一組＝內建分類色票） */
+export const PALETTES = [
+  { id: 'default', name: '預設', colors: [CAT_FOOD, CAT_TRANSPORT, CAT_HOUSING, CAT_SHOPPING, CAT_MEDICAL, CAT_ENTERTAINMENT, CAT_SUBSCRIPTION, CAT_EDUCATION, CAT_FAMILY, CAT_OTHER] },
+  { id: 'vivid', name: '鮮明', colors: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'] },
+  { id: 'soft', name: '柔和', colors: ['#f4a3a3', '#f7c59f', '#f2e394', '#b5e0a8', '#9bd8d3', '#a5c8f0', '#c3b1f0', '#f0b1d6', '#c9d6a3', '#b8bcc6'] },
+  { id: 'earth', name: '大地', colors: ['#a0522d', '#cd853f', '#b8860b', '#6b8e23', '#2e8b57', '#4682b4', '#708090', '#8b6f47', '#a67b5b', '#5f6b5a'] },
+  { id: 'blue', name: '藍調', colors: ['#1e3a8a', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#0369a1', '#0ea5e9', '#38bdf8', '#7dd3fc'] },
+];
+
+/** 大類可選的圖示（Tabler） */
+export const ICON_CHOICES = [
+  'ti-tools-kitchen-2', 'ti-coffee', 'ti-car', 'ti-bike', 'ti-plane', 'ti-home',
+  'ti-shopping-bag', 'ti-shirt', 'ti-heartbeat', 'ti-pill', 'ti-barbell', 'ti-device-gamepad-2',
+  'ti-movie', 'ti-music', 'ti-camera', 'ti-refresh', 'ti-device-mobile', 'ti-bulb',
+  'ti-book', 'ti-school', 'ti-users', 'ti-baby-carriage', 'ti-paw', 'ti-gift',
+  'ti-cash', 'ti-wallet', 'ti-pig-money', 'ti-briefcase', 'ti-tag', 'ti-dots',
+];

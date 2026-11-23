@@ -6,6 +6,7 @@ extensions.py — 共用工具模組
 """
 
 import calendar
+import math
 import os
 import re
 import time
@@ -123,9 +124,12 @@ def _token_still_valid(payload: dict) -> bool:
     try:
         user = db.users_collection.find_one(
             {"_id": ObjectId(payload.get("user_id"))},
-            {"password_changed_at": 1},
+            {"password_changed_at": 1, "deleted_at": 1},
         )
     except (InvalidId, TypeError):
+        return False
+    # 帳號在垃圾桶（自助刪除）：所有 token 立即失效，要先登入走「還原」
+    if user and user.get("deleted_at") is not None:
         return False
     # 使用者不存在時不在這裡擋（各路由自己回 404），避免改變既有行為
     changed_at = user.get("password_changed_at") if user else None
@@ -184,16 +188,37 @@ def validate_objectid(oid_string: str) -> bool:
 
 
 def validate_amount(amount: Any) -> Tuple[bool, Any]:
-    """驗證金額（必須 > 0 且非 NaN）"""
+    """驗證金額（必須 > 0、有限數值、非布林、不超過上限）"""
+    # 布林是 int 的子類別，float(True) 會變成 1.0 而通過，必須先擋掉
+    if isinstance(amount, bool):
+        return False, "金額格式錯誤"
     try:
         amount_float = float(amount)
-        if amount_float <= 0 or amount_float != amount_float:  # NaN check
+        if not math.isfinite(amount_float) or amount_float <= 0:  # 含 NaN、無限大
             return False, "金額必須大於 0"
         if amount_float > MAX_AMOUNT:
             return False, f"金額不得超過 {MAX_AMOUNT:,.2f}"
         return True, amount_float
     except (ValueError, TypeError):
         return False, "金額格式錯誤"
+
+
+def validate_non_negative_amount(amount: Any) -> Tuple[bool, Any]:
+    """驗證可為 0 的金額（預算、分帳份額這類「0 代表沒有」的欄位）。
+
+    規則同 validate_amount，但允許 0：有限數值、非布林、0 <= 值 <= MAX_AMOUNT。
+    """
+    if isinstance(amount, bool):
+        return False, "金額格式錯誤"
+    try:
+        amount_float = float(amount)
+    except (ValueError, TypeError):
+        return False, "金額格式錯誤"
+    if not math.isfinite(amount_float) or amount_float < 0:
+        return False, "金額必須為非負數字"
+    if amount_float > MAX_AMOUNT:
+        return False, f"金額不得超過 {MAX_AMOUNT:,.2f}"
+    return True, amount_float
 
 
 def validate_date(date_string: str) -> Tuple[bool, str]:

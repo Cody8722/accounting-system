@@ -208,6 +208,33 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
+### 刪除帳號（自助）
+
+**端點**: `POST /api/user/delete-account`
+
+**認證**: 需要 JWT Token（另需重新輸入密碼）
+
+**請求體**:
+```json
+{ "password": "MyP@ssw0rd!123", "retention_days": 30 }
+```
+
+`retention_days` 只能是 `0`、`7`、`30`、`90`（預設 30）。大於 0：帳號進垃圾桶，資料不動，期滿由管理指令 `manage_trash.py purge-expired` 永久清除；`0`：立即永久刪除帳號與所有資料（記錄、預算、定期、欠款、錢包、照片），無法還原。成功後既有 token 立即失效。
+
+**回應 (200)**:
+```json
+{ "message": "帳號已刪除", "purge_at": "2026-12-16T19:08:19.661877" }
+```
+立即永久刪除時 `purge_at` 為 `null`。密碼錯誤回 **400**（不是 401，避免前端誤判為登入過期而登出）。
+
+**垃圾桶期間的行為**
+- 用原帳密 `POST /api/auth/login` → **403** `{"code": "account_in_trash", "purge_at": "..."}`（密碼錯誤仍是一般的 401，不洩漏狀態）
+- `POST /api/auth/restore-account` `{"email","password"}` → 200 `{token, user}`（等同登入；還原前簽發的舊 token 不會復活）；保留期已滿回 410
+- 忘記／重設密碼流程不處理垃圾桶帳號
+- 有人用同一個 Email 重新註冊：註冊成功並接管該 Email，原垃圾桶帳號資料與保留期不動，但失去 Email（改存 `original_email`），之後無法再用 Email 還原
+
+---
+
 ### 修改個人資料
 
 **端點**: `POST /api/auth/update-profile`
@@ -1706,6 +1733,50 @@ new Chart(ctx, {
   "created_at": "2024-01-15T10:30:00Z"
 }
 ```
+
+### 取得自訂分類
+
+**端點**: `GET /api/user/categories`
+
+**認證**: 需要 JWT Token
+
+**回應 (200)**: `config` 為 `null` 代表沒自訂過（前端用內建分類）；`usage` 是各分類名稱的使用筆數（記錄 + 定期項目），刪除分類時前端用來提示要改歸到哪。
+```json
+{
+  "config": {
+    "expense": [{ "group": "寵物", "icon": "ti-paw", "color": "#5fbf8a", "items": ["飼料"] }],
+    "income":  [{ "group": "收入", "icon": "ti-cash", "color": "#3f8f66", "items": ["薪資"] }],
+    "leaf_colors": { "飼料": "#123456" },
+    "quick": { "expense": ["飼料"], "income": ["薪資"] }
+  },
+  "usage": { "飼料": 12, "薪資": 3 }
+}
+```
+
+### 儲存自訂分類
+
+**端點**: `PUT /api/user/categories`
+
+**認證**: 需要 JWT Token
+
+**請求**:
+```json
+{
+  "config": { "expense": [], "income": [], "leaf_colors": {}, "quick": {} },
+  "renames": [{ "from": "舊名稱", "to": "新名稱" }]
+}
+```
+
+- `config`：整份設定（結構見 [DATABASE.md](DATABASE.md) 的 `users.category_config`）；傳 `null` 還原內建分類（此時不可帶 `renames`）。
+- `renames`（可選）：改名或合併。`from` 必須已不在新設定中、`to` 必須在新設定中，後端會把該使用者的 `records`、`recurring` 的 `category` 與預算的鍵由 `from` 改成 `to`（預算合併時金額相加）。
+- 驗證：名稱 1–50 字、不含 `.`、不以 `$` 開頭、整份設定內細項不可重複、不可用「債務收回」「債務償還」；顏色須為 `#rrggbb`；圖示須為 `ti-` 開頭；大類每種類型最多 40 個、每大類細項最多 100 個、常用細項每種類型最多 12 個。
+
+**回應 (200)**:
+```json
+{ "message": "分類已儲存", "config": { "...": "..." }, "renamed_records": 5 }
+```
+
+**錯誤 (400)**: 格式或驗證不符，`error` 為原因。
 
 ---
 
