@@ -59,7 +59,21 @@ def _resolve_wallet_id(raw, user_oid):
     wallet = db.wallets_collection.find_one({"_id": wallet_oid, "user_id": user_oid})
     if not wallet:
         return False, "找不到該錢包或無權限使用"
+    if wallet.get("archived"):
+        return False, ARCHIVED_WALLET_MSG
     return True, wallet_oid
+
+
+ARCHIVED_WALLET_MSG = "此帳戶已封存，無法新增或修改記錄，請先取消封存"
+
+
+def _record_wallet_archived(record, user_oid):
+    """記錄所屬的帳戶是否已封存（封存帳戶唯讀：記錄不可編輯、刪除、解鎖）。"""
+    wallet_id = record.get("wallet_id")
+    if not wallet_id or db.wallets_collection is None:
+        return False
+    wallet = db.wallets_collection.find_one({"_id": wallet_id, "user_id": user_oid})
+    return bool(wallet and wallet.get("archived"))
 
 
 def _get_location_balance(user_oid, wallet_id, location):
@@ -510,6 +524,8 @@ def update_accounting_record(record_id):
         existing_record = db.accounting_records_collection.find_one(query)
         if not existing_record:
             return jsonify({"error": "找不到該記錄或無權限修改"}), 404
+        if _record_wallet_archived(existing_record, ObjectId(request.user_id)):
+            return jsonify({"error": ARCHIVED_WALLET_MSG}), 400
 
         data = request.get_json(silent=True)
         if not data:
@@ -639,6 +655,10 @@ def delete_accounting_record(record_id):
             "_id": ObjectId(record_id),
             "user_id": ObjectId(request.user_id),
         }
+
+        target = db.accounting_records_collection.find_one(query)
+        if target and _record_wallet_archived(target, ObjectId(request.user_id)):
+            return jsonify({"error": ARCHIVED_WALLET_MSG}), 400
 
         deleted = db.accounting_records_collection.find_one_and_delete(query)
 
@@ -836,6 +856,8 @@ def unlock_restricted_record(record_id):
         if not record:
             return jsonify({"error": "找不到該記錄或無權限操作"}), 404
 
+        if _record_wallet_archived(record, user_oid):
+            return jsonify({"error": ARCHIVED_WALLET_MSG}), 400
         if record.get("type") != "restricted":
             return jsonify({"error": "只有受限資金記錄可以解鎖"}), 400
         if record.get("unlocked_at"):

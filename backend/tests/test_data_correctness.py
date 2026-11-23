@@ -339,3 +339,100 @@ class TestRepaymentInvalidatesStatsCache:
         assert r.status_code == 200
         after = client.get(url, headers=headers).get_json()
         assert after["total_expense"] == before["total_expense"] + 300
+
+
+class TestArchivedWalletIsReadOnly:
+    def _archive(self, client, headers, wallet_id):
+        r = client.delete(f"/admin/api/wallets/{wallet_id}", headers=headers)
+        assert r.status_code == 200
+
+    def _record(self, client, headers, wallet_id, **extra):
+        payload = {
+            "type": "income",
+            "amount": 500,
+            "category": "測試",
+            "date": _today(),
+            "wallet_id": wallet_id,
+            "location": "bank",
+        }
+        payload.update(extra)
+        return client.post(f"{ACCOUNTING}/records", json=payload, headers=headers)
+
+    def test_cannot_add_record_to_archived_wallet(self, client, headers, wallet_id):
+        self._archive(client, headers, wallet_id)
+        r = self._record(client, headers, wallet_id)
+        assert r.status_code == 400, r.get_json()
+        assert "封存" in r.get_json()["error"]
+
+    def test_cannot_add_transfer_in_archived_wallet(self, client, headers, wallet_id):
+        self._archive(client, headers, wallet_id)
+        r = client.post(
+            f"{ACCOUNTING}/records/transfer",
+            json={
+                "wallet_id": wallet_id,
+                "from_location": "bank",
+                "to_location": "cash",
+                "amount": 10,
+                "date": _today(),
+                "confirm_negative": True,
+            },
+            headers=headers,
+        )
+        assert r.status_code == 400, r.get_json()
+
+    def test_cannot_edit_or_delete_record_of_archived_wallet(
+        self, client, headers, wallet_id
+    ):
+        rid = self._record(client, headers, wallet_id).get_json()["id"]
+        self._archive(client, headers, wallet_id)
+        put = client.put(
+            f"{ACCOUNTING}/records/{rid}",
+            json={"amount": 999},
+            headers=headers,
+        )
+        assert put.status_code == 400, put.get_json()
+        delete = client.delete(f"{ACCOUNTING}/records/{rid}", headers=headers)
+        assert delete.status_code == 400, delete.get_json()
+        doc = db_module.accounting_records_collection.find_one({"_id": ObjectId(rid)})
+        assert doc["amount"] == 500
+
+    def test_cannot_unlock_in_archived_wallet(self, client, headers, wallet_id):
+        data = _split(client, headers, wallet_id)
+        self._archive(client, headers, wallet_id)
+        r = client.post(
+            f"{ACCOUNTING}/records/{data['restricted_id']}/unlock",
+            json={"date": _today()},
+            headers=headers,
+        )
+        assert r.status_code == 400, r.get_json()
+
+    def test_cannot_move_record_into_archived_wallet(self, client, headers, wallet_id):
+        other = client.post(
+            "/admin/api/wallets", json={"name": "另一個"}, headers=headers
+        ).get_json()["id"]
+        rid = self._record(client, headers, other).get_json()["id"]
+        self._archive(client, headers, wallet_id)
+        put = client.put(
+            f"{ACCOUNTING}/records/{rid}",
+            json={"wallet_id": wallet_id},
+            headers=headers,
+        )
+        assert put.status_code == 400, put.get_json()
+
+    def test_unarchived_wallet_works_again(self, client, headers, wallet_id):
+        self._archive(client, headers, wallet_id)
+        r = client.put(
+            f"/admin/api/wallets/{wallet_id}",
+            json={"archived": False},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        assert self._record(client, headers, wallet_id).status_code == 201
+
+    def test_reading_archived_wallet_records_still_works(
+        self, client, headers, wallet_id
+    ):
+        self._record(client, headers, wallet_id)
+        self._archive(client, headers, wallet_id)
+        r = client.get(f"{ACCOUNTING}/records", headers=headers)
+        assert r.status_code == 200
