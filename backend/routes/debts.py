@@ -21,6 +21,7 @@ from flask import Blueprint, jsonify, request
 
 import db
 from extensions import (
+    _cache_invalidate_user,
     limiter,
     require_auth,
     validate_amount,
@@ -327,6 +328,7 @@ def add_repayment(debt_id):
                 "user_id": user_oid,
             }
             db.accounting_records_collection.insert_one(sync_record)
+            _cache_invalidate_user(request.user_id)
         except Exception as sync_err:
             logger.error(f"還款同步寫入記帳失敗: {sync_err}")
             return (
@@ -418,6 +420,7 @@ def repay_member(debt_id, member_idx):
                 "user_id": user_oid,
             }
             db.accounting_records_collection.insert_one(sync_record)
+            _cache_invalidate_user(request.user_id)
         except Exception as sync_err:
             logger.error(f"成員還款同步寫入記帳失敗: {sync_err}")
             return (

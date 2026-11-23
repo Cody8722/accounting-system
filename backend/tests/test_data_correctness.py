@@ -283,3 +283,59 @@ class TestRecordFiltersStrict:
             headers=headers,
         )
         assert r.status_code == 200
+
+
+class TestRecurringApplyIdempotent:
+    def _create(self, client, headers):
+        r = client.post(
+            "/admin/api/recurring",
+            json={"name": "房租", "amount": 8000, "type": "expense", "day_of_month": 5},
+            headers=headers,
+        )
+        assert r.status_code == 201, r.get_json()
+        return r.get_json()["id"]
+
+    def _count(self, item_id):
+        return db_module.accounting_records_collection.count_documents(
+            {"description": "房租", "auto_generated": {"$ne": True}}
+        )
+
+    def test_second_apply_same_month_is_rejected(self, client, headers):
+        item_id = self._create(client, headers)
+        first = client.post(f"/admin/api/recurring/{item_id}/apply", headers=headers)
+        assert first.status_code == 201
+        second = client.post(f"/admin/api/recurring/{item_id}/apply", headers=headers)
+        assert second.status_code == 409, second.get_json()
+        assert self._count(item_id) == 1
+
+    def test_apply_invalidates_stats_cache(self, client, headers):
+        month = datetime.now().strftime("%Y-%m")
+        url = f"{ACCOUNTING}/stats?start_date={month}-01&end_date={month}-28"
+        before = client.get(url, headers=headers).get_json()
+        item_id = self._create(client, headers)
+        client.post(f"/admin/api/recurring/{item_id}/apply", headers=headers)
+        after = client.get(url, headers=headers).get_json()
+        assert after["total_expense"] == before["total_expense"] + 8000
+
+    def test_failed_insert_does_not_burn_the_month(self, client, headers):
+        item_id = self._create(client, headers)
+        coll = db_module.accounting_records_collection
+        with mock.patch.object(coll, "insert_one", side_effect=RuntimeError("boom")):
+            bad = client.post(f"/admin/api/recurring/{item_id}/apply", headers=headers)
+        assert bad.status_code == 500
+        ok = client.post(f"/admin/api/recurring/{item_id}/apply", headers=headers)
+        assert ok.status_code == 201
+
+
+class TestRepaymentInvalidatesStatsCache:
+    def test_repay_updates_stats_immediately(self, client, headers):
+        month = datetime.now().strftime("%Y-%m")
+        url = f"{ACCOUNTING}/stats?start_date={month}-01&end_date={month}-28"
+        before = client.get(url, headers=headers).get_json()
+        debt_id = _make_debt(client, headers)
+        r = client.post(
+            f"{DEBTS}/{debt_id}/repay", json={"amount": 300}, headers=headers
+        )
+        assert r.status_code == 200
+        after = client.get(url, headers=headers).get_json()
+        assert after["total_expense"] == before["total_expense"] + 300

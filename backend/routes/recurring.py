@@ -14,9 +14,15 @@ from datetime import datetime
 
 from bson import ObjectId
 from flask import Blueprint, jsonify, request
+from pymongo import ReturnDocument
 
 import db
-from extensions import limiter, require_auth, validate_amount
+from extensions import (
+    _cache_invalidate_user,
+    limiter,
+    require_auth,
+    validate_amount,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -201,11 +207,28 @@ def apply_recurring(item_id):
         return jsonify({"error": "無效的 ID"}), 400
     try:
         user_oid = ObjectId(request.user_id)
-        item = db.recurring_collection.find_one({"_id": oid, "user_id": user_oid})
-        if not item:
-            return jsonify({"error": "找不到項目"}), 404
-
         today_dt = datetime.now()
+        this_month = today_dt.strftime("%Y-%m")
+
+        # 原子占位：同一個月只能套用一次（連按兩次不會產生兩筆）。
+        # 舊資料沒有 last_applied_month，視為本月尚未套用。
+        item = db.recurring_collection.find_one_and_update(
+            {
+                "_id": oid,
+                "user_id": user_oid,
+                "last_applied_month": {"$ne": this_month},
+            },
+            {"$set": {"last_applied_month": this_month}},
+            return_document=ReturnDocument.BEFORE,
+        )
+        if not item:
+            exists = db.recurring_collection.find_one({"_id": oid, "user_id": user_oid})
+            if not exists:
+                return jsonify({"error": "找不到項目"}), 404
+            return jsonify({"error": "本月已套用過這個定期項目"}), 409
+
+        previous_month = item.get("last_applied_month")
+
         max_day = monthrange(today_dt.year, today_dt.month)[1]
         actual_day = min(item["day_of_month"], max_day)
         record_date = today_dt.replace(day=actual_day).strftime("%Y-%m-%d")
@@ -220,7 +243,16 @@ def apply_recurring(item_id):
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
         }
-        result = db.accounting_records_collection.insert_one(record)
+        try:
+            result = db.accounting_records_collection.insert_one(record)
+        except Exception:
+            # 記帳沒寫成就把占位還回去，不然這個月就再也套用不了
+            db.recurring_collection.update_one(
+                {"_id": oid, "user_id": user_oid},
+                {"$set": {"last_applied_month": previous_month}},
+            )
+            raise
+        _cache_invalidate_user(request.user_id)
         logger.info(
             f"套用定期支出 '{item['name']}' ${item['amount']} (user: {request.email})"
         )
