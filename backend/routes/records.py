@@ -669,6 +669,17 @@ def delete_accounting_record(record_id):
                 },
             )
 
+        # 刪除連動（反方向）：刪的是「已解鎖的收入」時，解鎖當下產生的那筆支出
+        # 失去來源，留著會讓餘額憑空少一筆，一併刪除
+        if deleted.get("unlocked_at"):
+            orphan_query = {
+                "user_id": ObjectId(request.user_id),
+                "source_restricted_id": deleted["_id"],
+            }
+            for orphan in list(db.accounting_records_collection.find(orphan_query)):
+                _cleanup_record_photos(orphan)
+            db.accounting_records_collection.delete_many(orphan_query)
+
         _cache_invalidate_user(request.user_id)
         logger.info(f"刪除記帳記錄: {record_id} (user: {request.email})")
         return jsonify({"message": "記帳記錄已刪除"}), 200
@@ -826,10 +837,19 @@ def unlock_restricted_record(record_id):
             return jsonify({"error": "這筆受限資金已經解鎖過了"}), 400
 
         now = datetime.now()
-        db.accounting_records_collection.update_one(
-            {"_id": record["_id"]},
+        # 原子翻轉：條件帶 type 與 unlocked_at，連點或並發時只有一個請求能成功，
+        # 其餘拿不到文件就回 400（先查後更新的檢查在並發下不可靠）
+        claimed = db.accounting_records_collection.find_one_and_update(
+            {
+                "_id": record["_id"],
+                "user_id": user_oid,
+                "type": "restricted",
+                "unlocked_at": None,
+            },
             {"$set": {"type": "income", "unlocked_at": now, "updated_at": now}},
         )
+        if claimed is None:
+            return jsonify({"error": "這筆受限資金已經解鎖過了"}), 400
 
         desc = record.get("description") or ""
         expense_doc = {
