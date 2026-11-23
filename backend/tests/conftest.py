@@ -66,15 +66,12 @@ def registered_user(client, test_user_data):
     response = client.post("/api/auth/register", json=test_user_data)
     if response.status_code in [200, 201]:
         return test_user_data
-    return None
+    pytest.fail(f"註冊失敗：{response.status_code} {response.get_data(as_text=True)}")
 
 
 @pytest.fixture
 def auth_token(client, registered_user):
     """獲取認證 token"""
-    if not registered_user:
-        return None
-
     login_response = client.post(
         "/api/auth/login",
         json={
@@ -86,15 +83,14 @@ def auth_token(client, registered_user):
     if login_response.status_code == 200:
         data = login_response.get_json()
         return data.get("token")
-    return None
+    pytest.fail(f"登入失敗：{login_response.status_code}")
 
 
 @pytest.fixture
 def auth_headers(auth_token):
     """返回包含認證 token 的 headers"""
-    if auth_token:
-        return {"Authorization": f"Bearer {auth_token}"}
-    return {}
+    assert auth_token, "拿不到認證 token"
+    return {"Authorization": f"Bearer {auth_token}"}
 
 
 @pytest.fixture

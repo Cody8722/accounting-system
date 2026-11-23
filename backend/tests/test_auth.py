@@ -394,7 +394,7 @@ class TestChangePassword:
             },
         )
         if login_resp.status_code != 200:
-            pytest.skip("DB not available in test env")
+            pytest.fail("DB not available in test env")
         token = login_resp.get_json().get("token")
         return {"Authorization": f"Bearer {token}"}, email, password
 
@@ -490,7 +490,7 @@ class TestRequiresPasswordChange:
         )
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         db_module.users_collection.update_one(
             {"email": email}, {"$set": {"requires_password_change": True}}
@@ -584,7 +584,7 @@ class TestForgotResetPasswordFlow:
         )
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         token = "test-reset-token-12345"
         expires = datetime.now() + timedelta(hours=1)
@@ -644,7 +644,7 @@ class TestForgotResetPasswordFlow:
         import db as db_module
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         with patch("routes.auth.send_reset_email", return_value=False):
             response = client.post(
@@ -669,7 +669,7 @@ class TestForgotResetPasswordFlow:
         from datetime import datetime, timedelta
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         email = f"expiredtoken{int(time.time()*1000)}@example.com"
         client.post(

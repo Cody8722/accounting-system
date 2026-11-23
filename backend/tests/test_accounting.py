@@ -46,7 +46,7 @@ def auth_token(client):
     if login_response.status_code == 200:
         data = login_response.get_json()
         return data.get("token")
-    return None
+    pytest.fail(f"登入失敗：{login_response.status_code}")
 
 
 class TestRecordCreation:
@@ -54,8 +54,6 @@ class TestRecordCreation:
 
     def test_create_expense_record(self, client, auth_token):
         """測試創建支出記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -74,8 +72,6 @@ class TestRecordCreation:
 
     def test_create_income_record(self, client, auth_token):
         """測試創建收入記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "income",
@@ -94,8 +90,6 @@ class TestRecordCreation:
 
     def test_create_record_with_zero_amount(self, client, auth_token):
         """測試創建金額為 0 的記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -113,8 +107,6 @@ class TestRecordCreation:
 
     def test_create_record_with_negative_amount(self, client, auth_token):
         """測試創建負數金額"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -132,8 +124,6 @@ class TestRecordCreation:
 
     def test_create_record_with_very_large_amount(self, client, auth_token):
         """測試極大金額"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "income",
@@ -150,8 +140,6 @@ class TestRecordCreation:
 
     def test_create_record_with_over_max_amount(self, client, auth_token):
         """測試超過最大金額"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -168,8 +156,6 @@ class TestRecordCreation:
 
     def test_create_record_with_many_decimals(self, client, auth_token):
         """測試多位小數"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -187,8 +173,6 @@ class TestRecordCreation:
 
     def test_create_record_invalid_type(self, client, auth_token):
         """測試無效類型"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "invalid",
@@ -205,8 +189,6 @@ class TestRecordCreation:
 
     def test_create_record_future_date(self, client, auth_token):
         """測試未來日期"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         future_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
         data = {
@@ -226,8 +208,6 @@ class TestRecordCreation:
 
     def test_create_record_very_old_date(self, client, auth_token):
         """測試很久以前的日期"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -245,8 +225,6 @@ class TestRecordCreation:
 
     def test_create_record_invalid_date_format(self, client, auth_token):
         """測試無效日期格式"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -263,8 +241,6 @@ class TestRecordCreation:
 
     def test_create_record_missing_category(self, client, auth_token):
         """測試缺少分類"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -280,8 +256,6 @@ class TestRecordCreation:
 
     def test_create_record_empty_category(self, client, auth_token):
         """測試空分類"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -299,8 +273,6 @@ class TestRecordCreation:
 
     def test_create_record_very_long_description(self, client, auth_token):
         """測試超長描述"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -318,8 +290,6 @@ class TestRecordCreation:
 
     def test_create_record_with_xss_in_description(self, client, auth_token):
         """測試描述中的 XSS"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -339,8 +309,6 @@ class TestRecordCreation:
 
     def test_create_record_with_sql_injection(self, client, auth_token):
         """測試 SQL 注入"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         data = {
             "type": "expense",
@@ -363,8 +331,6 @@ class TestRecordRetrieval:
 
     def test_get_all_records(self, client, auth_token):
         """測試獲取所有記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/admin/api/accounting/records",
@@ -374,8 +340,6 @@ class TestRecordRetrieval:
 
     def test_get_records_with_date_filter(self, client, auth_token):
         """測試日期篩選"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         start_date = "2024-01-01"
         end_date = "2024-12-31"
@@ -387,8 +351,6 @@ class TestRecordRetrieval:
 
     def test_get_records_with_type_filter(self, client, auth_token):
         """測試類型篩選"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/admin/api/accounting/records?type=expense",
@@ -398,8 +360,6 @@ class TestRecordRetrieval:
 
     def test_get_records_with_category_filter(self, client, auth_token):
         """測試分類篩選"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/admin/api/accounting/records?category=飲食",
@@ -413,8 +373,6 @@ class TestRecordUpdate:
 
     def test_update_record_amount(self, client, auth_token):
         """測試更新金額"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 先創建一個記錄
         create_data = {
@@ -446,8 +404,6 @@ class TestRecordDeletion:
 
     def test_delete_existing_record(self, client, auth_token):
         """測試刪除現有記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 先創建一個記錄
         create_data = {
@@ -473,8 +429,6 @@ class TestRecordDeletion:
 
     def test_delete_nonexistent_record(self, client, auth_token):
         """測試刪除不存在的記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.delete(
             "/admin/api/accounting/records/nonexistent123",
@@ -489,8 +443,6 @@ class TestStatistics:
 
     def test_get_statistics(self, client, auth_token):
         """測試獲取統計數據"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/admin/api/accounting/stats",
@@ -506,8 +458,6 @@ class TestStatistics:
 
     def test_statistics_with_no_records(self, client, auth_token):
         """測試沒有記錄時的統計"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 新用戶應該沒有記錄
         response = client.get(
@@ -527,8 +477,6 @@ class TestConcurrency:
 
     def test_multiple_simultaneous_creates(self, client, auth_token):
         """測試同時創建多個記錄"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 模擬多個並發請求
         responses = []
@@ -557,8 +505,6 @@ class TestExport:
 
     def test_export_csv_success(self, client, auth_token):
         """測試成功匯出 CSV"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 先創建一些記錄
         records = [
@@ -607,8 +553,6 @@ class TestExport:
 
     def test_export_with_date_filter(self, client, auth_token):
         """測試帶日期篩選的匯出"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 創建記錄
         record = {
@@ -639,8 +583,6 @@ class TestExport:
 
     def test_export_with_type_filter(self, client, auth_token):
         """測試帶類型篩選的匯出"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/admin/api/accounting/export?type=income",
@@ -660,8 +602,6 @@ class TestTrends:
 
     def test_trends_success(self, client, auth_token):
         """測試成功獲取趨勢資料"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 先創建一些不同月份的記錄
         records = [
@@ -713,8 +653,6 @@ class TestTrends:
 
     def test_trends_with_custom_months(self, client, auth_token):
         """測試自訂月份數量"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/admin/api/accounting/trends?months=12",
@@ -728,8 +666,6 @@ class TestTrends:
 
     def test_trends_max_months_limit(self, client, auth_token):
         """測試月份數量限制"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 請求超過限制的月份數
         response = client.get(
@@ -749,8 +685,6 @@ class TestTrends:
 
     def test_trends_empty_data(self, client, auth_token):
         """測試沒有資料時的趨勢"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 新用戶沒有記錄
         response = client.get(

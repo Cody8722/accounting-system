@@ -380,8 +380,6 @@ class TestAuthenticatedEndpoints:
 
     def test_get_user_profile(self, client, auth_token):
         """測試獲取用戶資料"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         response = client.get(
             "/api/user/profile", headers={"Authorization": f"Bearer {auth_token}"}
@@ -393,8 +391,6 @@ class TestAuthenticatedEndpoints:
 
     def test_update_user_profile(self, client, auth_token):
         """測試更新用戶資料"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         update_data = {"name": "Updated Name"}
         response = client.put(
@@ -406,8 +402,6 @@ class TestAuthenticatedEndpoints:
 
     def test_change_password(self, client, auth_token):
         """測試更改密碼"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
 
         # 測試更改密碼（會失敗因為舊密碼錯誤，但會覆蓋代碼）
         password_data = {
@@ -1805,8 +1799,6 @@ class TestErrorPaths:
 
     def test_change_password_wrong_old_password(self, client, auth_headers):
         """舊密碼錯誤 → 400（使用 mock 確保 DB 有用戶；非 401，避免被前端誤判成 JWT 過期）"""
-        if not auth_headers:
-            pytest.skip("需要認證")
         import db as db_module
         from unittest.mock import patch
         import auth as auth_module
