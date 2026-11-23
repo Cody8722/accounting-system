@@ -59,7 +59,21 @@ def _resolve_wallet_id(raw, user_oid):
     wallet = db.wallets_collection.find_one({"_id": wallet_oid, "user_id": user_oid})
     if not wallet:
         return False, "找不到該錢包或無權限使用"
+    if wallet.get("archived"):
+        return False, ARCHIVED_WALLET_MSG
     return True, wallet_oid
+
+
+ARCHIVED_WALLET_MSG = "此帳戶已封存，無法新增或修改記錄，請先取消封存"
+
+
+def _record_wallet_archived(record, user_oid):
+    """記錄所屬的帳戶是否已封存（封存帳戶唯讀：記錄不可編輯、刪除、解鎖）。"""
+    wallet_id = record.get("wallet_id")
+    if not wallet_id or db.wallets_collection is None:
+        return False
+    wallet = db.wallets_collection.find_one({"_id": wallet_id, "user_id": user_oid})
+    return bool(wallet and wallet.get("archived"))
 
 
 def _get_location_balance(user_oid, wallet_id, location):
@@ -134,15 +148,20 @@ def get_accounting_records():
         query = {"user_id": ObjectId(request.user_id)}
 
         if start_date and end_date:
-            valid_start, _ = validate_date(start_date)
-            valid_end, _ = validate_date(end_date)
-            if valid_start and valid_end:
-                query["date"] = {"$gte": start_date, "$lte": end_date}
+            valid_start, start_err = validate_date(start_date)
+            valid_end, end_err = validate_date(end_date)
+            if not valid_start or not valid_end:
+                return (
+                    jsonify({"error": start_err if not valid_start else end_err}),
+                    400,
+                )
+            query["date"] = {"$gte": start_date, "$lte": end_date}
 
         if record_type:
-            valid, _ = validate_record_type(record_type)
-            if valid:
-                query["type"] = record_type
+            valid, type_err = validate_record_type(record_type)
+            if not valid:
+                return jsonify({"error": type_err}), 400
+            query["type"] = record_type
 
         if category:
             query["category"] = category
@@ -505,6 +524,8 @@ def update_accounting_record(record_id):
         existing_record = db.accounting_records_collection.find_one(query)
         if not existing_record:
             return jsonify({"error": "找不到該記錄或無權限修改"}), 404
+        if _record_wallet_archived(existing_record, ObjectId(request.user_id)):
+            return jsonify({"error": ARCHIVED_WALLET_MSG}), 400
 
         data = request.get_json(silent=True)
         if not data:
@@ -635,6 +656,10 @@ def delete_accounting_record(record_id):
             "user_id": ObjectId(request.user_id),
         }
 
+        target = db.accounting_records_collection.find_one(query)
+        if target and _record_wallet_archived(target, ObjectId(request.user_id)):
+            return jsonify({"error": ARCHIVED_WALLET_MSG}), 400
+
         deleted = db.accounting_records_collection.find_one_and_delete(query)
 
         if not deleted:
@@ -668,6 +693,17 @@ def delete_accounting_record(record_id):
                     }
                 },
             )
+
+        # 刪除連動（反方向）：刪的是「已解鎖的收入」時，解鎖當下產生的那筆支出
+        # 失去來源，留著會讓餘額憑空少一筆，一併刪除
+        if deleted.get("unlocked_at"):
+            orphan_query = {
+                "user_id": ObjectId(request.user_id),
+                "source_restricted_id": deleted["_id"],
+            }
+            for orphan in list(db.accounting_records_collection.find(orphan_query)):
+                _cleanup_record_photos(orphan)
+            db.accounting_records_collection.delete_many(orphan_query)
 
         _cache_invalidate_user(request.user_id)
         logger.info(f"刪除記帳記錄: {record_id} (user: {request.email})")
@@ -820,16 +856,27 @@ def unlock_restricted_record(record_id):
         if not record:
             return jsonify({"error": "找不到該記錄或無權限操作"}), 404
 
+        if _record_wallet_archived(record, user_oid):
+            return jsonify({"error": ARCHIVED_WALLET_MSG}), 400
         if record.get("type") != "restricted":
             return jsonify({"error": "只有受限資金記錄可以解鎖"}), 400
         if record.get("unlocked_at"):
             return jsonify({"error": "這筆受限資金已經解鎖過了"}), 400
 
         now = datetime.now()
-        db.accounting_records_collection.update_one(
-            {"_id": record["_id"]},
+        # 原子翻轉：條件帶 type 與 unlocked_at，連點或並發時只有一個請求能成功，
+        # 其餘拿不到文件就回 400（先查後更新的檢查在並發下不可靠）
+        claimed = db.accounting_records_collection.find_one_and_update(
+            {
+                "_id": record["_id"],
+                "user_id": user_oid,
+                "type": "restricted",
+                "unlocked_at": None,
+            },
             {"$set": {"type": "income", "unlocked_at": now, "updated_at": now}},
         )
+        if claimed is None:
+            return jsonify({"error": "這筆受限資金已經解鎖過了"}), 400
 
         desc = record.get("description") or ""
         expense_doc = {

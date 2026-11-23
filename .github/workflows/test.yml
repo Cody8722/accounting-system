@@ -57,6 +57,18 @@ jobs:
         cd backend
         coverage report --include=main.py --fail-under=75
         coverage report --include=auth.py --fail-under=80
+        coverage report --include='routes/*' --fail-under=85
+        coverage report --include=routes/records.py --fail-under=90
+
+    # 唯一索引、部分索引與並發行為 mongomock 驗不到：用上面的 mongo:7.0 服務跑真的 MongoDB
+    - name: Run real-MongoDB tests (concurrency and indexes)
+      env:
+        REAL_MONGO_URI: mongodb://localhost:27017/real_mongo_test
+        JWT_SECRET: test-jwt-secret-key-for-ci
+        ADMIN_SECRET: test-admin-secret-key
+      run: |
+        cd backend
+        pytest tests/ -m real_mongo -v
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4

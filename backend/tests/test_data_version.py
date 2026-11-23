@@ -50,16 +50,12 @@ def _second_user_token(client):
 
 class TestDataVersionStability:
     def test_stable_without_changes(self, client, auth_token):
-        if not auth_token:
-            pytest.skip("需要認證 token")
         v1 = _version(client, auth_token)
         v2 = _version(client, auth_token)
         assert v1 == v2
 
     def test_different_users_independent(self, client, auth_token):
         """A 寫入資料後，B 的版本不受影響（跨使用者隔離）。"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         token_b = _second_user_token(client)
         v_b_before = _version(client, token_b)
         client.post(
@@ -79,8 +75,6 @@ class TestDataVersionStability:
 
 class TestDataVersionSensitivity:
     def test_changes_on_record_create_update_delete(self, client, auth_token):
-        if not auth_token:
-            pytest.skip("需要認證 token")
         v0 = _version(client, auth_token)
 
         r = client.post(
@@ -122,8 +116,6 @@ class TestDataVersionSensitivity:
         assert v3 != v2, "刪除記錄後版本應改變"
 
     def test_changes_on_budget_set(self, client, auth_token):
-        if not auth_token:
-            pytest.skip("需要認證 token")
         v0 = _version(client, auth_token)
         r = client.post(
             "/admin/api/accounting/budget",
@@ -135,8 +127,6 @@ class TestDataVersionSensitivity:
         assert v1 != v0, "設定預算後版本應改變"
 
     def test_changes_on_recurring_create_update(self, client, auth_token):
-        if not auth_token:
-            pytest.skip("需要認證 token")
         v0 = _version(client, auth_token)
         r = client.post(
             "/admin/api/recurring",
@@ -170,8 +160,6 @@ class TestDataVersionSensitivity:
         assert v2 != v1, "更新定期收支後版本應改變"
 
     def test_changes_on_wallet_create_update(self, client, auth_token):
-        if not auth_token:
-            pytest.skip("需要認證 token")
         v0 = _version(client, auth_token)
         r = client.post(
             "/admin/api/wallets",

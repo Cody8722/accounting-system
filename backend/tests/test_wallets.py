@@ -429,7 +429,7 @@ class TestWalletBalances:
         而非顯式設為 None——MongoDB 的 $group _id 會直接省略該 key，
         端點需以 .get() 讀取，不可用 [] 直接索引，否則 KeyError 500。"""
         if db_module.accounting_records_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
         legacy_doc = {
             "user_id": ObjectId("000000000000000000000101"),
             "type": "income",

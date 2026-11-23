@@ -58,7 +58,7 @@ def auth_token(client):
     )
     if login_resp.status_code == 200:
         return login_resp.get_json().get("token")
-    return None
+    pytest.fail(f"登入失敗：{login_resp.status_code}")
 
 
 @pytest.fixture
@@ -127,8 +127,6 @@ class TestMongoInjectionFuzzing:
         self, client, auth_token, valid_base, injected_amount
     ):
         """amount 欄位注入 MongoDB 運算子 → validate_amount 的 float(dict) 觸發 TypeError → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": injected_amount}
         assert_400(post_record(client, auth_token, payload))
 
@@ -144,8 +142,6 @@ class TestMongoInjectionFuzzing:
         self, client, auth_token, valid_base, injected_type
     ):
         """type 欄位注入 MongoDB 運算子 → validate_record_type 的白名單驗證 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "type": injected_type}
         assert_400(post_record(client, auth_token, payload))
 
@@ -161,8 +157,6 @@ class TestMongoInjectionFuzzing:
         self, client, auth_token, valid_base, injected_date
     ):
         """date 欄位注入 MongoDB 運算子 → validate_date 的 isinstance(str) 檢查 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "date": injected_date}
         assert_400(post_record(client, auth_token, payload))
 
@@ -178,15 +172,11 @@ class TestMongoInjectionFuzzing:
         self, client, auth_token, valid_base, injected_category
     ):
         """category 欄位注入 MongoDB 運算子 → validate_category 的 isinstance(str) 檢查 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "category": injected_category}
         assert_400(post_record(client, auth_token, payload))
 
     def test_mongo_injection_in_description(self, client, auth_token, valid_base):
         """description 欄位注入物件 → validate_description 的 isinstance(str) 檢查 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "description": {"$where": "sleep(5000)"}}
         assert_400(post_record(client, auth_token, payload))
 
@@ -220,8 +210,6 @@ class TestTypeMisuseFuzzing:
           - {"amount": null}        float(None)  → TypeError
           - {"amount": {"$gt":""}}  float(dict)  → TypeError（亦覆蓋注入）
         """
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": bad_amount}
         assert_400(post_record(client, auth_token, payload))
 
@@ -233,15 +221,11 @@ class TestTypeMisuseFuzzing:
         這是型別誤用而不是合法輸入（前端一律送數字），2026-11 起
         validate_amount 先擋掉布林，與 amount=false 一致回 400。
         """
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": True}
         assert_400(post_record(client, auth_token, payload))
 
     def test_boolean_false_rejected(self, client, auth_token, valid_base):
         """amount=false → float(False)=0.0 → 金額必須 > 0 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": False}
         assert_400(post_record(client, auth_token, payload))
 
@@ -258,8 +242,6 @@ class TestTypeMisuseFuzzing:
         self, client, auth_token, valid_base, field, null_value
     ):
         """各必填欄位傳入 null → 對應 validate_* 函數攔截 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, field: null_value}
         assert_400(post_record(client, auth_token, payload))
 
@@ -276,8 +258,6 @@ class TestTypeMisuseFuzzing:
         self, client, auth_token, valid_base, field, array_value
     ):
         """字串欄位傳入陣列 → isinstance(str) 檢查 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, field: array_value}
         assert_400(post_record(client, auth_token, payload))
 
@@ -313,8 +293,6 @@ class TestExtremeValueFuzzing:
         - "NaN"   → float("NaN")=nan → nan!=nan → 金額無效
         - "Infinity" → float("Infinity")=inf → inf > MAX_AMOUNT → 400
         """
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": extreme_amount}
         assert_400(post_record(client, auth_token, payload))
 
@@ -332,27 +310,20 @@ class TestExtremeValueFuzzing:
         self, client, auth_token, valid_base, non_positive_amount
     ):
         """零或負數 → amount <= 0 檢查 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": non_positive_amount}
         assert_400(post_record(client, auth_token, payload))
 
     def test_amount_exactly_at_max(self, client, auth_token, valid_base):
         """MAX_AMOUNT = 9999999.99 邊界值 → 允許（不應報 400）"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": 9999999.99}
         response = post_record(client, auth_token, payload)
         assert response.status_code in [
             200,
             201,
-            500,
         ], f"MAX_AMOUNT 邊界值應被接受，實際狀態碼: {response.status_code}"
 
     def test_amount_just_over_max(self, client, auth_token, valid_base):
         """MAX_AMOUNT + 0.01 = 10000000.00 → 剛超上限 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": 10000000.00}
         assert_400(post_record(client, auth_token, payload))
 
@@ -368,8 +339,6 @@ class TestStructuralFuzzing:
 
     def test_empty_json_body(self, client, auth_token):
         """空 JSON 物件 {} → 缺少所有必要欄位 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         response = client.post(
             RECORDS_URL,
             json={},
@@ -379,8 +348,6 @@ class TestStructuralFuzzing:
 
     def test_empty_body_with_json_content_type(self, client, auth_token):
         """Content-Type: application/json 但 body 為空 → get_json() 回傳 None → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         response = client.post(
             RECORDS_URL,
             data="",
@@ -391,8 +358,6 @@ class TestStructuralFuzzing:
 
     def test_plain_text_body(self, client, auth_token):
         """非 JSON Content-Type → 無法解析為 JSON → 400"""
-        if not auth_token:
-            pytest.skip("需要認証 token")
         response = client.post(
             RECORDS_URL,
             data="amount=100&type=expense",
@@ -412,8 +377,6 @@ class TestStructuralFuzzing:
     )
     def test_missing_required_field(self, client, auth_token, missing_field):
         """缺少各必填欄位 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         base = {
             "type": "expense",
             "amount": 100.0,
@@ -425,41 +388,30 @@ class TestStructuralFuzzing:
 
     def test_description_over_max_length(self, client, auth_token, valid_base):
         """description 超過 MAX_DESCRIPTION_LENGTH(500) → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "description": "A" * 501}
         assert_400(post_record(client, auth_token, payload))
 
     def test_description_exactly_at_max_length(self, client, auth_token, valid_base):
         """description 恰好 500 字元 → 允許（邊界值驗證）"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "description": "A" * 500}
         response = post_record(client, auth_token, payload)
         assert response.status_code in [
             200,
             201,
-            500,
         ], f"500 字元 description 應被接受，實際: {response.status_code}"
 
     def test_invalid_type_value(self, client, auth_token, valid_base):
         """type 傳入白名單以外的字串 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "type": "invalid_type"}
         assert_400(post_record(client, auth_token, payload))
 
     def test_invalid_date_format(self, client, auth_token, valid_base):
         """date 使用錯誤格式 YYYY/MM/DD → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "date": "2024/01/01"}
         assert_400(post_record(client, auth_token, payload))
 
     def test_invalid_expense_type(self, client, auth_token, valid_base):
         """expense_type 傳入白名單以外的值 → 400"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         payload = {**valid_base, "expense_type": "unknown"}
         assert_400(post_record(client, auth_token, payload))
 
@@ -479,18 +431,16 @@ class TestPutEndpointFuzzing:
     @pytest.fixture
     def existing_record_id(self, client, auth_token):
         """建立一筆合法記錄並返回其 ID"""
-        if not auth_token:
-            return None
         payload = {
             "type": "expense",
             "amount": 50.0,
             "category": "測試",
             "date": datetime.now().strftime("%Y-%m-%d"),
+            "confirm_withdrawal": True,
         }
         resp = post_record(client, auth_token, payload)
-        if resp.status_code in [200, 201]:
-            return resp.get_json().get("id")
-        return None
+        assert resp.status_code in [200, 201], resp.get_json()
+        return resp.get_json().get("id")
 
     @pytest.mark.parametrize(
         "injected_amount",
@@ -506,7 +456,7 @@ class TestPutEndpointFuzzing:
     ):
         """PUT 的 amount 欄位注入 → validate_amount 攔截 → 400"""
         if not auth_token or not existing_record_id:
-            pytest.skip("需要認證 token 及有效記錄 ID")
+            pytest.fail("需要認證 token 及有效記錄 ID")
         response = client.put(
             f"{RECORDS_URL}/{existing_record_id}",
             json={"amount": injected_amount},
@@ -528,7 +478,7 @@ class TestPutEndpointFuzzing:
     ):
         """PUT 的極端數值 → 400"""
         if not auth_token or not existing_record_id:
-            pytest.skip("需要認證 token 及有效記錄 ID")
+            pytest.fail("需要認證 token 及有效記錄 ID")
         response = client.put(
             f"{RECORDS_URL}/{existing_record_id}",
             json={"amount": extreme_amount},
@@ -539,7 +489,7 @@ class TestPutEndpointFuzzing:
     def test_put_mongo_injection_in_type(self, client, auth_token, existing_record_id):
         """PUT 的 type 欄位注入 → 400"""
         if not auth_token or not existing_record_id:
-            pytest.skip("需要認證 token 及有效記錄 ID")
+            pytest.fail("需要認證 token 及有效記錄 ID")
         response = client.put(
             f"{RECORDS_URL}/{existing_record_id}",
             json={"type": {"$ne": "income"}},
@@ -550,7 +500,7 @@ class TestPutEndpointFuzzing:
     def test_put_description_over_limit(self, client, auth_token, existing_record_id):
         """PUT 的 description 超長 → 400"""
         if not auth_token or not existing_record_id:
-            pytest.skip("需要認證 token 及有效記錄 ID")
+            pytest.fail("需要認證 token 及有效記錄 ID")
         response = client.put(
             f"{RECORDS_URL}/{existing_record_id}",
             json={"description": "X" * 501},

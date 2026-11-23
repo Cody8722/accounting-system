@@ -177,7 +177,7 @@ class TestRegistration:
         }
         response = client.post("/api/auth/register", json=data)
         # 200/201 成功，或 500 如果 DB 未連接
-        assert response.status_code in [200, 201, 500]
+        assert response.status_code == 201
 
     def test_register_duplicate_email(self, client):
         """測試註冊重複郵箱"""
@@ -191,7 +191,7 @@ class TestRegistration:
         # 第二次註冊相同郵箱
         response = client.post("/api/auth/register", json=data)
         # 應該拒絕重複郵箱
-        assert response.status_code in [400, 409, 500]
+        assert response.status_code == 409
 
     def test_register_invalid_email(self, client):
         """測試無效郵箱格式"""
@@ -201,19 +201,19 @@ class TestRegistration:
             "name": "Test",
         }
         response = client.post("/api/auth/register", json=data)
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_register_weak_password(self, client):
         """測試弱密碼"""
         data = {"email": "test@example.com", "password": "weak", "name": "Test"}
         response = client.post("/api/auth/register", json=data)
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400]
 
     def test_register_missing_fields(self, client):
         """測試缺少必填字段"""
         data = {"email": "test@example.com"}
         response = client.post("/api/auth/register", json=data)
-        assert response.status_code in [400, 429, 500]
+        assert response.status_code == 400
 
     def test_register_empty_name(self, client):
         """測試空使用者名稱"""
@@ -223,7 +223,7 @@ class TestRegistration:
             "name": "",
         }
         response = client.post("/api/auth/register", json=data)
-        assert response.status_code in [400, 429, 500]
+        assert response.status_code == 400
 
     def test_register_sql_injection_attempt(self, client):
         """測試 SQL 注入嘗試"""
@@ -234,7 +234,7 @@ class TestRegistration:
         }
         response = client.post("/api/auth/register", json=data)
         # 應該安全處理
-        assert response.status_code in [400, 429, 500]
+        assert response.status_code == 400
 
     def test_register_xss_attempt(self, client):
         """測試 XSS 嘗試"""
@@ -245,7 +245,7 @@ class TestRegistration:
         }
         response = client.post("/api/auth/register", json=data)
         # 應該能處理或拒絕
-        assert response.status_code in [200, 201, 400, 429, 500]
+        assert response.status_code == 201
 
 
 class TestLogin:
@@ -264,31 +264,31 @@ class TestLogin:
         # 然後登入
         login_data = {"email": reg_data["email"], "password": reg_data["password"]}
         response = client.post("/api/auth/login", json=login_data)
-        assert response.status_code in [200, 500]
+        assert response.status_code in [200]
 
     def test_login_wrong_password(self, client):
         """測試錯誤密碼"""
         data = {"email": "test@example.com", "password": "WrongPassword123!@#"}
         response = client.post("/api/auth/login", json=data)
-        assert response.status_code in [401, 403, 404, 500]
+        assert response.status_code == 401
 
     def test_login_nonexistent_user(self, client):
         """測試不存在的用戶"""
         data = {"email": "nonexistent@example.com", "password": "MyS3cur3P@ssw0rd!XyZ"}
         response = client.post("/api/auth/login", json=data)
-        assert response.status_code in [401, 404, 500]
+        assert response.status_code == 401
 
     def test_login_missing_fields(self, client):
         """測試缺少字段"""
         data = {"email": "test@example.com"}
         response = client.post("/api/auth/login", json=data)
-        assert response.status_code in [400, 429, 500]
+        assert response.status_code == 400
 
     def test_login_empty_password(self, client):
         """測試空密碼"""
         data = {"email": "test@example.com", "password": ""}
         response = client.post("/api/auth/login", json=data)
-        assert response.status_code in [400, 401, 429, 500]
+        assert response.status_code == 400
 
     def test_login_brute_force_protection(self, client):
         """測試暴力破解保護（多次失敗登入）"""
@@ -297,7 +297,7 @@ class TestLogin:
         for _ in range(10):
             response = client.post("/api/auth/login", json=data)
         # 最後一次應該被限制或返回錯誤
-        assert response.status_code in [401, 403, 429, 500]
+        assert response.status_code == 401
 
 
 class TestJWTToken:
@@ -326,26 +326,26 @@ class TestJWTToken:
             verify_response = client.get(
                 "/api/auth/verify", headers={"Authorization": f"Bearer {token}"}
             )
-            assert verify_response.status_code in [200, 500]
+            assert verify_response.status_code in [200]
 
     def test_verify_invalid_token(self, client):
         """測試無效 token"""
         response = client.get(
             "/api/auth/verify", headers={"Authorization": "Bearer invalid_token_123"}
         )
-        assert response.status_code in [401, 403, 500]
+        assert response.status_code == 401
 
     def test_verify_missing_token(self, client):
         """測試缺少 token"""
         response = client.get("/api/auth/verify")
-        assert response.status_code in [401, 403, 500]
+        assert response.status_code == 401
 
     def test_verify_malformed_header(self, client):
         """測試格式錯誤的 Authorization header"""
         response = client.get(
             "/api/auth/verify", headers={"Authorization": "InvalidFormat"}
         )
-        assert response.status_code in [401, 403, 500]
+        assert response.status_code == 401
 
 
 class TestPasswordPolicy:
@@ -394,7 +394,7 @@ class TestChangePassword:
             },
         )
         if login_resp.status_code != 200:
-            pytest.skip("DB not available in test env")
+            pytest.fail("DB not available in test env")
         token = login_resp.get_json().get("token")
         return {"Authorization": f"Bearer {token}"}, email, password
 
@@ -440,7 +440,7 @@ class TestChangePassword:
             json={"old_password": "OldP@ss2026!Xy", "new_password": "NewP@ss2026!Xy"},
             headers=headers,
         )
-        assert response.status_code in [404, 500]
+        assert response.status_code in [404]
 
     def test_change_password_wrong_old_password(self, client, registered_user):
         """舊密碼錯誤應回傳 400（非 401，避免被前端誤判成 JWT 過期而強制登出）"""
@@ -490,7 +490,7 @@ class TestRequiresPasswordChange:
         )
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         db_module.users_collection.update_one(
             {"email": email}, {"$set": {"requires_password_change": True}}
@@ -584,7 +584,7 @@ class TestForgotResetPasswordFlow:
         )
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         token = "test-reset-token-12345"
         expires = datetime.now() + timedelta(hours=1)
@@ -644,7 +644,7 @@ class TestForgotResetPasswordFlow:
         import db as db_module
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         with patch("routes.auth.send_reset_email", return_value=False):
             response = client.post(
@@ -669,7 +669,7 @@ class TestForgotResetPasswordFlow:
         from datetime import datetime, timedelta
 
         if db_module.users_collection is None:
-            pytest.skip("DB not available")
+            pytest.fail("DB not available")
 
         email = f"expiredtoken{int(time.time()*1000)}@example.com"
         client.post(

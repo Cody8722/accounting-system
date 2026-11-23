@@ -48,8 +48,6 @@ def _incomes_with_desc(client, token, desc):
 class TestClientIdDedup:
     def test_same_client_id_twice_creates_one(self, client, auth_token):
         """相同 client_id 送兩次：只建一筆，第二次回 deduped + 同一 id。"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         cid = "uuid-dedup-aaa-111"
         desc = "離線同步測試-同cid"
 
@@ -68,8 +66,6 @@ class TestClientIdDedup:
 
     def test_different_client_id_creates_two(self, client, auth_token):
         """不同 client_id：各自建立、id 不同。"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         desc = "離線同步測試-異cid"
         r1 = _post(client, auth_token, _income(client_id="cid-x1", description=desc))
         r2 = _post(client, auth_token, _income(client_id="cid-x2", description=desc))
@@ -80,8 +76,6 @@ class TestClientIdDedup:
 
     def test_no_client_id_backward_compatible(self, client, auth_token):
         """不帶 client_id：維持原行為，可重複建立。"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         desc = "離線同步測試-無cid"
         r1 = _post(client, auth_token, _income(description=desc))
         r2 = _post(client, auth_token, _income(description=desc))
@@ -92,14 +86,10 @@ class TestClientIdDedup:
 
     def test_invalid_client_id_rejected(self, client, auth_token):
         """malformed client_id（過長）→ 400。"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         r = _post(client, auth_token, _income(client_id="x" * 65))
         assert r.status_code == 400
 
     def test_blank_client_id_rejected(self, client, auth_token):
         """空白 client_id → 400。"""
-        if not auth_token:
-            pytest.skip("需要認證 token")
         r = _post(client, auth_token, _income(client_id="   "))
         assert r.status_code == 400

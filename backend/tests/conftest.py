@@ -17,15 +17,39 @@ os.environ["JWT_SECRET"] = "test-jwt-secret-key-for-testing"
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-# Patch pymongo with mongomock before importing main
-@mongomock.patch(servers=(("localhost", 27017),))
-def get_app():
-    from main import app
+# REAL_MONGO_URI 有設時改連真的 MongoDB（CI 的 mongo:7.0 服務），不套 mongomock，
+# 且只跑標記 real_mongo 的測試——mongomock 驗不到唯一索引、部分索引與並發行為。
+REAL_MONGO_URI = os.environ.get("REAL_MONGO_URI")
 
-    return app
+if REAL_MONGO_URI:
+    os.environ["MONGO_URI"] = REAL_MONGO_URI
+
+    def get_app():
+        from main import app
+
+        return app
+
+else:
+    # Patch pymongo with mongomock before importing main
+    @mongomock.patch(servers=(("localhost", 27017),))
+    def get_app():
+        from main import app
+
+        return app
 
 
 app = get_app()
+
+
+def pytest_collection_modifyitems(config, items):
+    """真 Mongo 模式只跑 real_mongo；一般模式（mongomock）不收集 real_mongo。"""
+    keep, dropped = [], []
+    for item in items:
+        is_real = item.get_closest_marker("real_mongo") is not None
+        (keep if is_real == bool(REAL_MONGO_URI) else dropped).append(item)
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = keep
 
 
 @pytest.fixture(scope="session")
@@ -66,15 +90,12 @@ def registered_user(client, test_user_data):
     response = client.post("/api/auth/register", json=test_user_data)
     if response.status_code in [200, 201]:
         return test_user_data
-    return None
+    pytest.fail(f"註冊失敗：{response.status_code} {response.get_data(as_text=True)}")
 
 
 @pytest.fixture
 def auth_token(client, registered_user):
     """獲取認證 token"""
-    if not registered_user:
-        return None
-
     login_response = client.post(
         "/api/auth/login",
         json={
@@ -86,15 +107,14 @@ def auth_token(client, registered_user):
     if login_response.status_code == 200:
         data = login_response.get_json()
         return data.get("token")
-    return None
+    pytest.fail(f"登入失敗：{login_response.status_code}")
 
 
 @pytest.fixture
 def auth_headers(auth_token):
     """返回包含認證 token 的 headers"""
-    if auth_token:
-        return {"Authorization": f"Bearer {auth_token}"}
-    return {}
+    assert auth_token, "拿不到認證 token"
+    return {"Authorization": f"Bearer {auth_token}"}
 
 
 @pytest.fixture
