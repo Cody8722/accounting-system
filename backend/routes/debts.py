@@ -24,6 +24,7 @@ from extensions import (
     limiter,
     require_auth,
     validate_amount,
+    validate_date,
     validate_non_negative_amount,
     validate_objectid,
 )
@@ -278,6 +279,11 @@ def add_repayment(debt_id):
         if not valid:
             return jsonify({"error": "請輸入有效還款金額"}), 400
 
+        repay_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+        valid_date, date_err = validate_date(repay_date)
+        if not valid_date:
+            return jsonify({"error": date_err}), 400
+
         user_oid = ObjectId(request.user_id)
         existing = db.debts_collection.find_one(
             {"_id": ObjectId(debt_id), "user_id": user_oid}
@@ -289,7 +295,7 @@ def add_repayment(debt_id):
 
         repayment = {
             "amount": repay_amount,
-            "date": data.get("date", datetime.now().strftime("%Y-%m-%d")),
+            "date": repay_date,
             "note": str(data.get("note", ""))[:100],
         }
         new_paid = existing.get("paid_amount", 0) + repay_amount
@@ -359,6 +365,11 @@ def repay_member(debt_id, member_idx):
         if not valid:
             return jsonify({"error": "請輸入有效還款金額"}), 400
 
+        repay_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+        valid_date, date_err = validate_date(repay_date)
+        if not valid_date:
+            return jsonify({"error": date_err}), 400
+
         user_oid = ObjectId(request.user_id)
         existing = db.debts_collection.find_one(
             {"_id": ObjectId(debt_id), "user_id": user_oid}
@@ -393,7 +404,6 @@ def repay_member(debt_id, member_idx):
         sync_type = "income" if debt_type == "lent" else "expense"
         sync_category = "債務收回" if debt_type == "lent" else "債務償還"
         member_name = member.get("name", "")
-        repay_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
         try:
             sync_record = {
                 "type": sync_type,
@@ -410,6 +420,16 @@ def repay_member(debt_id, member_idx):
             db.accounting_records_collection.insert_one(sync_record)
         except Exception as sync_err:
             logger.error(f"成員還款同步寫入記帳失敗: {sync_err}")
+            return (
+                jsonify(
+                    {
+                        "message": "還款已記錄，但記帳同步失敗，請手動補記",
+                        "is_settled": all_settled,
+                        "sync_failed": True,
+                    }
+                ),
+                200,
+            )
 
         logger.info(
             f"成員還款 {repay_amount} (debt={debt_id}, member={member_idx}, user: {request.email})"
