@@ -225,26 +225,18 @@ class TestTypeMisuseFuzzing:
         payload = {**valid_base, "amount": bad_amount}
         assert_400(post_record(client, auth_token, payload))
 
-    def test_boolean_true_boundary(self, client, auth_token, valid_base):
+    def test_boolean_true_rejected(self, client, auth_token, valid_base):
         """
-        邊界行為文件化：amount=true
+        amount=true → 400
 
-        Python 的 float(True) == 1.0，通過 > 0 且 <= MAX_AMOUNT 的檢查，
-        因此系統會接受並建立金額為 1.0 的記錄。
-        此為 float() 的語言行為，非安全漏洞，但值得記錄。
-
-        預期回應：201（而非 400）
+        Python 的 float(True) == 1.0，舊版因此把 true 當成金額 1.0 接受。
+        這是型別誤用而不是合法輸入（前端一律送數字），2026-11 起
+        validate_amount 先擋掉布林，與 amount=false 一致回 400。
         """
         if not auth_token:
             pytest.skip("需要認證 token")
         payload = {**valid_base, "amount": True}
-        response = post_record(client, auth_token, payload)
-        # 記錄實際行為：True 被接受為 1.0
-        assert response.status_code in [
-            201,
-            200,
-            500,
-        ], f"amount=True 的邊界行為：實際狀態碼 {response.status_code}"
+        assert_400(post_record(client, auth_token, payload))
 
     def test_boolean_false_rejected(self, client, auth_token, valid_base):
         """amount=false → float(False)=0.0 → 金額必須 > 0 → 400"""

@@ -52,6 +52,19 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("stats", __name__)
 
 
+def _last_months(count, now=None):
+    """回傳以 now（預設現在）所在月份結尾的最近 count 個月，舊→新，格式 YYYY-MM。"""
+    now = now or datetime.now()
+    year, month = now.year, now.month
+    months = []
+    for _ in range(count):
+        months.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            month, year = 12, year - 1
+    return list(reversed(months))
+
+
 @bp.route("/admin/api/accounting/stats", methods=["GET"])
 @limiter.limit("100 per minute")
 @require_auth
@@ -241,27 +254,28 @@ def get_monthly_trends():
         if not ok:
             return err
 
+        # 固定回「以本月結尾的最近 N 個月」（沒資料的月份補 0）。查詢也只取這段期間，
+        # 不能「先依月份升冪排序再取前 N 筆」——那樣歷史超過 N 個月就會拿到最舊的月份。
+        all_months = _last_months(months_count)
+        date_range = {"$gte": f"{all_months[0]}-01"}
+
         income_pipeline = [
-            {"$match": {**base_query, "type": "income"}},
+            {"$match": {**base_query, "type": "income", "date": date_range}},
             {
                 "$group": {
                     "_id": {"$substr": ["$date", 0, 7]},
                     "total": {"$sum": "$amount"},
                 }
             },
-            {"$sort": {"_id": 1}},
-            {"$limit": months_count},
         ]
         expense_pipeline = [
-            {"$match": {**base_query, "type": "expense"}},
+            {"$match": {**base_query, "type": "expense", "date": date_range}},
             {
                 "$group": {
                     "_id": {"$substr": ["$date", 0, 7]},
                     "total": {"$sum": "$amount"},
                 }
             },
-            {"$sort": {"_id": 1}},
-            {"$limit": months_count},
         ]
 
         income_data = list(db.accounting_records_collection.aggregate(income_pipeline))
@@ -271,24 +285,6 @@ def get_monthly_trends():
 
         income_dict = {item["_id"]: item["total"] for item in income_data}
         expense_dict = {item["_id"]: item["total"] for item in expense_data}
-
-        all_months = sorted(set(income_dict.keys()) | set(expense_dict.keys()))
-
-        if len(all_months) < months_count:
-            current = datetime.now()
-            for i in range(months_count):
-                year = current.year
-                month = current.month - i
-                while month <= 0:
-                    month += 12
-                    year -= 1
-                month_str = f"{year:04d}-{month:02d}"
-                if month_str not in all_months:
-                    all_months.append(month_str)
-
-            all_months = sorted(list(set(all_months)))
-
-        all_months = all_months[-months_count:]
 
         response_data = {
             "months": all_months,
@@ -361,7 +357,8 @@ def get_period_comparison():
             cur_label = str(now.year)
             prev_label = str(now.year - 1)
 
-        cur_end = now
+        # 查詢用 $lt（不含上界），所以上界要設成「明天 0 點」，今天的記錄才會算進本期
+        cur_end = datetime(now.year, now.month, now.day) + timedelta(days=1)
         user_oid = ObjectId(request.user_id)
 
         def aggregate_period(start, end):
